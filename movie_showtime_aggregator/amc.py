@@ -48,9 +48,7 @@ class AMCClient:
         self, theatre_id: int, show_date: date, page_number: int
     ) -> dict[str, object]:
         params = urllib.parse.urlencode({"page-number": page_number, "page-size": PAGE_SIZE})
-        url = (
-            f"{AMC_BASE_URL}/theatres/{theatre_id}/showtimes/{show_date.isoformat()}?{params}"
-        )
+        url = f"{AMC_BASE_URL}/theatres/{theatre_id}/showtimes/{show_date.isoformat()}?{params}"
         request = urllib.request.Request(
             url,
             headers={
