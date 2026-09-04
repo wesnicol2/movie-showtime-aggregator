@@ -51,9 +51,7 @@ def test_normalize_ignores_missing_or_invalid_runtime():
         is None
     )
     assert (
-        normalize_showtime(
-            raw_showtime(runTime=0), theatre_name="AMC Test 10", preshow_minutes=25
-        )
+        normalize_showtime(raw_showtime(runTime=0), theatre_name="AMC Test 10", preshow_minutes=25)
         is None
     )
 
