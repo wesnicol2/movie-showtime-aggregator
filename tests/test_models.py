@@ -19,9 +19,7 @@ def raw_showtime(**overrides):
 
 
 def test_normalize_derives_actual_start_and_end():
-    screening = normalize_showtime(
-        raw_showtime(), theatre_name="AMC Test 10", preshow_minutes=25
-    )
+    screening = normalize_showtime(raw_showtime(), theatre_name="AMC Test 10", preshow_minutes=25)
 
     assert screening is not None
     assert screening.advertised_start == datetime(2026, 9, 4, 18, 0)
