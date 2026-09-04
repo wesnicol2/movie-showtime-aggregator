@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import threading
-import time
 from dataclasses import dataclass
 from datetime import date, datetime, time as clock_time
+from time import monotonic
 
 from .amc import AMCClient
 from .config import Settings
@@ -28,7 +28,7 @@ class ScreeningService:
         self._lock = threading.Lock()
 
     def get_screenings(self, show_date: date) -> list[Screening]:
-        now = time.monotonic()
+        now = monotonic()
         with self._lock:
             cached = self._cache.get(show_date)
             if cached is not None and now - cached[0] < self.settings.cache_ttl_seconds:
