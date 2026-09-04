@@ -32,5 +32,13 @@ def test_probe_fandango_movie_shape():
 
     movies = payload.get("viewModel", {}).get("movies", [])
     assert movies, payload
-    first = movies[0]
-    raise AssertionError(json.dumps(first, indent=2)[:20000])
+    summary = [
+        {
+            "id": movie.get("id"),
+            "title": movie.get("title"),
+            "runtime": movie.get("runtime"),
+            "mopURI": movie.get("mopURI"),
+        }
+        for movie in movies
+    ]
+    raise AssertionError(json.dumps(summary, indent=2))
