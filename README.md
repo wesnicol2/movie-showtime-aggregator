@@ -1,7 +1,9 @@
 # movie-showtime-aggregator
 
-A containerized Python service. Describe what it does here — one or two
-sentences, from the outside in.
+A deliberately small AMC showtime dashboard: one page, one screening list, and
+filters for movie, theater, format, estimated movie start, and estimated end.
+AMC advertised showtimes are adjusted by a configurable preshow estimate
+(default: 25 minutes), then movie runtime is used to derive the end time.
 
 > **Fresh from the template?** Work through
 > [docs/new-repo-checklist.md](docs/new-repo-checklist.md) first. It covers the
@@ -9,46 +11,56 @@ sentences, from the outside in.
 
 ## Run it
 
+The app needs an AMC developer vendor key. Request access at the AMC developer
+portal, then put the key in `.env` as `AMC_VENDOR_KEY`.
+
 CI publishes the image to GHCR, so there's nothing to build:
 
 ```bash
 docker run -d \
   --name movie-showtime-aggregator \
   -p 8080:8000 \
-  -v /mnt/user/appdata/movie-showtime-aggregator/data:/srv/data \
+  -e AMC_VENDOR_KEY=your-key \
   ghcr.io/wesnicol2/movie-showtime-aggregator:latest
 ```
 
-Then open `http://<host>:8080/health`. Or use the compose file, which mounts
-`./data` and reads `.env`:
+Then open `http://<host>:8080/`. Health is at `http://<host>:8080/health`.
+
+Or use the compose file:
 
 ```bash
-cp .env.example .env      # pick host ports that aren't already taken
+cp .env.example .env
 docker compose up -d
 ```
 
 That brings up **two** services: production (`:latest`, `$PROD_PORT`) and test
-(`:test`, `$TEST_PORT`, its own `./data-test` volume). For just the one, name
-it: `docker compose up -d <service>`. The two environments are described in
+(`:test`, `$TEST_PORT`). The two environments are described in
 [CONTRIBUTING.md](CONTRIBUTING.md).
-
-Mount `/srv/data` somewhere persistent if the service caches anything worth
-keeping across restarts.
 
 ### Configuration
 
-| Variable    | Required | Default | Purpose                          |
-| ----------- | -------- | ------- | -------------------------------- |
-| `PROD_PORT` | no       | `8080`  | Host port for the production container |
-| `TEST_PORT` | no       | `8081`  | Host port for the test container       |
-| `TZ`        | no       | UTC     | Container timezone               |
+| Variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `AMC_VENDOR_KEY` | yes | — | AMC developer API credential |
+| `AMC_THEATRES` | no | four Phoenix AMC theaters | Comma-separated `Theatre Name:id` entries |
+| `AMC_PRESHOW_MINUTES` | no | `25` | Minutes added to AMC's advertised showtime |
+| `CACHE_TTL_SECONDS` | no | `300` | In-memory AMC response cache lifetime |
+| `PROD_PORT` | no | `8080` | Host port for production |
+| `TEST_PORT` | no | `8081` | Host port for test |
+| `TZ` | no | `America/Phoenix` in `.env.example` | Container timezone |
+
+Default theaters are AMC Arizona Center 24, AMC DINE-IN Esplanade 14,
+AMC DINE-IN Desert Ridge 18, and AMC Ahwatukee 24. Override `AMC_THEATRES` to
+change the set without changing code.
 
 ## Run from source
 
 ```bash
-pip install -r requirements.txt
+export AMC_VENDOR_KEY=your-key
 python -m movie_showtime_aggregator.api --host 0.0.0.0 --port 8000
 ```
+
+Then open `http://localhost:8000/`.
 
 ## Test it
 
@@ -58,20 +70,25 @@ ruff check && ruff format --check
 python -m pytest tests/
 ```
 
-CI runs exactly these on every push, and a red check blocks the merge.
+CI runs these on every push, and a red check blocks promotion.
 
 ## Endpoints
 
-`/health` — returns `{"status": "ok"}`. Everything else is yours to add; see
-`ROUTES` in `movie_showtime_aggregator/api.py`.
+- `/` — single-page showtime dashboard.
+- `/api/screenings` — normalized AMC screenings and filter facets. Optional
+  query params: repeated `movie`, `theatre`, and `format`, plus `start_after`,
+  `start_before`, `end_by`, and `date` (`YYYY-MM-DD`).
+- `/health` — returns `{"status": "ok"}`.
 
 ## Project structure
 
-- `movie_showtime_aggregator/` — the application. `api.py` is the entrypoint (the `Dockerfile`'s
-  `CMD`).
-- `tests/` — unit tests.
-- `docs/` — long-form docs and the new-repo checklist.
-- `data/` — runtime state, git-ignored; mount this.
+- `movie_showtime_aggregator/api.py` — WSGI entrypoint and HTTP routes.
+- `movie_showtime_aggregator/amc.py` — AMC REST client.
+- `movie_showtime_aggregator/models.py` — normalization and time derivation.
+- `movie_showtime_aggregator/service.py` — caching, aggregation, facets, filters.
+- `movie_showtime_aggregator/static/` — the one-page UI.
+- `tests/` — unit/API tests.
+- `docs/` — long-form specs and the new-repo checklist.
 
 ## Docs
 
