@@ -42,9 +42,7 @@ def parse_theatres(value: str) -> tuple[Theatre, ...]:
     for part in value.split(","):
         name, separator, raw_id = part.strip().rpartition(":")
         if not separator or not name.strip() or not raw_id.strip().isdigit():
-            raise ValueError(
-                "AMC_THEATRES must be comma-separated 'Theatre Name:id' entries"
-            )
+            raise ValueError("AMC_THEATRES must be comma-separated 'Theatre Name:id' entries")
         parsed.append(Theatre(name.strip(), int(raw_id.strip())))
 
     if not parsed:
