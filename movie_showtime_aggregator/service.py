@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass
-from datetime import date, datetime, time as clock_time
+from datetime import date, datetime, time
 from time import monotonic
 
 from .amc import AMCClient
@@ -83,18 +83,18 @@ def _selected(value: str, selected: frozenset[str]) -> bool:
     return not selected or value in selected
 
 
-def _parse_time(value: str | None) -> clock_time | None:
+def _parse_time(value: str | None) -> time | None:
     if value is None:
         return None
     try:
-        return clock_time.fromisoformat(value)
+        return time.fromisoformat(value)
     except ValueError as exc:
         raise ValueError(f"Invalid time: {value}") from exc
 
 
-def _time_at_or_after(value: datetime, boundary: clock_time | None) -> bool:
+def _time_at_or_after(value: datetime, boundary: time | None) -> bool:
     return boundary is None or value.time() >= boundary
 
 
-def _time_at_or_before(value: datetime, boundary: clock_time | None) -> bool:
+def _time_at_or_before(value: datetime, boundary: time | None) -> bool:
     return boundary is None or value.time() <= boundary
