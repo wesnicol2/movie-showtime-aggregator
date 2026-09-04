@@ -25,7 +25,7 @@ class Settings:
     cache_ttl_seconds: int = 300
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         return cls(
             vendor_key=os.getenv("AMC_VENDOR_KEY", "").strip(),
             theatres=parse_theatres(os.getenv("AMC_THEATRES", "")),
