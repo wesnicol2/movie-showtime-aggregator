@@ -1,61 +1,107 @@
-"""Minimal stdlib WSGI service.
-
-No framework on purpose: this exists so that lint, tests, the Docker build and
-the GHCR publish are all genuinely exercised on the day the repo is created,
-without adding a runtime dependency you may not want. Replace the routing table
-with your own; `/health` is worth keeping so the container has a liveness probe.
-
-Run it directly:
-
-    python -m movie_showtime_aggregator.api --host 0.0.0.0 --port 8000
-"""
-
 from __future__ import annotations
 
 import argparse
 import json
 from collections.abc import Callable, Iterable
+from datetime import date
+from pathlib import Path
+from urllib.parse import parse_qs
 from wsgiref.simple_server import make_server
 
+from .amc import AMCClient, AMCError
+from .config import Settings
+from .service import ScreeningFilters, ScreeningService, facets, filter_screenings
+
 JSON_HEADERS = [("Content-Type", "application/json; charset=utf-8")]
+STATIC_DIR = Path(__file__).with_name("static")
+STATIC_ROUTES = {
+    "/": ("index.html", "text/html; charset=utf-8"),
+    "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/styles.css": ("styles.css", "text/css; charset=utf-8"),
+}
+
+_SETTINGS = Settings.from_env()
+_SERVICE = ScreeningService(AMCClient(_SETTINGS.vendor_key), _SETTINGS)
 
 
 def health() -> dict[str, str]:
-    """Payload for GET /health. Keep this cheap -- it is polled."""
     return {"status": "ok"}
 
 
-# path -> handler returning a JSON-serializable payload.
-ROUTES: dict[str, Callable[[], object]] = {
-    "/health": health,
-}
-
-
 def application(environ: dict, start_response: Callable) -> Iterable[bytes]:
-    """WSGI entrypoint. Dispatches on PATH_INFO, JSON in and JSON out."""
-    path = environ.get("PATH_INFO", "/")
+    path = environ.get("PATH_INFO", "/").rstrip("/") or "/"
     method = environ.get("REQUEST_METHOD", "GET")
 
     if method not in {"GET", "HEAD"}:
-        return _respond(start_response, 405, {"error": "method not allowed"})
+        return _json_response(start_response, 405, {"error": "method not allowed"}, method)
 
-    handler = ROUTES.get(path.rstrip("/") or "/")
-    if handler is None:
-        return _respond(start_response, 404, {"error": "not found", "path": path})
+    if path == "/health":
+        return _json_response(start_response, 200, health(), method)
+    if path == "/api/screenings":
+        return _screenings_response(environ, start_response, method)
+    if path in STATIC_ROUTES:
+        return _static_response(start_response, path, method)
+    return _json_response(start_response, 404, {"error": "not found", "path": path}, method)
 
-    return _respond(start_response, 200, handler())
+
+def _screenings_response(environ: dict, start_response: Callable, method: str) -> Iterable[bytes]:
+    query = parse_qs(environ.get("QUERY_STRING", ""), keep_blank_values=False)
+    raw_date = query.get("date", [None])[0]
+    try:
+        show_date = date.fromisoformat(raw_date) if raw_date else date.today()
+        all_screenings = _SERVICE.get_screenings(show_date)
+        filters = ScreeningFilters(
+            movies=frozenset(query.get("movie", [])),
+            theatres=frozenset(query.get("theatre", [])),
+            formats=frozenset(query.get("format", [])),
+            start_after=query.get("start_after", [None])[0],
+            start_before=query.get("start_before", [None])[0],
+            end_by=query.get("end_by", [None])[0],
+        )
+        visible = filter_screenings(all_screenings, filters)
+    except (ValueError, AMCError) as exc:
+        status = 503 if isinstance(exc, AMCError) else 400
+        return _json_response(start_response, status, {"error": str(exc)}, method)
+
+    payload = {
+        "date": show_date.isoformat(),
+        "preshow_minutes": _SETTINGS.preshow_minutes,
+        "count": len(visible),
+        "total_count": len(all_screenings),
+        "facets": facets(all_screenings),
+        "screenings": [screening.to_dict() for screening in visible],
+    }
+    return _json_response(start_response, 200, payload, method)
 
 
-def _respond(start_response: Callable, status: int, payload: object) -> Iterable[bytes]:
+def _static_response(start_response: Callable, path: str, method: str) -> Iterable[bytes]:
+    filename, content_type = STATIC_ROUTES[path]
+    body = (STATIC_DIR / filename).read_bytes()
+    start_response(
+        "200 OK",
+        [("Content-Type", content_type), ("Content-Length", str(len(body)))],
+    )
+    return [] if method == "HEAD" else [body]
+
+
+def _json_response(
+    start_response: Callable, status: int, payload: object, method: str
+) -> Iterable[bytes]:
     body = json.dumps(payload).encode("utf-8")
-    reason = {200: "OK", 404: "Not Found", 405: "Method Not Allowed"}[status]
+    reason = {
+        200: "OK",
+        400: "Bad Request",
+        404: "Not Found",
+        405: "Method Not Allowed",
+        503: "Service Unavailable",
+    }[status]
     headers = [*JSON_HEADERS, ("Content-Length", str(len(body)))]
     start_response(f"{status} {reason}", headers)
-    return [body]
+    return [] if method == "HEAD" else [body]
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the service.")
+    parser = argparse.ArgumentParser(description="Run the movie showtime aggregator.")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
