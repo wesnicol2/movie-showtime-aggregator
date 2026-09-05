@@ -117,10 +117,7 @@ def test_api_passes_chain_previews_location_and_returns_chain_facets(monkeypatch
 
     code, payload = call(
         "/api/screenings",
-        query=(
-            "date=2026-09-04&preview=AMC%3A25&movie=Movie+A&end_by=21%3A00"
-            "&zip=85281&radius=15"
-        ),
+        query=("date=2026-09-04&preview=AMC%3A25&movie=Movie+A&end_by=21%3A00&zip=85281&radius=15"),
     )
 
     assert code == 200
@@ -154,9 +151,7 @@ def test_settings_cookie_takes_precedence_over_preview_query(monkeypatch):
 def test_location_cookie_takes_precedence_over_query(monkeypatch):
     service = StubService([sample_screening()])
     monkeypatch.setattr(api, "_SERVICE", service)
-    location_cookie = (
-        "movie_location=%7B%22zipCode%22%3A%2285004%22%2C%22radiusMiles%22%3A30%7D"
-    )
+    location_cookie = "movie_location=%7B%22zipCode%22%3A%2285004%22%2C%22radiusMiles%22%3A30%7D"
 
     code, payload = call(
         "/api/screenings",
