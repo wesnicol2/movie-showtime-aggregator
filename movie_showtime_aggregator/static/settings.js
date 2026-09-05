@@ -163,7 +163,42 @@ function collectPreviewMinutes() {
   return previewMinutes;
 }
 
-async function loadSettingsPage() {
+async function loadSharedSettings() {
+  const response = await fetch("/api/settings");
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+  renderSharedSettings(payload);
+  return payload;
+}
+
+function renderSharedSettings(settings) {
+  document.getElementById("home-address").value = settings.home_address || "";
+  document.getElementById("home-match").textContent = settings.home_display_name || "Not configured";
+  document.getElementById("amc-a-list").checked = settings.amc_a_list === true;
+
+  const amc = document.getElementById("amc-key");
+  const omdb = document.getElementById("omdb-key");
+  amc.value = "";
+  omdb.value = "";
+  amc.placeholder = settings.amc_vendor_key_set ? "Saved · enter a new key to replace" : "Not configured";
+  omdb.placeholder = settings.omdb_api_key_set ? "Saved · enter a new key to replace" : "Not configured";
+  document.getElementById("clear-amc-key").disabled = !settings.amc_vendor_key_set;
+  document.getElementById("clear-omdb-key").disabled = !settings.omdb_api_key_set;
+}
+
+async function saveSharedSettings(changes) {
+  const response = await fetch("/api/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(changes),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+  renderSharedSettings(payload);
+  return payload;
+}
+
+async function loadScreeningSettings() {
   const error = document.getElementById("settings-error");
   error.hidden = true;
   const storedPreviewMinutes = readPreviewMinutes();
@@ -190,6 +225,17 @@ async function loadSettingsPage() {
   }
 }
 
+async function loadSettingsPage() {
+  try {
+    await loadSharedSettings();
+  } catch (err) {
+    const error = document.getElementById("settings-error");
+    error.textContent = err.message;
+    error.hidden = false;
+  }
+  await loadScreeningSettings();
+}
+
 document.getElementById("save-location").addEventListener("click", async () => {
   const location = collectLocation();
   if (location === null) return;
@@ -197,8 +243,30 @@ document.getElementById("save-location").addEventListener("click", async () => {
   saveLocation(location);
   const status = document.getElementById("location-status");
   status.textContent = "Saved · refreshing theaters…";
-  await loadSettingsPage();
+  await loadScreeningSettings();
   status.textContent = "Saved";
+});
+
+document.getElementById("save-home").addEventListener("click", async () => {
+  const status = document.getElementById("home-status");
+  status.textContent = "Saving…";
+  try {
+    await saveSharedSettings({ home_address: document.getElementById("home-address").value.trim() });
+    status.textContent = "Saved";
+  } catch (err) {
+    status.textContent = err.message;
+  }
+});
+
+document.getElementById("clear-home").addEventListener("click", async () => {
+  const status = document.getElementById("home-status");
+  status.textContent = "Clearing…";
+  try {
+    await saveSharedSettings({ home_address: "" });
+    status.textContent = "Cleared";
+  } catch (err) {
+    status.textContent = err.message;
+  }
 });
 
 document.getElementById("save-settings").addEventListener("click", () => {
@@ -213,6 +281,45 @@ document.getElementById("clear-settings").addEventListener("click", () => {
   for (const input of document.querySelectorAll(".preview-settings-row input")) input.value = "";
   savePreviewMinutes({});
   document.getElementById("settings-status").textContent = "Preview times cleared";
+});
+
+document.getElementById("save-integrations").addEventListener("click", async () => {
+  const status = document.getElementById("integration-status");
+  const changes = { amc_a_list: document.getElementById("amc-a-list").checked };
+  const amcKey = document.getElementById("amc-key").value.trim();
+  const omdbKey = document.getElementById("omdb-key").value.trim();
+  if (amcKey) changes.amc_vendor_key = amcKey;
+  if (omdbKey) changes.omdb_api_key = omdbKey;
+
+  status.textContent = "Saving…";
+  try {
+    await saveSharedSettings(changes);
+    status.textContent = "Saved";
+  } catch (err) {
+    status.textContent = err.message;
+  }
+});
+
+document.getElementById("clear-amc-key").addEventListener("click", async () => {
+  const status = document.getElementById("integration-status");
+  status.textContent = "Clearing AMC key…";
+  try {
+    await saveSharedSettings({ clear_amc_vendor_key: true });
+    status.textContent = "AMC key cleared";
+  } catch (err) {
+    status.textContent = err.message;
+  }
+});
+
+document.getElementById("clear-omdb-key").addEventListener("click", async () => {
+  const status = document.getElementById("integration-status");
+  status.textContent = "Clearing OMDb key…";
+  try {
+    await saveSharedSettings({ clear_omdb_api_key: true });
+    status.textContent = "OMDb key cleared";
+  } catch (err) {
+    status.textContent = err.message;
+  }
 });
 
 loadSettingsPage();
