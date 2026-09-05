@@ -12,12 +12,15 @@ from movie_showtime_aggregator.location import GeoPoint
 
 
 def test_adult_ticket_price_includes_reported_tax():
-    assert _ticket_price(
-        [
-            {"priceType": "Child", "price": 8, "tax": 1},
-            {"priceType": "Adult", "price": 12.5, "tax": 1.25},
-        ]
-    ) == 13.75
+    assert (
+        _ticket_price(
+            [
+                {"priceType": "Child", "price": 8, "tax": 1},
+                {"priceType": "Adult", "price": 12.5, "tax": 1.25},
+            ]
+        )
+        == 13.75
+    )
 
 
 def test_noalist_attribute_is_detected_from_official_showtime_attributes():
