@@ -106,14 +106,20 @@ def test_start_filters_respect_next_day_actual_start():
         end="2026-09-05T02:00:00",
     )
 
-    assert filter_screenings(
-        [after_midnight],
-        ScreeningFilters(start_after="19:00"),
-    ) == [after_midnight]
-    assert filter_screenings(
-        [after_midnight],
-        ScreeningFilters(start_before="23:00"),
-    ) == []
+    assert (
+        filter_screenings(
+            [after_midnight],
+            ScreeningFilters(start_after="19:00"),
+        )
+        == [after_midnight]
+    )
+    assert (
+        filter_screenings(
+            [after_midnight],
+            ScreeningFilters(start_before="23:00"),
+        )
+        == []
+    )
 
 
 def test_unknown_times_are_visible_without_time_filters():
