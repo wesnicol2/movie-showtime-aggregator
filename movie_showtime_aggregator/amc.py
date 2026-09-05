@@ -214,9 +214,13 @@ def _parse_theatre(payload: dict[str, object], theatre_id: int) -> AMCTheatre:
     if isinstance(location, dict):
         latitude = _float(location.get("latitude"))
         longitude = _float(location.get("longitude"))
-        if latitude is not None and longitude is not None:
-            if -90 <= latitude <= 90 and -180 <= longitude <= 180:
-                point = GeoPoint(latitude, longitude)
+        if (
+            latitude is not None
+            and longitude is not None
+            and -90 <= latitude <= 90
+            and -180 <= longitude <= 180
+        ):
+            point = GeoPoint(latitude, longitude)
     return AMCTheatre(theatre_id=theatre_id, name=name, point=point)
 
 
