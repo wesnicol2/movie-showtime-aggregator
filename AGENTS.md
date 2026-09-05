@@ -25,6 +25,10 @@ dimension, using the familiar Excel table pattern:
 - choose exact values with checkboxes;
 - use type-aware rules such as contains/equals for text or before/after for time.
 
+Application configuration does not belong in those filter menus. Chain preview
+minutes live on a separate Settings page so table controls stay focused on the
+data currently being viewed.
+
 The app keeps three times distinct:
 
 - **listed start** — the showtime published by the theater;
@@ -55,8 +59,19 @@ filter/sort surface. All columns should get the same basic affordance; variation
 comes only from data type. Text columns get text operators, time columns get time
 operators, and all columns get exact-value checkboxes.
 
-The Chain column has one intentional extension: its menu also owns preview-minute
-configuration because preview behavior is a property of theater chains.
+Do not put application preferences into a column filter menu. Settings and table
+filtering are intentionally separate concepts.
+
+### Preview timing belongs on Settings
+
+`/settings` is the single user-facing place to configure preview/trailer minutes
+for theater chains. Values are browser-local and persist across reloads. The
+Settings page stores them in `localStorage` and mirrors them into a browser cookie
+so `/api/screenings` can apply the configured chain timing before returning
+calculated start/end fields.
+
+The settings cookie is authoritative for browser requests. Direct API consumers
+without that cookie can still use `preview=Chain:minutes` query parameters.
 
 ### Keep table filtering client-side
 
@@ -70,17 +85,21 @@ still be used directly and those semantics remain independently testable.
 
 ### Saved Views stay local for now
 
-A Saved View captures column filters, sort order, and chain preview-minute
-settings. Saved Views use browser `localStorage`; they do not justify an account,
+Saved Views are for table state: useful filter/sort combinations that can be
+reapplied quickly. They use browser `localStorage`; they do not justify an account,
 database, or backend persistence layer yet. Treat them as convenience state on
 that browser, not portable user profile data.
+
+Preview timing is a global browser preference and conceptually belongs to
+Settings, not to a Saved View. Older browser-local views may still contain legacy
+preview state, but saved Settings take precedence at the API boundary.
 
 ### Preview rules belong to chains and are applied after caching
 
 `ScreeningService` caches normalized upstream screenings with actual/end times
-unknown. Preview minutes supplied by the browser are then applied per chain.
-This means changing a preview value does not require another Fandango request;
-it only recalculates against cached market data.
+unknown. Preview minutes from Settings are then applied per chain. This means
+changing a preview value does not require another Fandango request; it only
+recalculates against cached market data.
 
 ### Unknown time is a first-class state
 
@@ -133,11 +152,14 @@ do not deploy; running verification happens on Test.
 - The first UI used standalone filter panels. The product direction changed to
   an Excel-style table where headers own filtering and sorting; do not recreate
   the old panel UI.
+- Preview configuration briefly lived inside the Chain filter dropdown. It was
+  intentionally moved to `/settings`; do not put app configuration back into
+  table filters.
 
 ## Things deliberately not done
 
 - No geolocation, travel time, or leave-by calculation in MVP.
-- No accounts or server-side saved-view persistence.
+- No accounts or server-side saved-view/settings persistence.
 - No ratings or recommendation engine.
 - No seat maps or ticket purchasing.
 - No frontend framework or JavaScript build toolchain.
