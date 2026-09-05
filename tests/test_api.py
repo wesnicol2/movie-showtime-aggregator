@@ -118,11 +118,12 @@ def test_api_passes_chain_previews_and_returns_chain_facets(monkeypatch):
 def test_settings_cookie_takes_precedence_over_preview_query(monkeypatch):
     service = StubService([sample_screening()])
     monkeypatch.setattr(api, "_SERVICE", service)
+    settings_cookie = 'movie_preview_minutes=%7B%22AMC%22%3A25%7D'
 
     code, payload = call(
         "/api/screenings",
         query="date=2026-09-04&preview=AMC%3A10",
-        cookie='movie_preview_minutes=%7B%22AMC%22%3A25%7D',
+        cookie=settings_cookie,
     )
 
     assert code == 200
@@ -133,11 +134,12 @@ def test_settings_cookie_takes_precedence_over_preview_query(monkeypatch):
 def test_empty_settings_cookie_keeps_preview_times_unknown(monkeypatch):
     service = StubService([sample_screening()])
     monkeypatch.setattr(api, "_SERVICE", service)
+    settings_cookie = "movie_preview_minutes=%7B%7D"
 
     code, _ = call(
         "/api/screenings",
         query="date=2026-09-04&preview=AMC%3A10",
-        cookie="movie_preview_minutes=%7B%7D",
+        cookie=settings_cookie,
     )
 
     assert code == 200
