@@ -189,7 +189,7 @@ function timeUntil(timestamp) {
 
 function setUsageProgress(id, percent) {
   const progress = document.getElementById(id);
-  if (Number.isFinite(Number(percent))) {
+  if (percent != null && Number.isFinite(Number(percent))) {
     progress.value = Math.max(0, Math.min(100, Number(percent)));
   } else {
     progress.removeAttribute("value");
@@ -226,8 +226,12 @@ function renderProviderUsage(settings) {
     setUsageProgress("amc-usage-progress", null);
     amcOutput.textContent = "Not configured";
   } else {
-    const providerPercent = Number(amc.provider_rate_limit?.percent_used);
-    setUsageProgress("amc-usage-progress", Number.isFinite(providerPercent) ? providerPercent : null);
+    const rawProviderPercent = amc.provider_rate_limit?.percent_used;
+    const providerPercent = rawProviderPercent == null ? null : Number(rawProviderPercent);
+    setUsageProgress(
+      "amc-usage-progress",
+      Number.isFinite(providerPercent) ? providerPercent : null,
+    );
     const providerText = providerWindowText(amc.provider_rate_limit);
     const quotaText = providerText
       ? providerText.slice(3)
