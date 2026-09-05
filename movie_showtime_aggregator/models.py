@@ -35,6 +35,7 @@ class Screening:
     imdb_url: str
     rotten_tomatoes_url: str
     metacritic_url: str
+    route_source_url: str
     purchase_url: str
 
     def to_dict(self) -> dict[str, object]:
@@ -99,6 +100,7 @@ def normalize_showtime(raw: dict[str, object]) -> Screening | None:
         imdb_url="",
         rotten_tomatoes_url="",
         metacritic_url="",
+        route_source_url="",
         purchase_url=str(raw.get("purchaseUrl") or ""),
     )
 
@@ -113,6 +115,7 @@ def apply_preview_minutes(screening: Screening, preview_minutes: int | None) -> 
             drive_home_minutes=None,
             leave_home=None,
             home_arrival=None,
+            route_source_url="",
         )
 
     actual_start = screening.advertised_start + timedelta(minutes=preview_minutes)
@@ -129,6 +132,7 @@ def apply_preview_minutes(screening: Screening, preview_minutes: int | None) -> 
         drive_home_minutes=None,
         leave_home=None,
         home_arrival=None,
+        route_source_url="",
     )
 
 
