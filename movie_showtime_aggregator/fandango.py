@@ -10,6 +10,14 @@ from datetime import date
 from .config import Theatre
 
 FANDANGO_BASE_URL = "https://www.fandango.com"
+FANDANGO_USER_AGENT = " ".join(
+    (
+        "Mozilla/5.0 (X11; Linux x86_64)",
+        "AppleWebKit/537.36",
+        "Chrome/150",
+        "Safari/537.36",
+    )
+)
 
 
 class FandangoError(RuntimeError):
@@ -39,10 +47,7 @@ class FandangoClient:
             headers={
                 "Accept": "*/*",
                 "Accept-Language": "en-US,en;q=0.9",
-                "User-Agent": (
-                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                    "Chrome/150 Safari/537.36"
-                ),
+                "User-Agent": FANDANGO_USER_AGENT,
                 "X-Requested-With": "XMLHttpRequest",
                 "Referer": referer,
             },
