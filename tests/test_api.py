@@ -210,6 +210,7 @@ def test_api_passes_chain_previews_location_and_returns_chain_facets(monkeypatch
     assert code == 200
     assert service.preview_minutes_by_chain == {"AMC": 25}
     assert service.location == ("85281", 15)
+    assert payload["enrichment_enabled"] is True
     assert payload["count"] == 1
     assert payload["total_count"] == 2
     assert payload["preview_minutes_by_chain"] == {"AMC": 25}
@@ -218,6 +219,37 @@ def test_api_passes_chain_previews_location_and_returns_chain_facets(monkeypatch
     assert payload["screenings"][0]["distance_miles"] == 4.2
     assert payload["facets"]["chains"] == ["AMC", "Harkins Theatres"]
     assert payload["preferences"]["amc_vendor_key_set"] is False
+
+
+def test_api_can_skip_optional_enrichment(monkeypatch):
+    service = StubService([sample_screening()])
+    monkeypatch.setattr(api, "_SERVICE", service)
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("optional enrichment should not run")
+
+    monkeypatch.setattr(api, "enrich_movie_metadata", fail_if_called)
+    monkeypatch.setattr(api, "enrich_amc_details", fail_if_called)
+    monkeypatch.setattr(api, "enrich_travel_times", fail_if_called)
+
+    code, payload = call(
+        "/api/screenings",
+        query="date=2026-09-04&zip=85004&radius=25&enrich=0",
+    )
+
+    assert code == 200
+    assert payload["enrichment_enabled"] is False
+    assert payload["count"] == 1
+    assert payload["facets"]["chains"] == ["AMC"]
+
+
+def test_invalid_enrichment_flag_is_400(monkeypatch):
+    monkeypatch.setattr(api, "_SERVICE", StubService([sample_screening()]))
+
+    code, payload = call("/api/screenings", query="date=2026-09-04&enrich=maybe")
+
+    assert code == 400
+    assert "enrich must be true or false" in payload["error"]
 
 
 def test_settings_cookie_takes_precedence_over_preview_query(monkeypatch):
