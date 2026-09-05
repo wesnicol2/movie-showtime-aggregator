@@ -13,14 +13,17 @@
         <p class="eyebrow">MOVIE SHOWTIMES</p>
         <h1>Settings</h1>
       </div>
-      <a class="settings-link" href="/">Back to screenings</a>
+      <nav class="page-links" aria-label="Pages">
+        <a class="settings-link" href="/movies">Movie selection</a>
+        <a class="settings-link" href="/">Back to screenings</a>
+      </nav>
     </header>
 
     <section class="settings-card">
       <div class="settings-heading">
         <div>
-          <h2>Location</h2>
-          <p>Choose the center ZIP code and maximum straight-line distance for theaters shown in the table.</p>
+          <h2>Theater search</h2>
+          <p>Choose the center ZIP code and maximum straight-line distance for theaters shown in this browser. These are browser-local preferences.</p>
         </div>
       </div>
 
@@ -36,16 +39,42 @@
       </div>
 
       <div class="settings-actions">
-        <button id="save-location" class="primary-button" type="button">Save location</button>
+        <button id="save-location" class="primary-button" type="button">Save theater search</button>
         <span id="location-status" role="status"></span>
       </div>
     </section>
 
-    <section class="settings-card" style="margin-top: 1rem;">
+    <section class="settings-card settings-spaced">
+      <div class="settings-heading">
+        <div>
+          <h2>Home & travel</h2>
+          <p>Your home address is geocoded once and saved in shared server storage. It is used to estimate Leave home and Back home for screenings with known actual start/end times.</p>
+        </div>
+      </div>
+
+      <div class="settings-list">
+        <label class="settings-row settings-row-wide">
+          <span>Home address</span>
+          <input id="home-address" type="text" autocomplete="street-address" placeholder="Street address, city, state ZIP">
+        </label>
+        <div class="settings-row settings-row-wide settings-readonly">
+          <span>Matched address</span>
+          <output id="home-match">Not configured</output>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button id="save-home" class="primary-button" type="button">Save home address</button>
+        <button id="clear-home" type="button">Clear home address</button>
+        <span id="home-status" role="status"></span>
+      </div>
+    </section>
+
+    <section class="settings-card settings-spaced">
       <div class="settings-heading">
         <div>
           <h2>Preview time by chain</h2>
-          <p>Set the number of minutes between the listed showtime and the actual movie start. Leave a chain blank to keep Actual start and Ends unknown.</p>
+          <p>Set the number of minutes between the listed showtime and the actual movie start. Leave a chain blank to keep Actual start, Ends, Leave home, and Back home unknown.</p>
         </div>
       </div>
 
@@ -58,6 +87,41 @@
         <button id="save-settings" class="primary-button" type="button">Save preview times</button>
         <button id="clear-settings" type="button">Clear preview times</button>
         <span id="settings-status" role="status"></span>
+      </div>
+    </section>
+
+    <section class="settings-card settings-spaced">
+      <div class="settings-heading">
+        <div>
+          <h2>Data integrations</h2>
+          <p>Credentials are stored in the shared server volume and are never returned to the browser after saving. AMC enables official prices, A-List eligibility, and reserved-seat availability. OMDb enables posters plus IMDb, Rotten Tomatoes, and Metacritic ratings.</p>
+        </div>
+      </div>
+
+      <div class="settings-list">
+        <label class="settings-row settings-row-wide">
+          <span>AMC developer key</span>
+          <input id="amc-key" type="password" autocomplete="off" placeholder="Not configured">
+        </label>
+        <label class="settings-row toggle-row">
+          <span>I have AMC A-List</span>
+          <input id="amc-a-list" type="checkbox">
+        </label>
+        <label class="settings-row settings-row-wide">
+          <span>OMDb API key</span>
+          <input id="omdb-key" type="password" autocomplete="off" placeholder="Not configured">
+        </label>
+      </div>
+
+      <div class="settings-note">
+        A-List pricing is shown as $0 only when AMC data matches the performance and AMC does not mark it excluded from A-List. Geographic plan-tier restrictions are not inferred, so this assumes your A-List plan covers the theaters in your search area.
+      </div>
+
+      <div class="settings-actions settings-actions-wrap">
+        <button id="save-integrations" class="primary-button" type="button">Save integrations</button>
+        <button id="clear-amc-key" type="button">Clear AMC key</button>
+        <button id="clear-omdb-key" type="button">Clear OMDb key</button>
+        <span id="integration-status" role="status"></span>
       </div>
     </section>
   </main>

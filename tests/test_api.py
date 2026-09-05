@@ -1,10 +1,16 @@
 """HTTP-level tests for the WSGI entrypoint."""
 
+import io
 import json
 from datetime import datetime
 
+import pytest
+
 import movie_showtime_aggregator.api as api
+from movie_showtime_aggregator.location import GeoPoint
 from movie_showtime_aggregator.models import Screening
+from movie_showtime_aggregator.routing import GeocodedAddress
+from movie_showtime_aggregator.storage import SettingsStore
 
 
 def call(
@@ -12,6 +18,7 @@ def call(
     method: str = "GET",
     query: str = "",
     cookie: str = "",
+    json_body: dict | None = None,
 ) -> tuple[int, dict | str]:
     captured: dict[str, object] = {}
 
@@ -22,6 +29,11 @@ def call(
     environ = {"PATH_INFO": path, "REQUEST_METHOD": method, "QUERY_STRING": query}
     if cookie:
         environ["HTTP_COOKIE"] = cookie
+    if json_body is not None:
+        encoded = json.dumps(json_body).encode("utf-8")
+        environ["CONTENT_LENGTH"] = str(len(encoded))
+        environ["CONTENT_TYPE"] = "application/json"
+        environ["wsgi.input"] = io.BytesIO(encoded)
 
     body = b"".join(api.application(environ, start_response))
     code = int(str(captured["status"]).split(" ", 1)[0])
@@ -29,6 +41,17 @@ def call(
     if str(content_type).startswith("application/json"):
         return code, json.loads(body)
     return code, body.decode("utf-8")
+
+
+class FakeZipLocator:
+    def lookup_zip(self, zip_code):
+        return GeoPoint(33.45, -112.07)
+
+
+@pytest.fixture(autouse=True)
+def isolated_shared_settings(monkeypatch, tmp_path):
+    monkeypatch.setattr(api, "_STORE", SettingsStore(tmp_path / "common" / "settings.json"))
+    monkeypatch.setattr(api, "_ZIP_LOCATOR", FakeZipLocator())
 
 
 def sample_screening(movie="Movie A", format_name="Standard", chain="AMC"):
@@ -79,21 +102,73 @@ def test_root_serves_table_dashboard():
     assert '<tr id="screenings-head"></tr>' in body
     assert 'id="saved-view-select"' in body
     assert 'id="save-view"' in body
+    assert 'href="/movies"' in body
     assert 'href="/settings"' in body
     assert 'id="column-menu"' in body
     assert 'class="filters"' not in body
 
 
+def test_movie_selection_page_is_served():
+    code, body = call("/movies")
+    assert code == 200
+    assert 'id="movie-grid"' in body
+    assert 'id="movie-sort"' in body
+    assert 'src="/movies.js"' in body
+
+
 def test_settings_page_is_served():
     code, body = call("/settings")
     assert code == 200
-    assert "Location" in body
+    assert "Theater search" in body
     assert 'id="location-zip"' in body
     assert 'id="location-radius"' in body
-    assert 'id="save-location"' in body
+    assert 'id="home-address"' in body
+    assert 'id="amc-key"' in body
+    assert 'id="amc-a-list"' in body
+    assert 'id="omdb-key"' in body
     assert "Preview time by chain" in body
-    assert 'id="save-settings"' in body
     assert 'src="/settings.js"' in body
+
+
+def test_shared_settings_api_never_returns_saved_secret_values():
+    code, payload = call(
+        "/api/settings",
+        method="POST",
+        json_body={
+            "amc_vendor_key": "amc-secret",
+            "omdb_api_key": "omdb-secret",
+            "amc_a_list": True,
+        },
+    )
+
+    assert code == 200
+    assert payload["amc_vendor_key_set"] is True
+    assert payload["omdb_api_key_set"] is True
+    assert payload["amc_a_list"] is True
+    assert "amc-secret" not in str(payload)
+    assert "omdb-secret" not in str(payload)
+    assert api._STORE.load().amc_vendor_key == "amc-secret"
+    assert api._STORE.load().omdb_api_key == "omdb-secret"
+
+
+def test_home_address_is_geocoded_before_persisting(monkeypatch):
+    class FakeGeocoder:
+        def geocode(self, address):
+            assert address == "123 Main St, Phoenix, AZ"
+            return GeocodedAddress(GeoPoint(33.45, -112.07), "123 Main St, Phoenix, Arizona")
+
+    monkeypatch.setattr(api, "_GEOCODER", FakeGeocoder())
+
+    code, payload = call(
+        "/api/settings",
+        method="POST",
+        json_body={"home_address": "123 Main St, Phoenix, AZ"},
+    )
+
+    assert code == 200
+    assert payload["home_configured"] is True
+    assert payload["home_display_name"] == "123 Main St, Phoenix, Arizona"
+    assert api._STORE.load().home_latitude == 33.45
 
 
 def test_unknown_path_is_404():
@@ -102,7 +177,7 @@ def test_unknown_path_is_404():
     assert payload["path"] == "/nope"
 
 
-def test_write_methods_are_rejected():
+def test_write_methods_are_rejected_outside_settings():
     code, _ = call("/health", method="POST")
     assert code == 405
 
@@ -130,6 +205,7 @@ def test_api_passes_chain_previews_location_and_returns_chain_facets(monkeypatch
     assert payload["screenings"][0]["movie"] == "Movie A"
     assert payload["screenings"][0]["distance_miles"] == 4.2
     assert payload["facets"]["chains"] == ["AMC", "Harkins Theatres"]
+    assert payload["preferences"]["amc_vendor_key_set"] is False
 
 
 def test_settings_cookie_takes_precedence_over_preview_query(monkeypatch):

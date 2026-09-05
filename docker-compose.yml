@@ -12,14 +12,13 @@ services:
       - "${PROD_PORT:-8080}:8000"
     volumes:
       - ./data:/srv/data
+      - ./common:/srv/common
     restart: unless-stopped
 
   # Test. Tracks :test, which CI publishes on every merge into a feature
-  # branch. Deliberately given its own data volume rather than sharing
-  # ./data: anything cached under there is production state, and letting
-  # test traffic write into it would corrupt it. The cost of separating
-  # them is that each environment spends its own upstream API quota, which
-  # is the right trade but worth knowing before exercising Test hard.
+  # branch. Cache/data state stays isolated from Production, while deliberate
+  # user configuration (API keys, home address, A-List preference) is shared
+  # through ./common so it survives image/container replacement.
   movie-showtime-aggregator-test:
     image: ghcr.io/wesnicol2/movie-showtime-aggregator:test
     env_file:
@@ -32,4 +31,5 @@ services:
       - "${TEST_PORT:-8081}:8000"
     volumes:
       - ./data-test:/srv/data
+      - ./common:/srv/common
     restart: unless-stopped

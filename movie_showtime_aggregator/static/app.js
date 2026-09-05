@@ -1,24 +1,29 @@
 const UNKNOWN = "__unknown__";
 const SAVED_VIEWS_KEY = "movie-showtime-aggregator.saved-views.v1";
+const MOVIE_SELECTION_KEY = "movie-showtime-aggregator.selected-movies.v1";
 
 const columns = [
   { key: "movie", label: "Movie", type: "text" },
+  { key: "imdb_rating", label: "IMDb", type: "number", format: "rating" },
+  { key: "rotten_tomatoes_score", label: "Rotten Tomatoes", type: "number", format: "percent" },
+  { key: "metacritic_score", label: "Metacritic", type: "number", format: "score" },
   { key: "theatre", label: "Theater", type: "text" },
-  { key: "distance_miles", label: "Distance", type: "number" },
+  { key: "distance_miles", label: "Distance", type: "number", format: "miles" },
+  { key: "seats_left_percent", label: "Seats left", type: "number", format: "percent" },
+  { key: "ticket_price", label: "Ticket price", type: "number", format: "currency" },
   { key: "chain", label: "Chain", type: "text" },
   { key: "advertised_start", label: "Listed", type: "time" },
   { key: "actual_start", label: "Actual start", type: "time" },
+  { key: "leave_home", label: "Leave home", type: "time" },
   { key: "estimated_end", label: "Ends", type: "time" },
+  { key: "home_arrival", label: "Back home", type: "time" },
   { key: "format", label: "Format", type: "text" },
 ];
 
 const state = {
   screenings: [],
   filters: Object.fromEntries(
-    columns.map((column) => [
-      column.key,
-      { selected: null, operator: "", operand: "" },
-    ]),
+    columns.map((column) => [column.key, { selected: null, operator: "", operand: "" }]),
   ),
   sort: { key: "advertised_start", direction: "asc" },
   openColumn: null,
@@ -48,6 +53,7 @@ async function loadScreenings() {
 
     state.screenings = payload.screenings || [];
     state.location = payload.location || null;
+    applyMovieSelectionFilter();
     renderAll();
   } catch (err) {
     state.screenings = [];
@@ -174,33 +180,71 @@ function renderRows() {
 function renderCell(screening, column) {
   const td = document.createElement("td");
   td.dataset.column = column.key;
+  const value = screening[column.key];
+  const display = displayCellValue(value, column, screening);
 
-  if (column.key === "movie" && screening.purchase_url) {
+  if (value == null || value === "") td.classList.add("unknown");
+  if (column.type === "time" && column.key !== "advertised_start") td.classList.add("calculated-time");
+
+  const sourceUrl = value == null || value === "" ? "" : sourceUrlForCell(screening, column.key);
+  if (sourceUrl) {
     const link = document.createElement("a");
-    link.href = screening.purchase_url;
+    link.href = sourceUrl;
     link.target = "_blank";
     link.rel = "noreferrer";
-    link.textContent = screening.movie;
+    link.className = "source-link";
+    link.title = `Open source for ${column.label}`;
+    link.textContent = display;
     td.append(link);
-    return td;
+  } else {
+    td.textContent = display;
   }
-
-  const value = screening[column.key];
-  if (column.type === "time") {
-    td.textContent = value ? formatTableTime(value, screening.advertised_start) : "Unknown";
-    if (!value) td.classList.add("unknown");
-    if (column.key !== "advertised_start") td.classList.add("calculated-time");
-    return td;
-  }
-
-  if (column.type === "number") {
-    td.textContent = value == null ? "Unknown" : `${Number(value).toFixed(1)} mi`;
-    if (value == null) td.classList.add("unknown");
-    return td;
-  }
-
-  td.textContent = value || "Unknown";
   return td;
+}
+
+function displayCellValue(value, column, screening) {
+  if (value == null || value === "") return "Unknown";
+  if (column.type === "time") return formatTableTime(value, screening.advertised_start);
+  if (column.type === "number") return formatNumber(value, column.format);
+  return String(value);
+}
+
+function formatNumber(value, format) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "Unknown";
+  if (format === "miles") return `${number.toFixed(1)} mi`;
+  if (format === "percent") return `${number.toFixed(number % 1 ? 1 : 0)}%`;
+  if (format === "currency") {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(number);
+  }
+  if (format === "rating") return number.toFixed(1);
+  if (format === "score") return String(Math.round(number));
+  return String(number);
+}
+
+function sourceUrlForCell(screening, columnKey) {
+  switch (columnKey) {
+    case "movie":
+      return screening.letterboxd_url || letterboxdSearchUrl(screening.movie);
+    case "imdb_rating":
+      return screening.imdb_url || "";
+    case "rotten_tomatoes_score":
+      return screening.rotten_tomatoes_url || "";
+    case "metacritic_score":
+      return screening.metacritic_url || "";
+    case "ticket_price":
+    case "seats_left_percent":
+      return screening.amc_source_url || screening.purchase_url || "";
+    case "leave_home":
+    case "home_arrival":
+      return screening.route_source_url || "";
+    default:
+      return screening.purchase_url || "";
+  }
+}
+
+function letterboxdSearchUrl(title) {
+  return `https://letterboxd.com/search/${encodeURIComponent(title)}/`;
 }
 
 function filterRows(screenings) {
@@ -341,6 +385,7 @@ function renderColumnMenu(columnKey) {
   clear.disabled = !isFilterActive(columnKey);
   clear.addEventListener("click", () => {
     state.filters[columnKey] = { selected: null, operator: "", operand: "" };
+    if (columnKey === "movie") clearMovieSelection();
     markViewDirty();
     renderRows();
     renderHeaders();
@@ -404,7 +449,6 @@ function renderRuleSection(column, filter) {
   else if (column.type === "number") {
     operand.type = "number";
     operand.step = "0.1";
-    operand.min = "0";
   } else {
     operand.type = "search";
   }
@@ -493,6 +537,7 @@ function renderValuesSection(column, filter) {
   all.textContent = "All";
   all.addEventListener("click", () => {
     filter.selected = null;
+    if (column.key === "movie") clearMovieSelection();
     markViewDirty();
     renderRows();
     renderHeaders();
@@ -551,6 +596,7 @@ function renderValueList(container, column, filter, query) {
       if (input.checked) filter.selected.add(value);
       else filter.selected.delete(value);
       if (filter.selected.size === values.length) filter.selected = null;
+      if (column.key === "movie") syncMovieSelectionFromFilter(filter);
       markViewDirty();
       renderRows();
       renderHeaders();
@@ -580,7 +626,7 @@ function canonicalValue(value) {
 
 function displayMenuValue(value, column) {
   if (value === UNKNOWN) return "Unknown";
-  if (column.type === "number") return `${Number(value).toFixed(1)} mi`;
+  if (column.type === "number") return formatNumber(value, column.format);
   if (column.type !== "time") return value;
   return new Intl.DateTimeFormat(undefined, {
     weekday: "short",
@@ -629,6 +675,37 @@ function calendarDayOffset(baseValue, value) {
   const base = Date.UTC(baseYear, baseMonth - 1, baseDay);
   const current = Date.UTC(year, month - 1, day);
   return Math.round((current - base) / 86400000);
+}
+
+function readMovieSelection() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MOVIE_SELECTION_KEY) || "[]");
+    const values = Array.isArray(parsed) ? parsed : parsed?.movies;
+    return new Set(Array.isArray(values) ? values.filter((value) => typeof value === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeMovieSelection(values) {
+  localStorage.setItem(MOVIE_SELECTION_KEY, JSON.stringify([...values].sort()));
+}
+
+function clearMovieSelection() {
+  localStorage.removeItem(MOVIE_SELECTION_KEY);
+}
+
+function applyMovieSelectionFilter() {
+  const selected = readMovieSelection();
+  state.filters.movie.selected = selected.size ? selected : null;
+}
+
+function syncMovieSelectionFromFilter(filter) {
+  if (filter.selected === null) {
+    clearMovieSelection();
+  } else if (filter.selected.size) {
+    writeMovieSelection(filter.selected);
+  }
 }
 
 function readSavedViews() {
@@ -733,6 +810,7 @@ function applySavedView(name) {
       operand: typeof savedFilter.operand === "string" ? savedFilter.operand : "",
     };
   }
+  syncMovieSelectionFromFilter(state.filters.movie);
 
   closeColumnMenu();
   renderAll();
@@ -762,6 +840,13 @@ document.addEventListener("keydown", (event) => {
 
 window.addEventListener("resize", () => {
   if (state.openColumn) positionColumnMenu(state.openColumn);
+});
+
+window.addEventListener("storage", (event) => {
+  if (event.key !== MOVIE_SELECTION_KEY) return;
+  applyMovieSelectionFilter();
+  markViewDirty();
+  renderAll();
 });
 
 document.getElementById("save-view").addEventListener("click", saveCurrentView);

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import threading
 from collections.abc import Callable, Iterable
 from datetime import date
 from http.cookies import SimpleCookie
@@ -9,10 +10,15 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote
 from wsgiref.simple_server import make_server
 
+from .amc import AMCClient
 from .config import Settings
+from .enrichment import enrich_amc_details, enrich_movie_metadata, enrich_travel_times
 from .fandango import FandangoClient, FandangoError
-from .location import LocationError
+from .location import GeoPoint, LocationError, ZipLocator
+from .metadata import OmdbClient
+from .routing import AddressGeocoder, GeocodingError, OsrmRouter
 from .service import ScreeningFilters, ScreeningService, facets, filter_screenings
+from .storage import PersistentSettings, SettingsStore
 
 JSON_HEADERS = [("Content-Type", "application/json; charset=utf-8")]
 STATIC_DIR = Path(__file__).with_name("static")
@@ -20,14 +26,23 @@ PREVIEW_COOKIE = "movie_preview_minutes"
 LOCATION_COOKIE = "movie_location"
 STATIC_ROUTES = {
     "/": ("index.html", "text/html; charset=utf-8"),
+    "/movies": ("movies.html", "text/html; charset=utf-8"),
     "/settings": ("settings.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/movies.js": ("movies.js", "text/javascript; charset=utf-8"),
     "/settings.js": ("settings.js", "text/javascript; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
 }
 
 _SETTINGS = Settings.from_env()
 _SERVICE = ScreeningService(FandangoClient(), _SETTINGS)
+_STORE = SettingsStore()
+_GEOCODER = AddressGeocoder()
+_ROUTER = OsrmRouter()
+_ZIP_LOCATOR = ZipLocator()
+_CLIENT_LOCK = threading.Lock()
+_OMDB_CLIENTS: dict[str, OmdbClient] = {}
+_AMC_CLIENTS: dict[str, AMCClient] = {}
 
 
 def health() -> dict[str, str]:
@@ -37,6 +52,11 @@ def health() -> dict[str, str]:
 def application(environ: dict, start_response: Callable) -> Iterable[bytes]:
     path = environ.get("PATH_INFO", "/").rstrip("/") or "/"
     method = environ.get("REQUEST_METHOD", "GET")
+
+    if path == "/api/settings":
+        if method not in {"GET", "HEAD", "POST"}:
+            return _json_response(start_response, 405, {"error": "method not allowed"}, method)
+        return _settings_response(environ, start_response, method)
 
     if method not in {"GET", "HEAD"}:
         return _json_response(start_response, 405, {"error": "method not allowed"}, method)
@@ -63,6 +83,20 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
             zip_code=zip_code,
             radius_miles=radius_miles,
         )
+        stored = _STORE.load()
+        all_screenings = enrich_movie_metadata(all_screenings, _omdb_client(stored.omdb_api_key))
+
+        origin = _safe_zip_point(zip_code)
+        if origin is not None:
+            all_screenings = enrich_amc_details(
+                all_screenings,
+                show_date,
+                origin,
+                _amc_client(stored.amc_vendor_key),
+                a_list_enabled=stored.amc_a_list,
+            )
+        all_screenings = enrich_travel_times(all_screenings, _home_point(stored), _ROUTER)
+
         filters = ScreeningFilters(
             movies=frozenset(query.get("movie", [])),
             theatres=frozenset(query.get("theatre", [])),
@@ -84,6 +118,7 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
             "zip_code": zip_code,
             "radius_miles": radius_miles,
         },
+        "preferences": stored.public_dict(),
         "preview_minutes_by_chain": preview_minutes_by_chain,
         "count": len(visible),
         "total_count": len(all_screenings),
@@ -91,6 +126,130 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         "screenings": [screening.to_dict() for screening in visible],
     }
     return _json_response(start_response, 200, payload, method)
+
+
+def _settings_response(environ: dict, start_response: Callable, method: str) -> Iterable[bytes]:
+    if method in {"GET", "HEAD"}:
+        return _json_response(start_response, 200, _STORE.load().public_dict(), method)
+
+    try:
+        payload = _read_json_body(environ)
+        if not isinstance(payload, dict):
+            raise ValueError("settings payload must be an object")
+        current = _STORE.load()
+        changes: dict[str, object] = {}
+
+        if "home_address" in payload:
+            address = str(payload.get("home_address") or "").strip()
+            if address:
+                matched = _GEOCODER.geocode(address)
+                changes.update(
+                    home_address=address,
+                    home_display_name=matched.display_name,
+                    home_latitude=matched.point.latitude,
+                    home_longitude=matched.point.longitude,
+                )
+            else:
+                changes.update(
+                    home_address="",
+                    home_display_name="",
+                    home_latitude=None,
+                    home_longitude=None,
+                )
+
+        if "amc_a_list" in payload:
+            if not isinstance(payload["amc_a_list"], bool):
+                raise ValueError("amc_a_list must be true or false")
+            changes["amc_a_list"] = payload["amc_a_list"]
+
+        _apply_secret_change(
+            payload,
+            changes,
+            field="amc_vendor_key",
+            clear_field="clear_amc_vendor_key",
+            current_value=current.amc_vendor_key,
+        )
+        _apply_secret_change(
+            payload,
+            changes,
+            field="omdb_api_key",
+            clear_field="clear_omdb_api_key",
+            current_value=current.omdb_api_key,
+        )
+        updated = _STORE.update(**changes) if changes else current
+    except ValueError as exc:
+        return _json_response(start_response, 400, {"error": str(exc)}, method)
+    except GeocodingError as exc:
+        return _json_response(start_response, 503, {"error": str(exc)}, method)
+
+    return _json_response(start_response, 200, updated.public_dict(), method)
+
+
+def _apply_secret_change(
+    payload: dict[str, object],
+    changes: dict[str, object],
+    *,
+    field: str,
+    clear_field: str,
+    current_value: str,
+) -> None:
+    if payload.get(clear_field) is True:
+        changes[field] = ""
+        return
+    if field not in payload:
+        return
+    raw = payload.get(field)
+    if raw is None:
+        return
+    if not isinstance(raw, str):
+        raise ValueError(f"{field} must be a string")
+    value = raw.strip()
+    changes[field] = value if value else current_value
+
+
+def _read_json_body(environ: dict) -> object:
+    try:
+        length = int(environ.get("CONTENT_LENGTH") or 0)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid request body length") from exc
+    if length <= 0:
+        return {}
+    stream = environ.get("wsgi.input")
+    if stream is None:
+        raise ValueError("request body is missing")
+    try:
+        return json.loads(stream.read(length))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("request body must be valid JSON") from exc
+
+
+def _omdb_client(api_key: str) -> OmdbClient | None:
+    key = api_key.strip()
+    if not key:
+        return None
+    with _CLIENT_LOCK:
+        return _OMDB_CLIENTS.setdefault(key, OmdbClient(key))
+
+
+def _amc_client(vendor_key: str) -> AMCClient | None:
+    key = vendor_key.strip()
+    if not key:
+        return None
+    with _CLIENT_LOCK:
+        return _AMC_CLIENTS.setdefault(key, AMCClient(key))
+
+
+def _home_point(settings: PersistentSettings) -> GeoPoint | None:
+    if settings.home_latitude is None or settings.home_longitude is None:
+        return None
+    return GeoPoint(settings.home_latitude, settings.home_longitude)
+
+
+def _safe_zip_point(zip_code: str) -> GeoPoint | None:
+    try:
+        return _ZIP_LOCATOR.lookup_zip(zip_code)
+    except (LocationError, ValueError):
+        return None
 
 
 def _preview_minutes_from_request(environ: dict, query: dict[str, list[str]]) -> dict[str, int]:
