@@ -16,27 +16,27 @@ class Screening:
     estimated_end: datetime | None
     runtime_minutes: int | None
     distance_miles: float | None
-    theatre_latitude: float | None
-    theatre_longitude: float | None
-    drive_to_minutes: int | None
-    drive_home_minutes: int | None
-    leave_home: datetime | None
-    home_arrival: datetime | None
-    poster_url: str
-    imdb_id: str
-    imdb_rating: float | None
-    metacritic_score: int | None
-    rotten_tomatoes_score: int | None
-    ticket_price: float | None
-    seats_left_percent: float | None
-    amc_a_list_eligible: bool | None
-    amc_source_url: str
-    letterboxd_url: str
-    imdb_url: str
-    rotten_tomatoes_url: str
-    metacritic_url: str
-    route_source_url: str
     purchase_url: str
+    theatre_latitude: float | None = None
+    theatre_longitude: float | None = None
+    drive_to_minutes: int | None = None
+    drive_home_minutes: int | None = None
+    leave_home: datetime | None = None
+    home_arrival: datetime | None = None
+    poster_url: str = ""
+    imdb_id: str = ""
+    imdb_rating: float | None = None
+    metacritic_score: int | None = None
+    rotten_tomatoes_score: int | None = None
+    ticket_price: float | None = None
+    seats_left_percent: float | None = None
+    amc_a_list_eligible: bool | None = None
+    amc_source_url: str = ""
+    letterboxd_url: str = ""
+    imdb_url: str = ""
+    rotten_tomatoes_url: str = ""
+    metacritic_url: str = ""
+    route_source_url: str = ""
 
     def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -81,27 +81,9 @@ def normalize_showtime(raw: dict[str, object]) -> Screening | None:
         estimated_end=None,
         runtime_minutes=_runtime_minutes(raw.get("runTime")),
         distance_miles=_distance_miles(raw.get("distanceMiles")),
+        purchase_url=str(raw.get("purchaseUrl") or ""),
         theatre_latitude=_coordinate(raw.get("theatreLatitude"), minimum=-90, maximum=90),
         theatre_longitude=_coordinate(raw.get("theatreLongitude"), minimum=-180, maximum=180),
-        drive_to_minutes=None,
-        drive_home_minutes=None,
-        leave_home=None,
-        home_arrival=None,
-        poster_url="",
-        imdb_id="",
-        imdb_rating=None,
-        metacritic_score=None,
-        rotten_tomatoes_score=None,
-        ticket_price=None,
-        seats_left_percent=None,
-        amc_a_list_eligible=None,
-        amc_source_url="",
-        letterboxd_url="",
-        imdb_url="",
-        rotten_tomatoes_url="",
-        metacritic_url="",
-        route_source_url="",
-        purchase_url=str(raw.get("purchaseUrl") or ""),
     )
 
 
