@@ -1,10 +1,9 @@
 # movie-showtime-aggregator
 
-A deliberately small movie-showtime dashboard: one page and one spreadsheet-like
-screening table. Every column can be sorted or filtered directly from its header,
-using Excel-style value checkboxes plus type-aware text/time rules. The app
-discovers theaters in a configured Fandango market and lets the user set preview
-minutes independently for each theater chain.
+A deliberately small movie-showtime dashboard: one spreadsheet-like screening
+table plus a settings page. Every table column can be sorted or filtered directly
+from its header using Excel-style value checkboxes and type-aware text/time rules.
+The app discovers theaters in a configured Fandango market.
 
 > **Fresh from the template?** Work through
 > [docs/new-repo-checklist.md](docs/new-repo-checklist.md) first. It covers the
@@ -17,10 +16,19 @@ any column header to filter that column. Every column supports value checkboxes;
 text columns also support rules such as contains/equals/begins with, and time
 columns support before/after/equal and unknown/not-unknown rules.
 
-The **Chain** column menu also contains preview-minute settings because preview
-time is chain-specific. **Saved views** in the top bar store the current filters,
-sort order, and preview-minute settings in that browser's local storage so useful
-combinations can be reapplied later without adding accounts or a database.
+**Saved views** in the top bar store filter/sort combinations in that browser's
+local storage so useful table views can be reapplied later without adding accounts
+or a database.
+
+## Settings
+
+Open `/settings` (or use the **Settings** link above the table) to configure
+preview/trailer time for each theater chain. Enter a whole number of minutes from
+0 to 180. Leave a chain blank when its preview time is unknown.
+
+Preview settings are stored in the browser and persist across reloads. The browser
+also sends them as a cookie so the screening API can apply the configured chain
+rules before returning calculated times.
 
 ## Time model
 
@@ -36,9 +44,6 @@ end          = actual start + movie runtime
 
 If runtime is unavailable, actual start can still be calculated but end remains
 unknown. Timing filters exclude rows whose required calculated time is unknown.
-
-Preview settings are page state unless saved as part of a browser-local Saved
-View.
 
 ## Run it
 
@@ -77,8 +82,8 @@ That brings up production (`:latest`, `$PROD_PORT`) and test (`:test`,
 | `TZ` | no | `America/Phoenix` in `.env.example` | Container timezone |
 
 There is no hardcoded theater list. The provider returns theaters for the
-configured market ZIP, and the UI derives its table values and chain controls
-from that result.
+configured market ZIP, and the UI derives its table values and Settings chain
+list from that result.
 
 ## Run from source
 
@@ -100,12 +105,13 @@ CI runs these on every push, and a red check blocks promotion.
 
 ## Endpoints
 
-- `/` — single-page showtime table.
-- `/api/screenings` — normalized screenings and facets. It also retains optional
+- `/` — spreadsheet-style showtime table.
+- `/settings` — browser-local chain preview-time settings.
+- `/api/screenings` — normalized screenings and facets. It retains optional
   server-side filter params (`movie`, `theatre`, `format`, `start_after`,
   `start_before`, `end_by`) for API consumers, plus `preview=Chain:minutes` and
-  `date=YYYY-MM-DD`. The browser UI fetches the market data once and applies its
-  Excel-style table filters client-side.
+  `date=YYYY-MM-DD`. When the browser has saved Settings, those preview settings
+  take precedence over `preview=` query values.
 - `/health` — returns `{"status": "ok"}`.
 
 ## Project structure
@@ -114,7 +120,7 @@ CI runs these on every push, and a red check blocks promotion.
 - `movie_showtime_aggregator/fandango.py` — theater discovery/showtime provider.
 - `movie_showtime_aggregator/models.py` — normalization and time derivation.
 - `movie_showtime_aggregator/service.py` — caching, aggregation, facets, filters.
-- `movie_showtime_aggregator/static/` — the one-page table UI.
+- `movie_showtime_aggregator/static/` — table UI and Settings UI.
 - `tests/` — unit/API tests.
 - `docs/` — long-form specs and the new-repo checklist.
 

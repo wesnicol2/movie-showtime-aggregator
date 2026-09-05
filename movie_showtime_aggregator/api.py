@@ -4,8 +4,9 @@ import argparse
 import json
 from collections.abc import Callable, Iterable
 from datetime import date
+from http.cookies import SimpleCookie
 from pathlib import Path
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, unquote
 from wsgiref.simple_server import make_server
 
 from .config import Settings
@@ -14,9 +15,12 @@ from .service import ScreeningFilters, ScreeningService, facets, filter_screenin
 
 JSON_HEADERS = [("Content-Type", "application/json; charset=utf-8")]
 STATIC_DIR = Path(__file__).with_name("static")
+PREVIEW_COOKIE = "movie_preview_minutes"
 STATIC_ROUTES = {
     "/": ("index.html", "text/html; charset=utf-8"),
+    "/settings": ("settings.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/settings.js": ("settings.js", "text/javascript; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
 }
 
@@ -49,7 +53,7 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
     raw_date = query.get("date", [None])[0]
     try:
         show_date = date.fromisoformat(raw_date) if raw_date else date.today()
-        preview_minutes_by_chain = _parse_preview_minutes(query.get("preview", []))
+        preview_minutes_by_chain = _preview_minutes_from_request(environ, query)
         all_screenings = _SERVICE.get_screenings(show_date, preview_minutes_by_chain)
         filters = ScreeningFilters(
             movies=frozenset(query.get("movie", [])),
@@ -74,6 +78,46 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         "screenings": [screening.to_dict() for screening in visible],
     }
     return _json_response(start_response, 200, payload, method)
+
+
+def _preview_minutes_from_request(environ: dict, query: dict[str, list[str]]) -> dict[str, int]:
+    cookie_settings = _parse_preview_cookie(environ.get("HTTP_COOKIE", ""))
+    if cookie_settings is not None:
+        return cookie_settings
+    return _parse_preview_minutes(query.get("preview", []))
+
+
+def _parse_preview_cookie(header: str) -> dict[str, int] | None:
+    if not header:
+        return None
+
+    cookie = SimpleCookie()
+    try:
+        cookie.load(header)
+    except Exception:
+        return None
+
+    morsel = cookie.get(PREVIEW_COOKIE)
+    if morsel is None:
+        return None
+
+    try:
+        payload = json.loads(unquote(morsel.value))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+
+    if not isinstance(payload, dict):
+        return {}
+
+    previews: dict[str, int] = {}
+    for chain, minutes in payload.items():
+        if not isinstance(chain, str) or not chain.strip():
+            continue
+        if isinstance(minutes, bool) or not isinstance(minutes, int):
+            continue
+        if 0 <= minutes <= 180:
+            previews[chain.strip()] = minutes
+    return previews
 
 
 def _parse_preview_minutes(values: list[str]) -> dict[str, int]:
