@@ -55,7 +55,7 @@ def test_movie_metadata_enrichment_adds_ratings_and_source_links():
 
 class FakeRouter:
     def travel_minutes(self, home, destinations):
-        return {destination: (15, 20) for destination in destinations}
+        return dict.fromkeys(destinations, (15, 20))
 
 
 def test_travel_enrichment_derives_leave_and_home_arrival_times():
