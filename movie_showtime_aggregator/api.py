@@ -88,7 +88,9 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         )
         stored = _STORE.load()
         if enrichment_enabled:
-            all_screenings = enrich_movie_metadata(all_screenings, _omdb_client(stored.omdb_api_key))
+            all_screenings = enrich_movie_metadata(
+                all_screenings, _omdb_client(stored.omdb_api_key)
+            )
 
             origin = _safe_zip_point(zip_code)
             if origin is not None:
