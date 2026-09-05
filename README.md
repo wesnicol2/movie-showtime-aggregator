@@ -95,13 +95,29 @@ Then open `http://localhost:8000/`.
 
 ## Test it
 
+Install the development dependencies once:
+
 ```bash
 pip install -e ".[dev]"
-ruff check && ruff format --check
-python -m pytest tests/
 ```
 
-CI runs these on every push, and a red check blocks promotion.
+After editing Python, let the repository normalize it rather than hand-formatting
+for Ruff:
+
+```bash
+bash scripts/fix
+```
+
+Before every push, run the same verification gate CI runs:
+
+```bash
+bash scripts/verify
+```
+
+That gate checks Ruff linting and formatting, Python syntax, and the unit tests.
+A deployed Test environment is still required for integration verification after
+`dev/*` is promoted to `feature/*`; it is not required to get linting and unit
+tests green.
 
 ## Endpoints
 
@@ -122,6 +138,8 @@ CI runs these on every push, and a red check blocks promotion.
 - `movie_showtime_aggregator/service.py` — caching, aggregation, facets, filters.
 - `movie_showtime_aggregator/static/` — table UI and Settings UI.
 - `tests/` — unit/API tests.
+- `scripts/` — repo-owned local fix and verification commands used by agents
+  and CI.
 - `docs/` — long-form specs and the new-repo checklist.
 
 ## Docs
