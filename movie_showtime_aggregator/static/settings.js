@@ -300,7 +300,7 @@ async function loadScreeningSettings() {
   if (storedLocation) setLocationInputs(storedLocation);
 
   try {
-    const response = await fetch(`/api/screenings?date=${browserDate()}`);
+    const response = await fetch(`/api/screenings?date=${browserDate()}&enrich=0`);
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
 
