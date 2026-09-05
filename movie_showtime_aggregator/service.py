@@ -63,11 +63,11 @@ class ScreeningService:
             show_date,
             page_limit=self.settings.market_page_limit,
         )
-        screenings = [
-            screening
-            for raw in raw_showtimes
-            if (screening := normalize_showtime(raw)) is not None
-        ]
+        screenings: list[Screening] = []
+        for raw in raw_showtimes:
+            screening = normalize_showtime(raw)
+            if screening is not None:
+                screenings.append(screening)
         screenings.sort(key=lambda screening: screening.advertised_start)
         with self._lock:
             self._cache[show_date] = (now, screenings)
