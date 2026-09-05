@@ -1,6 +1,7 @@
 const SETTINGS_KEY = "movie-showtime-aggregator.settings.v1";
 const PREVIEW_COOKIE = "movie_preview_minutes";
 const LOCATION_COOKIE = "movie_location";
+let latestSharedSettings = null;
 
 function browserDate() {
   const now = new Date();
@@ -163,15 +164,104 @@ function collectPreviewMinutes() {
   return previewMinutes;
 }
 
-async function loadSharedSettings() {
+function formatNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toLocaleString() : "0";
+}
+
+function timeUntil(timestamp) {
+  if (!timestamp) return "unknown";
+  const milliseconds = Date.parse(timestamp) - Date.now();
+  if (!Number.isFinite(milliseconds)) return "unknown";
+  if (milliseconds <= 0) return "due now";
+
+  const totalMinutes = Math.ceil(milliseconds / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    return `${days}d ${remainingHours}h`;
+  }
+  if (hours) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function setUsageProgress(id, percent) {
+  const progress = document.getElementById(id);
+  if (percent != null && Number.isFinite(Number(percent))) {
+    progress.value = Math.max(0, Math.min(100, Number(percent)));
+  } else {
+    progress.removeAttribute("value");
+  }
+}
+
+function providerWindowText(rateLimit) {
+  if (!rateLimit || typeof rateLimit !== "object") return "";
+  const limit = Number(rateLimit.limit);
+  const remaining = Number(rateLimit.remaining);
+  if (!Number.isFinite(limit) || !Number.isFinite(remaining) || limit <= 0) return "";
+  const reset = rateLimit.reset_at ? ` · provider resets in ${timeUntil(rateLimit.reset_at)}` : "";
+  return ` · provider reports ${formatNumber(remaining)} / ${formatNumber(limit)} remaining${reset}`;
+}
+
+function renderProviderUsage(settings) {
+  const usage = settings?.provider_usage || {};
+  const omdb = usage.omdb || {};
+  const amc = usage.amc || {};
+
+  const omdbOutput = document.getElementById("omdb-usage");
+  if (!settings?.omdb_api_key_set) {
+    setUsageProgress("omdb-usage-progress", 0);
+    omdbOutput.textContent = "Not configured";
+  } else {
+    const percent = Number(omdb.published_percent_used);
+    setUsageProgress("omdb-usage-progress", percent);
+    const percentText = Number.isFinite(percent) ? `${percent.toFixed(1)}%` : "unknown %";
+    omdbOutput.textContent = `${formatNumber(omdb.requests_today)} / 1,000 requests (${percentText}) · ${formatNumber(omdb.estimated_remaining_today)} estimated remaining · ${formatNumber(omdb.cache_hits_today)} cache hits · app counter resets in ${timeUntil(omdb.app_counter_reset_at)}${providerWindowText(omdb.provider_rate_limit)}`;
+  }
+
+  const amcOutput = document.getElementById("amc-usage");
+  if (!settings?.amc_vendor_key_set) {
+    setUsageProgress("amc-usage-progress", null);
+    amcOutput.textContent = "Not configured";
+  } else {
+    const rawProviderPercent = amc.provider_rate_limit?.percent_used;
+    const providerPercent = rawProviderPercent == null ? null : Number(rawProviderPercent);
+    setUsageProgress(
+      "amc-usage-progress",
+      Number.isFinite(providerPercent) ? providerPercent : null,
+    );
+    const providerText = providerWindowText(amc.provider_rate_limit);
+    const quotaText = providerText
+      ? providerText.slice(3)
+      : "quota percentage/reset not published by AMC";
+    amcOutput.textContent = `${formatNumber(amc.requests_today)} requests today · ${formatNumber(amc.cache_hits_today)} cache hits · ${quotaText} · app counter rolls in ${timeUntil(amc.app_counter_reset_at)}`;
+  }
+}
+
+async function fetchSharedSettings() {
   const response = await fetch("/api/settings");
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+  return payload;
+}
+
+async function loadSharedSettings() {
+  const payload = await fetchSharedSettings();
   renderSharedSettings(payload);
   return payload;
 }
 
+async function refreshProviderUsage() {
+  const payload = await fetchSharedSettings();
+  latestSharedSettings = payload;
+  renderProviderUsage(payload);
+  return payload;
+}
+
 function renderSharedSettings(settings) {
+  latestSharedSettings = settings;
   document.getElementById("home-address").value = settings.home_address || "";
   document.getElementById("home-match").textContent = settings.home_display_name || "Not configured";
   document.getElementById("amc-a-list").checked = settings.amc_a_list === true;
@@ -184,6 +274,7 @@ function renderSharedSettings(settings) {
   omdb.placeholder = settings.omdb_api_key_set ? "Saved · enter a new key to replace" : "Not configured";
   document.getElementById("clear-amc-key").disabled = !settings.amc_vendor_key_set;
   document.getElementById("clear-omdb-key").disabled = !settings.omdb_api_key_set;
+  renderProviderUsage(settings);
 }
 
 async function saveSharedSettings(changes) {
@@ -234,6 +325,11 @@ async function loadSettingsPage() {
     error.hidden = false;
   }
   await loadScreeningSettings();
+  try {
+    await refreshProviderUsage();
+  } catch {
+    // Provider usage is informational; the rest of Settings remains usable.
+  }
 }
 
 document.getElementById("save-location").addEventListener("click", async () => {
@@ -244,6 +340,7 @@ document.getElementById("save-location").addEventListener("click", async () => {
   const status = document.getElementById("location-status");
   status.textContent = "Saved · refreshing theaters…";
   await loadScreeningSettings();
+  await refreshProviderUsage().catch(() => {});
   status.textContent = "Saved";
 });
 
@@ -300,6 +397,17 @@ document.getElementById("save-integrations").addEventListener("click", async () 
   }
 });
 
+document.getElementById("refresh-provider-usage").addEventListener("click", async () => {
+  const status = document.getElementById("integration-status");
+  status.textContent = "Refreshing usage…";
+  try {
+    await refreshProviderUsage();
+    status.textContent = "Usage refreshed";
+  } catch (err) {
+    status.textContent = err.message;
+  }
+});
+
 document.getElementById("clear-amc-key").addEventListener("click", async () => {
   const status = document.getElementById("integration-status");
   status.textContent = "Clearing AMC key…";
@@ -321,5 +429,9 @@ document.getElementById("clear-omdb-key").addEventListener("click", async () => 
     status.textContent = err.message;
   }
 });
+
+setInterval(() => {
+  if (latestSharedSettings) renderProviderUsage(latestSharedSettings);
+}, 30000);
 
 loadSettingsPage();

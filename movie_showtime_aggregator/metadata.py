@@ -7,7 +7,12 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
+from .provider_cache import ProviderCache
+
 OMDB_BASE_URL = "https://www.omdbapi.com/"
+OMDB_DAILY_LIMIT = 1000
+OMDB_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
+OMDB_NEGATIVE_CACHE_TTL_SECONDS = 6 * 60 * 60
 USER_AGENT = "movie-showtime-aggregator/1.0"
 
 
@@ -44,9 +49,16 @@ class MovieMetadata:
 
 
 class OmdbClient:
-    def __init__(self, api_key: str, *, timeout_seconds: int = 10) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        timeout_seconds: int = 10,
+        provider_cache: ProviderCache | None = None,
+    ) -> None:
         self.api_key = api_key.strip()
         self.timeout_seconds = timeout_seconds
+        self.provider_cache = provider_cache
         self._cache: dict[str, MovieMetadata] = {}
         self._lock = threading.Lock()
 
@@ -58,10 +70,21 @@ class OmdbClient:
             raise MetadataError("OMDb API key is not configured")
 
         cache_key = normalized.casefold()
-        with self._lock:
-            cached = self._cache.get(cache_key)
-            if cached is not None:
-                return cached
+        if self.provider_cache is not None:
+            cached_payload = self.provider_cache.get_json("omdb", f"title:{cache_key}")
+            if cached_payload is not None:
+                return _parse_payload(cached_payload, normalized)
+        else:
+            with self._lock:
+                cached = self._cache.get(cache_key)
+                if cached is not None:
+                    return cached
+
+        if self.provider_cache is not None and not self.provider_cache.begin_request(
+            "omdb",
+            daily_limit=OMDB_DAILY_LIMIT,
+        ):
+            raise MetadataError("OMDb daily request budget is exhausted")
 
         params = urllib.parse.urlencode(
             {
@@ -78,15 +101,27 @@ class OmdbClient:
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                if self.provider_cache is not None:
+                    self.provider_cache.observe_headers("omdb", response.headers)
                 payload = json.loads(response.read())
         except urllib.error.HTTPError as exc:
+            if self.provider_cache is not None:
+                self.provider_cache.observe_headers("omdb", exc.headers)
             raise MetadataError(f"OMDb returned HTTP {exc.code}") from exc
         except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
             raise MetadataError(f"OMDb request failed: {exc}") from exc
 
         metadata = _parse_payload(payload, normalized)
-        with self._lock:
-            self._cache[cache_key] = metadata
+        if self.provider_cache is not None:
+            ttl = (
+                OMDB_CACHE_TTL_SECONDS
+                if str(payload.get("Response") or "").casefold() == "true"
+                else OMDB_NEGATIVE_CACHE_TTL_SECONDS
+            )
+            self.provider_cache.set_json("omdb", f"title:{cache_key}", payload, ttl_seconds=ttl)
+        else:
+            with self._lock:
+                self._cache[cache_key] = metadata
         return metadata
 
 

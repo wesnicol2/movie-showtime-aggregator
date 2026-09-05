@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import replace
 from datetime import date
 
-from .amc import AMCClient, AMCError, match_showtime
+from .amc import AMCClient, AMCError, AMCShowtime, match_showtime
 from .location import GeoPoint
 from .metadata import MetadataError, MovieMetadata, OmdbClient
 from .models import Screening, apply_travel_minutes
@@ -107,7 +107,7 @@ def enrich_amc_details(
     except AMCError:
         return screenings
 
-    matched: dict[int, object] = {}
+    matched: dict[int, AMCShowtime] = {}
     for index, screening in enumerate(screenings):
         if not _is_amc(screening):
             continue
@@ -121,22 +121,21 @@ def enrich_amc_details(
         if match is not None:
             matched[index] = match
 
-    seats: dict[int, float | None] = {}
-    if matched:
-        with ThreadPoolExecutor(max_workers=min(6, len(matched))) as executor:
+    seat_matches = {
+        (match.theatre.theatre_id, match.performance_id): match for match in matched.values()
+    }
+    seats: dict[tuple[int, int], float | None] = {}
+    if seat_matches:
+        with ThreadPoolExecutor(max_workers=min(6, len(seat_matches))) as executor:
             futures = {
-                executor.submit(
-                    client.seats_left_percent,
-                    match.theatre.theatre_id,
-                    match.performance_id,
-                ): index
-                for index, match in matched.items()
+                executor.submit(client.seats_left_percent, *key): key for key in seat_matches
             }
             for future in as_completed(futures):
+                key = futures[future]
                 try:
-                    seats[futures[future]] = future.result()
+                    seats[key] = future.result()
                 except Exception:
-                    seats[futures[future]] = None
+                    seats[key] = None
 
     result: list[Screening] = []
     for index, screening in enumerate(screenings):
@@ -146,13 +145,13 @@ def enrich_amc_details(
             continue
 
         ticket_price = match.ticket_price
-        if a_list_enabled and match.a_list_eligible:
+        if a_list_enabled and match.a_list_eligible is True:
             ticket_price = 0.0
         result.append(
             replace(
                 screening,
                 ticket_price=ticket_price,
-                seats_left_percent=seats.get(index),
+                seats_left_percent=seats.get((match.theatre.theatre_id, match.performance_id)),
                 amc_a_list_eligible=match.a_list_eligible,
                 amc_source_url=match.purchase_url or screening.purchase_url,
             )
