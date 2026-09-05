@@ -79,6 +79,46 @@ def test_end_filter_excludes_unknown_end():
     assert visible == [screenings[0]]
 
 
+def test_end_by_filter_excludes_next_day_end_after_midnight():
+    before_boundary = screening(
+        advertised="2026-09-04T16:00:00",
+        actual="2026-09-04T16:25:00",
+        end="2026-09-04T18:30:00",
+    )
+    after_midnight = screening(
+        advertised="2026-09-04T21:30:00",
+        actual="2026-09-04T21:55:00",
+        end="2026-09-05T00:30:00",
+    )
+
+    visible = filter_screenings(
+        [before_boundary, after_midnight],
+        ScreeningFilters(end_by="19:00"),
+    )
+
+    assert visible == [before_boundary]
+
+
+def test_start_filters_respect_next_day_actual_start():
+    after_midnight = screening(
+        advertised="2026-09-04T23:55:00",
+        actual="2026-09-05T00:20:00",
+        end="2026-09-05T02:00:00",
+    )
+
+    visible_after = filter_screenings(
+        [after_midnight],
+        ScreeningFilters(start_after="19:00"),
+    )
+    visible_before = filter_screenings(
+        [after_midnight],
+        ScreeningFilters(start_before="23:00"),
+    )
+
+    assert visible_after == [after_midnight]
+    assert visible_before == []
+
+
 def test_unknown_times_are_visible_without_time_filters():
     unknown = screening(actual=None, end=None)
     assert filter_screenings([unknown], ScreeningFilters()) == [unknown]

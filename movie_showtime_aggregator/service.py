@@ -88,9 +88,21 @@ def filter_screenings(
         if _selected(screening.movie, filters.movies)
         and _selected(screening.theatre, filters.theatres)
         and _selected(screening.format, filters.formats)
-        and _time_at_or_after(screening.actual_start, start_after)
-        and _time_at_or_before(screening.actual_start, start_before)
-        and _time_at_or_before(screening.estimated_end, end_by)
+        and _datetime_at_or_after(
+            screening.actual_start,
+            start_after,
+            screening.advertised_start,
+        )
+        and _datetime_at_or_before(
+            screening.actual_start,
+            start_before,
+            screening.advertised_start,
+        )
+        and _datetime_at_or_before(
+            screening.estimated_end,
+            end_by,
+            screening.advertised_start,
+        )
     ]
 
 
@@ -116,13 +128,25 @@ def _parse_time(value: str | None) -> time | None:
         raise ValueError(f"Invalid time: {value}") from exc
 
 
-def _time_at_or_after(value: datetime | None, boundary: time | None) -> bool:
+def _datetime_at_or_after(
+    value: datetime | None,
+    boundary: time | None,
+    reference: datetime,
+) -> bool:
     if boundary is None:
         return True
-    return value is not None and value.time() >= boundary
+    if value is None:
+        return False
+    return value >= datetime.combine(reference.date(), boundary)
 
 
-def _time_at_or_before(value: datetime | None, boundary: time | None) -> bool:
+def _datetime_at_or_before(
+    value: datetime | None,
+    boundary: time | None,
+    reference: datetime,
+) -> bool:
     if boundary is None:
         return True
-    return value is not None and value.time() <= boundary
+    if value is None:
+        return False
+    return value <= datetime.combine(reference.date(), boundary)
