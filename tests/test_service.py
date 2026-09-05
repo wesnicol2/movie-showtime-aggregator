@@ -175,8 +175,8 @@ def test_facets_include_chains():
 
 
 class FakeLocator:
-    def __init__(self, point=GeoPoint(0, 0)):
-        self.point = point
+    def __init__(self, point=None):
+        self.point = point or GeoPoint(0, 0)
         self.calls = []
 
     def lookup_zip(self, zip_code):
