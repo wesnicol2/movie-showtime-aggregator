@@ -9,6 +9,7 @@ import pytest
 import movie_showtime_aggregator.api as api
 from movie_showtime_aggregator.location import GeoPoint
 from movie_showtime_aggregator.models import Screening
+from movie_showtime_aggregator.provider_cache import ProviderCache
 from movie_showtime_aggregator.routing import GeocodedAddress
 from movie_showtime_aggregator.storage import SettingsStore
 
@@ -51,7 +52,14 @@ class FakeZipLocator:
 @pytest.fixture(autouse=True)
 def isolated_shared_settings(monkeypatch, tmp_path):
     monkeypatch.setattr(api, "_STORE", SettingsStore(tmp_path / "common" / "settings.json"))
+    monkeypatch.setattr(
+        api,
+        "_PROVIDER_CACHE",
+        ProviderCache(tmp_path / "common" / "provider-cache.sqlite3"),
+    )
     monkeypatch.setattr(api, "_ZIP_LOCATOR", FakeZipLocator())
+    api._OMDB_CLIENTS.clear()
+    api._AMC_CLIENTS.clear()
 
 
 def sample_screening(movie="Movie A", format_name="Standard", chain="AMC"):
@@ -126,6 +134,8 @@ def test_settings_page_is_served():
     assert 'id="amc-key"' in body
     assert 'id="amc-a-list"' in body
     assert 'id="omdb-key"' in body
+    assert 'id="omdb-usage-progress"' in body
+    assert 'id="amc-usage-progress"' in body
     assert "Preview time by chain" in body
     assert 'src="/settings.js"' in body
 
@@ -145,6 +155,8 @@ def test_shared_settings_api_never_returns_saved_secret_values():
     assert payload["amc_vendor_key_set"] is True
     assert payload["omdb_api_key_set"] is True
     assert payload["amc_a_list"] is True
+    assert payload["provider_usage"]["omdb"]["published_daily_limit"] == 1000
+    assert payload["provider_usage"]["amc"]["published_daily_limit"] is None
     assert "amc-secret" not in str(payload)
     assert "omdb-secret" not in str(payload)
     assert api._STORE.load().amc_vendor_key == "amc-secret"
