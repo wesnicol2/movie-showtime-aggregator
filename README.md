@@ -57,9 +57,24 @@ The Settings API never returns saved API-key values. The UI can only see whether
 
 **Home address** is geocoded through OpenStreetMap Nominatim and stored as the entered address, matched display address, and coordinates. Route estimates use OSRM's public driving router. These are static route estimates, not live-traffic predictions.
 
-**AMC developer key** enables official AMC enrichment for matched AMC performances: display ticket price, A-List exclusion status, and reserved-seat availability where the issued key has access. If **I have AMC A-List** is enabled, a matched AMC performance is shown as `$0.00` only when AMC does not mark that performance as excluded from A-List. Geographic A-List plan-tier coverage is not inferred; the toggle assumes the user's plan covers the searched AMC locations.
+**AMC developer key** enables official AMC enrichment for matched AMC performances: display ticket price, A-List exclusion status, and reserved-seat availability where the issued key has access. If **I have AMC A-List** is enabled, a matched AMC performance is shown as `$0.00` only when official AMC attributes make eligibility known and do not contain the A-List exclusion. Missing attributes remain unknown. Geographic A-List plan-tier coverage is not inferred; the toggle assumes the user's plan covers the searched AMC locations.
 
 **OMDb API key** enables posters plus IMDb, Rotten Tomatoes, and Metacritic ratings. Metadata failures are fail-soft: they produce `Unknown` cells instead of preventing showtimes from loading.
+
+### Provider cache and usage status
+
+Optional enrichment APIs are protected by a persistent SQLite cache and request ledger at `./common/provider-cache.sqlite3`. Because Test and Production mount the same `./common`, a container restart or switching environments does not throw away cached provider responses or reset the app's request counters.
+
+Current cache policy is intentionally conservative about request usage:
+
+- OMDb successful title lookups: 7 days; missing-title responses: 6 hours. The app enforces a hard 1,000-request UTC-day budget before making an upstream call.
+- AMC current-location showtime pages: 5 minutes.
+- AMC theatre metadata: 30 days.
+- AMC reserved-seat layouts: 5 minutes because availability is dynamic.
+- An AMC seating `401`/`403` is remembered for 6 hours so a catalog-only key does not trigger one failed seating request per performance.
+- Duplicate AMC performances in one response share one seat-layout lookup.
+
+Settings shows requests made today, cache hits, percentage/estimated remaining for OMDb's published 1,000/day limit, and the time until the app's UTC accounting window rolls over. That countdown is **not claimed to be OMDb's provider reset time** because OMDb does not publish one. AMC request count/cache hits are always shown; AMC percentage/remaining/reset are shown only if AMC supplies rate-limit headers, because no public AMC quota is assumed by the app.
 
 ## Time model
 
@@ -86,20 +101,20 @@ Travel columns remain unknown when the chain preview time, runtime, theater coor
 AMC is currently the authoritative provider for these fields. With a configured AMC developer key, the app matches Fandango screenings to official AMC performances by title, listed local time, and theater identity/location.
 
 - **Ticket price** prefers the reported Adult price and includes any tax amount returned with that price. It is a display estimate; final checkout can differ.
-- **Seats left** is calculated from AMC's reserved-seating layout as available reservable seats divided by total reservable seats. Wheelchair and companion positions are excluded from the percentage.
+- **Seats left** uses AMC's v3 reserved-seating layout and calculates available `CanReserve` positions divided by total `CanReserve` positions.
 - If the key or seating permission is unavailable, or the AMC performance cannot be matched confidently, the values stay `Unknown`.
 - Non-AMC theaters currently remain `Unknown` for price and seat percentage rather than using brittle checkout scraping.
 
 ## Run it
 
-The intended deployment is Compose because shared settings need a persistent host mount:
+The intended deployment is Compose because shared settings and provider caches need a persistent host mount:
 
 ```bash
 cp .env.example .env
 docker compose up -d
 ```
 
-Production tracks `:latest`; Test tracks `:test`. Their caches are isolated in `./data` and `./data-test`, while deliberate user configuration is shared in `./common`.
+Production tracks `:latest`; Test tracks `:test`. Their base screening caches are isolated in `./data` and `./data-test`, while deliberate user configuration and optional-provider cache/accounting are shared in `./common`.
 
 For a one-off container, mount a common directory yourself:
 
@@ -122,8 +137,8 @@ Then open `http://<host>:8080/`. Health is at `http://<host>:8080/health`.
 | `FANDANGO_ZIP_CODE` | no | `85004` | Default ZIP when the browser has no saved location |
 | `FANDANGO_RADIUS_MILES` | no | `25` | Default theater radius, 1–100 miles |
 | `FANDANGO_PAGE_LIMIT` | no | `50` | Theater results requested per upstream page |
-| `CACHE_TTL_SECONDS` | no | `300` | In-memory upstream response cache lifetime |
-| `COMMON_DATA_DIR` | no | `common` | Server-side shared settings directory |
+| `CACHE_TTL_SECONDS` | no | `300` | In-memory Fandango response cache lifetime |
+| `COMMON_DATA_DIR` | no | `common` | Server-side shared settings/provider-cache directory |
 | `PROD_PORT` | no | `8080` | Host port for Production |
 | `TEST_PORT` | no | `8081` | Host port for Test |
 | `TZ` | no | `America/Phoenix` in `.env.example` | Container timezone |
@@ -164,8 +179,8 @@ That exact gate checks Ruff linting/formatting, Python compilation, and pytest. 
 
 - `/` — spreadsheet-style screening table.
 - `/movies` — poster-first Movie Selection page.
-- `/settings` — browser settings plus shared server settings/integration credentials.
-- `/api/settings` — GET public settings state; POST shared settings. Secret values are never returned.
+- `/settings` — browser settings plus shared server settings/integration credentials and provider usage/cache status.
+- `/api/settings` — GET public settings/provider-usage state; POST shared settings. Secret values are never returned.
 - `/api/screenings` — normalized/enriched screenings and facets. Direct API consumers can still use server-side `movie`, `theatre`, `format`, `start_after`, `start_before`, `end_by`, `preview=Chain:minutes`, `zip=`, `radius=`, and `date=` parameters; browser cookies take precedence for location/preview settings.
 - `/health` — `{"status": "ok"}`.
 
@@ -175,12 +190,13 @@ That exact gate checks Ruff linting/formatting, Python compilation, and pytest. 
 - `movie_showtime_aggregator/fandango.py` — base theater/showtime discovery.
 - `movie_showtime_aggregator/location.py` — ZIP lookup and geographic calculations.
 - `movie_showtime_aggregator/routing.py` — address geocoding and static driving-route estimates.
-- `movie_showtime_aggregator/metadata.py` — optional OMDb poster/rating enrichment.
-- `movie_showtime_aggregator/amc.py` — optional official AMC showtime/price/seating enrichment.
+- `movie_showtime_aggregator/metadata.py` — optional OMDb poster/rating enrichment and persistent metadata cache use.
+- `movie_showtime_aggregator/amc.py` — optional official AMC showtime/price/seating enrichment and provider cache use.
+- `movie_showtime_aggregator/provider_cache.py` — shared persistent provider responses, request accounting, and observed rate-limit state.
 - `movie_showtime_aggregator/enrichment.py` — fail-soft enrichment orchestration.
 - `movie_showtime_aggregator/storage.py` — shared persistent user settings and secrets.
 - `movie_showtime_aggregator/models.py` — normalized screening and derived fields.
-- `movie_showtime_aggregator/service.py` — caching, radius discovery, facets, filters.
+- `movie_showtime_aggregator/service.py` — Fandango caching, radius discovery, facets, filters.
 - `movie_showtime_aggregator/static/` — screening table, movie selection, and Settings UI.
 - `tests/` — unit/API tests.
 - `scripts/` — deterministic local fix/verification commands used by agents and CI.
