@@ -109,8 +109,5 @@ def bearing_degrees(origin: GeoPoint, destination: GeoPoint) -> float:
     lat2 = math.radians(destination.latitude)
     delta_lon = math.radians(destination.longitude - origin.longitude)
     x = math.sin(delta_lon) * math.cos(lat2)
-    y = (
-        math.cos(lat1) * math.sin(lat2)
-        - math.sin(lat1) * math.cos(lat2) * math.cos(delta_lon)
-    )
+    y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(delta_lon)
     return (math.degrees(math.atan2(x, y)) + 360) % 360
