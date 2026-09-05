@@ -74,7 +74,9 @@ class ScreeningService:
         return list(screenings)
 
 
-def filter_screenings(screenings: list[Screening], filters: ScreeningFilters) -> list[Screening]:
+def filter_screenings(
+    screenings: list[Screening], filters: ScreeningFilters
+) -> list[Screening]:
     start_after = _parse_time(filters.start_after)
     start_before = _parse_time(filters.start_before)
     end_by = _parse_time(filters.end_by)
