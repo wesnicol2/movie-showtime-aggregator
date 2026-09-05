@@ -36,7 +36,12 @@ def screening(
 def test_filter_by_movie_theatre_and_format():
     screenings = [
         screening(),
-        screening(movie="Movie B", theatre="Harkins One", chain="Harkins Theatres", format_name="IMAX"),
+        screening(
+            movie="Movie B",
+            theatre="Harkins One",
+            chain="Harkins Theatres",
+            format_name="IMAX",
+        ),
     ]
     filters = ScreeningFilters(
         movies=frozenset({"Movie B"}),
@@ -81,7 +86,12 @@ def test_unknown_times_are_visible_without_time_filters():
 
 def test_facets_include_chains():
     screenings = [
-        screening(movie="Zulu", theatre="Harkins Two", chain="Harkins Theatres", format_name="IMAX"),
+        screening(
+            movie="Zulu",
+            theatre="Harkins Two",
+            chain="Harkins Theatres",
+            format_name="IMAX",
+        ),
         screening(movie="Alpha", theatre="AMC One", chain="AMC", format_name="Standard"),
     ]
 
