@@ -8,8 +8,8 @@ from pathlib import Path
 from urllib.parse import parse_qs
 from wsgiref.simple_server import make_server
 
-from .amc import AMCClient, AMCError
 from .config import Settings
+from .fandango import FandangoClient, FandangoError
 from .service import ScreeningFilters, ScreeningService, facets, filter_screenings
 
 JSON_HEADERS = [("Content-Type", "application/json; charset=utf-8")]
@@ -21,7 +21,7 @@ STATIC_ROUTES = {
 }
 
 _SETTINGS = Settings.from_env()
-_SERVICE = ScreeningService(AMCClient(_SETTINGS.vendor_key), _SETTINGS)
+_SERVICE = ScreeningService(FandangoClient(), _SETTINGS)
 
 
 def health() -> dict[str, str]:
@@ -49,7 +49,8 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
     raw_date = query.get("date", [None])[0]
     try:
         show_date = date.fromisoformat(raw_date) if raw_date else date.today()
-        all_screenings = _SERVICE.get_screenings(show_date)
+        preview_minutes_by_chain = _parse_preview_minutes(query.get("preview", []))
+        all_screenings = _SERVICE.get_screenings(show_date, preview_minutes_by_chain)
         filters = ScreeningFilters(
             movies=frozenset(query.get("movie", [])),
             theatres=frozenset(query.get("theatre", [])),
@@ -59,19 +60,37 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
             end_by=query.get("end_by", [None])[0],
         )
         visible = filter_screenings(all_screenings, filters)
-    except (ValueError, AMCError) as exc:
-        status = 503 if isinstance(exc, AMCError) else 400
+    except (ValueError, FandangoError) as exc:
+        status = 503 if isinstance(exc, FandangoError) else 400
         return _json_response(start_response, status, {"error": str(exc)}, method)
 
     payload = {
         "date": show_date.isoformat(),
-        "preshow_minutes": _SETTINGS.preshow_minutes,
+        "market_zip": _SETTINGS.zip_code,
+        "preview_minutes_by_chain": preview_minutes_by_chain,
         "count": len(visible),
         "total_count": len(all_screenings),
         "facets": facets(all_screenings),
         "screenings": [screening.to_dict() for screening in visible],
     }
     return _json_response(start_response, 200, payload, method)
+
+
+def _parse_preview_minutes(values: list[str]) -> dict[str, int]:
+    previews: dict[str, int] = {}
+    for value in values:
+        chain, separator, raw_minutes = value.rpartition(":")
+        chain = chain.strip()
+        if not separator or not chain:
+            raise ValueError("preview must use 'Chain Name:minutes'")
+        try:
+            minutes = int(raw_minutes)
+        except ValueError as exc:
+            raise ValueError(f"Preview minutes for {chain} must be an integer") from exc
+        if not 0 <= minutes <= 180:
+            raise ValueError(f"Preview minutes for {chain} must be between 0 and 180")
+        previews[chain] = minutes
+    return previews
 
 
 def _static_response(start_response: Callable, path: str, method: str) -> Iterable[bytes]:
