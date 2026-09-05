@@ -1,28 +1,41 @@
 import pytest
 
-from movie_showtime_aggregator.config import Settings, parse_theatres
+from movie_showtime_aggregator.config import Settings
 
 
-def test_default_theatres_include_phoenix_amcs(monkeypatch):
-    monkeypatch.delenv("AMC_THEATRES", raising=False)
+def test_default_market_is_phoenix(monkeypatch):
+    monkeypatch.delenv("FANDANGO_ZIP_CODE", raising=False)
+    monkeypatch.delenv("FANDANGO_PAGE_LIMIT", raising=False)
+    monkeypatch.delenv("CACHE_TTL_SECONDS", raising=False)
+
     settings = Settings.from_env()
 
-    names = {theatre.name for theatre in settings.theatres}
-    assert "AMC Arizona Center 24" in names
-    assert "AMC DINE-IN Esplanade 14" in names
-    assert "AMC DINE-IN Desert Ridge 18" in names
-    assert "AMC Ahwatukee 24" in names
+    assert settings.zip_code == "85004"
+    assert settings.market_page_limit == 50
+    assert settings.cache_ttl_seconds == 300
 
 
-def test_custom_theatres_are_parsed():
-    theatres = parse_theatres("AMC One 10:ABC12,AMC Two 12:XYZ34")
+def test_market_settings_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("FANDANGO_ZIP_CODE", "85281")
+    monkeypatch.setenv("FANDANGO_PAGE_LIMIT", "25")
+    monkeypatch.setenv("CACHE_TTL_SECONDS", "120")
 
-    assert [(theatre.name, theatre.fandango_id) for theatre in theatres] == [
-        ("AMC One 10", "ABC12"),
-        ("AMC Two 12", "XYZ34"),
-    ]
+    settings = Settings.from_env()
+
+    assert settings.zip_code == "85281"
+    assert settings.market_page_limit == 25
+    assert settings.cache_ttl_seconds == 120
 
 
-def test_invalid_theatre_config_is_rejected():
-    with pytest.raises(ValueError, match="AMC_THEATRES"):
-        parse_theatres("AMC Missing Id")
+def test_invalid_zip_is_rejected(monkeypatch):
+    monkeypatch.setenv("FANDANGO_ZIP_CODE", "Phoenix")
+
+    with pytest.raises(ValueError, match="five-digit US ZIP"):
+        Settings.from_env()
+
+
+def test_invalid_page_limit_is_rejected(monkeypatch):
+    monkeypatch.setenv("FANDANGO_PAGE_LIMIT", "0")
+
+    with pytest.raises(ValueError, match="greater than zero"):
+        Settings.from_env()
