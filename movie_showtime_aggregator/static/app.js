@@ -123,7 +123,7 @@ function renderRows(screenings) {
       cell(screening.theatre),
       cell(formatTime(screening.advertised_start), "muted"),
       cell(formatTime(screening.actual_start), "primary-time"),
-      cell(formatTime(screening.estimated_end), "primary-time"),
+      cell(screening.estimated_end ? formatTime(screening.estimated_end) : "Unknown", "primary-time"),
       cell(screening.format),
     );
     body.append(row);
