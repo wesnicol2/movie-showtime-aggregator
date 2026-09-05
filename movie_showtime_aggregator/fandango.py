@@ -52,7 +52,12 @@ class FandangoClient:
                 payload = json.loads(response.read())
         except urllib.error.HTTPError as exc:
             raise FandangoError(f"Fandango returned HTTP {exc.code}") from exc
-        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            OSError,
+            json.JSONDecodeError,
+        ) as exc:
             raise FandangoError(f"Fandango request failed: {exc}") from exc
 
         if not isinstance(payload, dict):
