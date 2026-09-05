@@ -16,17 +16,25 @@ class Screening:
     estimated_end: datetime | None
     runtime_minutes: int | None
     distance_miles: float | None
+    theatre_latitude: float | None
+    theatre_longitude: float | None
+    drive_to_minutes: int | None
+    drive_home_minutes: int | None
+    leave_home: datetime | None
+    home_arrival: datetime | None
     purchase_url: str
 
     def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
-        payload["advertised_start"] = self.advertised_start.isoformat(timespec="minutes")
-        payload["actual_start"] = (
-            self.actual_start.isoformat(timespec="minutes") if self.actual_start else None
-        )
-        payload["estimated_end"] = (
-            self.estimated_end.isoformat(timespec="minutes") if self.estimated_end else None
-        )
+        for field in (
+            "advertised_start",
+            "actual_start",
+            "estimated_end",
+            "leave_home",
+            "home_arrival",
+        ):
+            value = getattr(self, field)
+            payload[field] = value.isoformat(timespec="minutes") if value else None
         return payload
 
 
@@ -59,13 +67,27 @@ def normalize_showtime(raw: dict[str, object]) -> Screening | None:
         estimated_end=None,
         runtime_minutes=_runtime_minutes(raw.get("runTime")),
         distance_miles=_distance_miles(raw.get("distanceMiles")),
+        theatre_latitude=_coordinate(raw.get("theatreLatitude"), minimum=-90, maximum=90),
+        theatre_longitude=_coordinate(raw.get("theatreLongitude"), minimum=-180, maximum=180),
+        drive_to_minutes=None,
+        drive_home_minutes=None,
+        leave_home=None,
+        home_arrival=None,
         purchase_url=str(raw.get("purchaseUrl") or ""),
     )
 
 
 def apply_preview_minutes(screening: Screening, preview_minutes: int | None) -> Screening:
     if preview_minutes is None:
-        return replace(screening, actual_start=None, estimated_end=None)
+        return replace(
+            screening,
+            actual_start=None,
+            estimated_end=None,
+            drive_to_minutes=None,
+            drive_home_minutes=None,
+            leave_home=None,
+            home_arrival=None,
+        )
 
     actual_start = screening.advertised_start + timedelta(minutes=preview_minutes)
     estimated_end = (
@@ -73,7 +95,39 @@ def apply_preview_minutes(screening: Screening, preview_minutes: int | None) -> 
         if screening.runtime_minutes is not None
         else None
     )
-    return replace(screening, actual_start=actual_start, estimated_end=estimated_end)
+    return replace(
+        screening,
+        actual_start=actual_start,
+        estimated_end=estimated_end,
+        drive_to_minutes=None,
+        drive_home_minutes=None,
+        leave_home=None,
+        home_arrival=None,
+    )
+
+
+def apply_travel_minutes(
+    screening: Screening,
+    drive_to_minutes: int | None,
+    drive_home_minutes: int | None,
+) -> Screening:
+    leave_home = (
+        screening.actual_start - timedelta(minutes=drive_to_minutes)
+        if screening.actual_start is not None and drive_to_minutes is not None
+        else None
+    )
+    home_arrival = (
+        screening.estimated_end + timedelta(minutes=drive_home_minutes)
+        if screening.estimated_end is not None and drive_home_minutes is not None
+        else None
+    )
+    return replace(
+        screening,
+        drive_to_minutes=drive_to_minutes,
+        drive_home_minutes=drive_home_minutes,
+        leave_home=leave_home,
+        home_arrival=home_arrival,
+    )
 
 
 def _runtime_minutes(value: object) -> int | None:
@@ -90,6 +144,14 @@ def _distance_miles(value: object) -> float | None:
     except (TypeError, ValueError):
         return None
     return distance if distance >= 0 else None
+
+
+def _coordinate(value: object, *, minimum: float, maximum: float) -> float | None:
+    try:
+        coordinate = float(value) if value is not None else float("nan")
+    except (TypeError, ValueError):
+        return None
+    return coordinate if minimum <= coordinate <= maximum else None
 
 
 def _format_name(raw: dict[str, object]) -> str:
