@@ -103,6 +103,8 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
             continue
         theatre_name = str(theater.get("name") or "").strip()
         chain_name = str(theater.get("chainName") or "Independent").strip() or "Independent"
+        theatre_zip = str(theater.get("zip") or "").strip()
+        latitude, longitude = _theater_coordinates(theater)
         movies = theater.get("movies")
         if not theatre_name or not isinstance(movies, list):
             continue
@@ -146,6 +148,9 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
                                 "movieName": title,
                                 "theatreName": theatre_name,
                                 "chainName": chain_name,
+                                "theatreZip": theatre_zip,
+                                "theatreLatitude": latitude,
+                                "theatreLongitude": longitude,
                                 "showDateTimeLocal": ticketing_date.replace("+", "T", 1),
                                 "runTime": runtime,
                                 "premiumFormat": _showtime_format(showtime, format_name),
@@ -158,6 +163,13 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
                             }
                         )
     return flattened
+
+
+def _theater_coordinates(theater: dict[str, object]) -> tuple[object, object]:
+    geo = theater.get("geo")
+    if not isinstance(geo, dict):
+        return None, None
+    return geo.get("latitude"), geo.get("longitude")
 
 
 def _clean_title(title: str) -> str:

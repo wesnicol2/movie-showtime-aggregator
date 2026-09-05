@@ -15,6 +15,7 @@ class Screening:
     actual_start: datetime | None
     estimated_end: datetime | None
     runtime_minutes: int | None
+    distance_miles: float | None
     purchase_url: str
 
     def to_dict(self) -> dict[str, object]:
@@ -57,6 +58,7 @@ def normalize_showtime(raw: dict[str, object]) -> Screening | None:
         actual_start=None,
         estimated_end=None,
         runtime_minutes=_runtime_minutes(raw.get("runTime")),
+        distance_miles=_distance_miles(raw.get("distanceMiles")),
         purchase_url=str(raw.get("purchaseUrl") or ""),
     )
 
@@ -80,6 +82,14 @@ def _runtime_minutes(value: object) -> int | None:
     except (TypeError, ValueError):
         return None
     return minutes if minutes > 0 else None
+
+
+def _distance_miles(value: object) -> float | None:
+    try:
+        distance = float(value) if value is not None else -1
+    except (TypeError, ValueError):
+        return None
+    return distance if distance >= 0 else None
 
 
 def _format_name(raw: dict[str, object]) -> str:
