@@ -22,6 +22,19 @@ class Screening:
     drive_home_minutes: int | None
     leave_home: datetime | None
     home_arrival: datetime | None
+    poster_url: str
+    imdb_id: str
+    imdb_rating: float | None
+    metacritic_score: int | None
+    rotten_tomatoes_score: int | None
+    ticket_price: float | None
+    seats_left_percent: float | None
+    amc_a_list_eligible: bool | None
+    amc_source_url: str
+    letterboxd_url: str
+    imdb_url: str
+    rotten_tomatoes_url: str
+    metacritic_url: str
     purchase_url: str
 
     def to_dict(self) -> dict[str, object]:
@@ -73,6 +86,19 @@ def normalize_showtime(raw: dict[str, object]) -> Screening | None:
         drive_home_minutes=None,
         leave_home=None,
         home_arrival=None,
+        poster_url="",
+        imdb_id="",
+        imdb_rating=None,
+        metacritic_score=None,
+        rotten_tomatoes_score=None,
+        ticket_price=None,
+        seats_left_percent=None,
+        amc_a_list_eligible=None,
+        amc_source_url="",
+        letterboxd_url="",
+        imdb_url="",
+        rotten_tomatoes_url="",
+        metacritic_url="",
         purchase_url=str(raw.get("purchaseUrl") or ""),
     )
 
