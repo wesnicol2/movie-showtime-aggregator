@@ -82,9 +82,9 @@ def test_zero_runtime_is_preserved_for_unknown_end_handling():
 
 def test_expired_and_sold_out_flags_are_normalized():
     payload = market_payload()
-    showtime = payload["theaters"][0]["movies"][0]["variants"][0]["amenityGroups"][0][
-        "showtimes"
-    ][0]
+    movie = payload["theaters"][0]["movies"][0]
+    group = movie["variants"][0]["amenityGroups"][0]
+    showtime = group["showtimes"][0]
     showtime["expired"] = True
     showtime["type"] = "soldout"
 
