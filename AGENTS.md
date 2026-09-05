@@ -12,6 +12,38 @@ contradicts something either file says, update it in the same work.
 `docs/*.md`.** These are the contracts. Ask first and get a clear yes, every
 time.
 
+## Local fix and verification contract
+
+Agents are expected to have a local shell/runtime, but they do not need access
+to a deployed Test environment to produce lint-clean, formatted, unit-tested
+code.
+
+After editing Python, run:
+
+```bash
+bash scripts/fix
+```
+
+Do not manually predict Ruff's formatting. The repository pins Ruff and the
+script applies its safe lint fixes followed by its formatter. If an issue cannot
+be auto-fixed, `bash scripts/verify` reports it for an explicit code change.
+
+Before every push, run:
+
+```bash
+bash scripts/verify
+```
+
+This is a hard pre-push gate. It runs Ruff linting, Ruff's format check, syntax
+compilation of tracked Python files, and pytest. CI invokes this exact same
+script. CI is confirmation of local verification, not the first environment in
+which an agent should discover formatting, lint, syntax, or unit-test failures.
+
+A deployed Test environment has a different job: integration verification after
+a `dev/*` branch is promoted to `feature/*`. Use Test for behavior that depends
+on containers, networking, credentials, upstream services, persistent data, or
+other runtime conditions that local unit tests do not reproduce.
+
 ---
 
 ## The core idea
@@ -137,8 +169,8 @@ Two environments — Test (`:test`) and Production (`:latest`) — each pinned t
 own GHCR tag, with Watchtower polling on the home server. The full contract is in
 `CONTRIBUTING.md`.
 
-There is deliberately no per-`dev/*` environment. Dev branches get full CI but
-do not deploy; running verification happens on Test.
+There is deliberately no per-`dev/*` environment. Dev branches get full
+verification but do not deploy; running integration verification happens on Test.
 
 ## Repo history worth not relearning
 
@@ -155,6 +187,9 @@ do not deploy; running verification happens on Test.
 - Preview configuration briefly lived inside the Chain filter dropdown. It was
   intentionally moved to `/settings`; do not put app configuration back into
   table filters.
+- Ruff formatting previously caused avoidable CI back-and-forth. The repo now
+  pins Ruff and owns `scripts/fix` plus `scripts/verify`; agents should run those
+  locally instead of guessing formatting or waiting for CI to teach them.
 
 ## Things deliberately not done
 
