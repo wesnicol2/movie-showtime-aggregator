@@ -8,91 +8,30 @@
 </head>
 <body>
   <main class="shell">
-    <header class="page-header">
-      <p class="eyebrow">MOVIE SHOWTIMES</p>
-      <h1>Movie options, minus the noise.</h1>
-      <p class="subtitle">All theaters in the configured market are listed together. Set preview minutes for any chain you know; until then, actual start and end stay unknown.</p>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">MOVIE SHOWTIMES</p>
+        <h1>Screenings</h1>
+      </div>
+      <p id="result-count">Loading…</p>
     </header>
 
-    <section class="filters" aria-label="Showtime filters">
-      <div class="filter-group">
-        <div class="filter-heading">
-          <h2>Movies</h2>
-          <div class="filter-actions">
-            <button type="button" data-action="all" data-filter="movies">All</button>
-            <button type="button" data-action="clear" data-filter="movies">Clear</button>
-          </div>
-        </div>
-        <div id="movies-filter" class="checkbox-list"></div>
-      </div>
-
-      <div class="filter-group">
-        <div class="filter-heading">
-          <h2>Theaters</h2>
-          <div class="filter-actions">
-            <button type="button" data-action="all" data-filter="theatres">All</button>
-            <button type="button" data-action="clear" data-filter="theatres">Clear</button>
-          </div>
-        </div>
-        <div id="theatres-filter" class="checkbox-list"></div>
-      </div>
-
-      <div class="filter-group">
-        <div class="filter-heading">
-          <h2>Formats</h2>
-          <div class="filter-actions">
-            <button type="button" data-action="all" data-filter="formats">All</button>
-            <button type="button" data-action="clear" data-filter="formats">Clear</button>
-          </div>
-        </div>
-        <div id="formats-filter" class="checkbox-list"></div>
-      </div>
-
-      <div class="filter-group preview-group">
-        <div class="filter-heading">
-          <h2>Preview time by chain</h2>
-        </div>
-        <p class="filter-note">Leave blank to keep actual start and end unknown.</p>
-        <div id="chain-previews" class="preview-list"></div>
-      </div>
-
-      <div class="filter-group timing-group">
-        <div class="filter-heading">
-          <h2>Timing</h2>
-          <button id="clear-times" type="button">Clear times</button>
-        </div>
-        <label>Actual starts after<input id="start-after" type="time"></label>
-        <label>Actual starts before<input id="start-before" type="time"></label>
-        <label>Ends by<input id="end-by" type="time"></label>
-        <p class="filter-note">Timing filters exclude screenings whose calculated time is unknown.</p>
-      </div>
-    </section>
+    <div id="error" class="error" hidden></div>
 
     <section class="results" aria-live="polite">
-      <div class="results-heading">
-        <h2>Screenings</h2>
-        <p id="result-count">Loading…</p>
-      </div>
-      <div id="error" class="error" hidden></div>
-      <div class="table-wrap">
-        <table>
+      <div class="table-wrap" id="table-wrap">
+        <table id="screening-table">
           <thead>
-            <tr>
-              <th>Movie</th>
-              <th>Theater</th>
-              <th>Chain</th>
-              <th>Listed</th>
-              <th class="primary-time">Actual start</th>
-              <th class="primary-time">Ends</th>
-              <th>Format</th>
-            </tr>
+            <tr id="screenings-head"></tr>
           </thead>
           <tbody id="screenings-body"></tbody>
         </table>
       </div>
-      <p id="empty-state" class="empty" hidden>No screenings match these filters.</p>
+      <p id="empty-state" class="empty" hidden>No screenings match the active column filters.</p>
     </section>
   </main>
+
+  <div id="column-menu" class="column-menu" hidden></div>
   <script src="/app.js" defer></script>
 </body>
 </html>
