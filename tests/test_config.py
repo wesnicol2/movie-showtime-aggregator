@@ -15,11 +15,11 @@ def test_default_theatres_include_phoenix_amcs(monkeypatch):
 
 
 def test_custom_theatres_are_parsed():
-    theatres = parse_theatres("AMC One 10:101,AMC Two 12:202")
+    theatres = parse_theatres("AMC One 10:ABC12,AMC Two 12:XYZ34")
 
-    assert [(theatre.name, theatre.theatre_id) for theatre in theatres] == [
-        ("AMC One 10", 101),
-        ("AMC Two 12", 202),
+    assert [(theatre.name, theatre.fandango_id) for theatre in theatres] == [
+        ("AMC One 10", "ABC12"),
+        ("AMC Two 12", "XYZ34"),
     ]
 
 
