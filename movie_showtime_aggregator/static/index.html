@@ -13,7 +13,16 @@
         <p class="eyebrow">MOVIE SHOWTIMES</p>
         <h1>Screenings</h1>
       </div>
-      <p id="result-count">Loading…</p>
+      <div class="topbar-actions">
+        <div class="saved-views" aria-label="Saved filter views">
+          <select id="saved-view-select" aria-label="Saved view">
+            <option value="">Saved views</option>
+          </select>
+          <button id="save-view" type="button">Save view</button>
+          <button id="delete-view" type="button" disabled>Delete</button>
+        </div>
+        <p id="result-count">Loading…</p>
+      </div>
     </header>
 
     <div id="error" class="error" hidden></div>
