@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta
 
 
@@ -9,9 +9,10 @@ class Screening:
     showtime_id: str
     movie: str
     theatre: str
+    chain: str
     format: str
     advertised_start: datetime
-    actual_start: datetime
+    actual_start: datetime | None
     estimated_end: datetime | None
     runtime_minutes: int | None
     purchase_url: str
@@ -19,24 +20,26 @@ class Screening:
     def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
         payload["advertised_start"] = self.advertised_start.isoformat(timespec="minutes")
-        payload["actual_start"] = self.actual_start.isoformat(timespec="minutes")
+        payload["actual_start"] = (
+            self.actual_start.isoformat(timespec="minutes") if self.actual_start else None
+        )
         payload["estimated_end"] = (
             self.estimated_end.isoformat(timespec="minutes") if self.estimated_end else None
         )
         return payload
 
 
-def normalize_showtime(
-    raw: dict[str, object], *, theatre_name: str, preshow_minutes: int
-) -> Screening | None:
+def normalize_showtime(raw: dict[str, object]) -> Screening | None:
     if raw.get("isCanceled") or raw.get("isSoldOut") or raw.get("isExpired"):
         return None
 
     movie = str(raw.get("movieName") or raw.get("sortableMovieName") or "").strip()
+    theatre = str(raw.get("theatreName") or "").strip()
+    chain = str(raw.get("chainName") or "Independent").strip() or "Independent"
     start_raw = str(raw.get("showDateTimeLocal") or "").strip()
     showtime_id_raw = raw.get("id") or raw.get("showtimeHashCode")
 
-    if not movie or not start_raw or showtime_id_raw is None:
+    if not movie or not theatre or not start_raw or showtime_id_raw is None:
         return None
 
     try:
@@ -44,22 +47,31 @@ def normalize_showtime(
     except ValueError:
         return None
 
-    runtime_minutes = _runtime_minutes(raw.get("runTime"))
-    actual_start = advertised_start + timedelta(minutes=preshow_minutes)
-    estimated_end = (
-        actual_start + timedelta(minutes=runtime_minutes) if runtime_minutes is not None else None
-    )
     return Screening(
         showtime_id=str(showtime_id_raw),
         movie=movie,
-        theatre=theatre_name,
+        theatre=theatre,
+        chain=chain,
         format=_format_name(raw),
         advertised_start=advertised_start,
-        actual_start=actual_start,
-        estimated_end=estimated_end,
-        runtime_minutes=runtime_minutes,
+        actual_start=None,
+        estimated_end=None,
+        runtime_minutes=_runtime_minutes(raw.get("runTime")),
         purchase_url=str(raw.get("purchaseUrl") or ""),
     )
+
+
+def apply_preview_minutes(screening: Screening, preview_minutes: int | None) -> Screening:
+    if preview_minutes is None:
+        return replace(screening, actual_start=None, estimated_end=None)
+
+    actual_start = screening.advertised_start + timedelta(minutes=preview_minutes)
+    estimated_end = (
+        actual_start + timedelta(minutes=screening.runtime_minutes)
+        if screening.runtime_minutes is not None
+        else None
+    )
+    return replace(screening, actual_start=actual_start, estimated_end=estimated_end)
 
 
 def _runtime_minutes(value: object) -> int | None:
@@ -101,6 +113,8 @@ def _canonical_format(value: str) -> str:
         return "ScreenX"
     if "PRIME" in upper:
         return "PRIME"
+    if "XD" in upper:
+        return "XD"
     if "REALD" in upper:
         return "RealD 3D"
     if "3D" in upper:
