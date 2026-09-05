@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings · Movie Showtimes</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell settings-shell">
+    <header class="topbar settings-topbar">
+      <div>
+        <p class="eyebrow">MOVIE SHOWTIMES</p>
+        <h1>Settings</h1>
+      </div>
+      <a class="settings-link" href="/">Back to screenings</a>
+    </header>
+
+    <section class="settings-card">
+      <div class="settings-heading">
+        <div>
+          <h2>Preview time by chain</h2>
+          <p>Set the number of minutes between the listed showtime and the actual movie start. Leave a chain blank to keep Actual start and Ends unknown.</p>
+        </div>
+      </div>
+
+      <div id="settings-error" class="error" hidden></div>
+      <div id="preview-settings" class="settings-list" aria-live="polite">
+        <p class="settings-loading">Loading theater chains…</p>
+      </div>
+
+      <div class="settings-actions">
+        <button id="save-settings" class="primary-button" type="button">Save settings</button>
+        <button id="clear-settings" type="button">Clear preview times</button>
+        <span id="settings-status" role="status"></span>
+      </div>
+    </section>
+  </main>
+  <script src="/settings.js" defer></script>
+</body>
+</html>
