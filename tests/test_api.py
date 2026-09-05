@@ -7,19 +7,23 @@ import movie_showtime_aggregator.api as api
 from movie_showtime_aggregator.models import Screening
 
 
-def call(path: str, method: str = "GET", query: str = "") -> tuple[int, dict | str]:
+def call(
+    path: str,
+    method: str = "GET",
+    query: str = "",
+    cookie: str = "",
+) -> tuple[int, dict | str]:
     captured: dict[str, object] = {}
 
     def start_response(status: str, headers: list[tuple[str, str]]) -> None:
         captured["status"] = status
         captured["headers"] = headers
 
-    body = b"".join(
-        api.application(
-            {"PATH_INFO": path, "REQUEST_METHOD": method, "QUERY_STRING": query},
-            start_response,
-        )
-    )
+    environ = {"PATH_INFO": path, "REQUEST_METHOD": method, "QUERY_STRING": query}
+    if cookie:
+        environ["HTTP_COOKIE"] = cookie
+
+    body = b"".join(api.application(environ, start_response))
     code = int(str(captured["status"]).split(" ", 1)[0])
     content_type = dict(captured["headers"])["Content-Type"]
     if str(content_type).startswith("application/json"):
@@ -58,12 +62,24 @@ def test_health_is_ok():
     assert payload == {"status": "ok"}
 
 
-def test_root_serves_dashboard():
+def test_root_serves_table_dashboard():
     code, body = call("/")
     assert code == 200
-    assert "Movie options, minus the noise." in body
+    assert '<table id="screening-table">' in body
+    assert '<tr id="screenings-head"></tr>' in body
+    assert 'id="saved-view-select"' in body
+    assert 'id="save-view"' in body
+    assert 'href="/settings"' in body
+    assert 'id="column-menu"' in body
+    assert 'class="filters"' not in body
+
+
+def test_settings_page_is_served():
+    code, body = call("/settings")
+    assert code == 200
     assert "Preview time by chain" in body
-    assert "Actual start" in body
+    assert 'id="save-settings"' in body
+    assert 'src="/settings.js"' in body
 
 
 def test_unknown_path_is_404():
@@ -97,6 +113,37 @@ def test_api_passes_chain_previews_and_returns_chain_facets(monkeypatch):
     assert payload["preview_minutes_by_chain"] == {"AMC": 25}
     assert payload["screenings"][0]["movie"] == "Movie A"
     assert payload["facets"]["chains"] == ["AMC", "Harkins Theatres"]
+
+
+def test_settings_cookie_takes_precedence_over_preview_query(monkeypatch):
+    service = StubService([sample_screening()])
+    monkeypatch.setattr(api, "_SERVICE", service)
+    settings_cookie = "movie_preview_minutes=%7B%22AMC%22%3A25%7D"
+
+    code, payload = call(
+        "/api/screenings",
+        query="date=2026-09-04&preview=AMC%3A10",
+        cookie=settings_cookie,
+    )
+
+    assert code == 200
+    assert service.preview_minutes_by_chain == {"AMC": 25}
+    assert payload["preview_minutes_by_chain"] == {"AMC": 25}
+
+
+def test_empty_settings_cookie_keeps_preview_times_unknown(monkeypatch):
+    service = StubService([sample_screening()])
+    monkeypatch.setattr(api, "_SERVICE", service)
+    settings_cookie = "movie_preview_minutes=%7B%7D"
+
+    code, _ = call(
+        "/api/screenings",
+        query="date=2026-09-04&preview=AMC%3A10",
+        cookie=settings_cookie,
+    )
+
+    assert code == 200
+    assert service.preview_minutes_by_chain == {}
 
 
 def test_zero_preview_minutes_is_accepted():
