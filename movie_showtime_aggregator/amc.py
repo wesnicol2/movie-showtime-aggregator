@@ -228,10 +228,7 @@ def _parse_showtime(
     performance_id = _int(raw.get("performanceNumber")) or _int(raw.get("id"))
     theatre_id = _int(raw.get("theatreId"))
     movie_name = str(
-        raw.get("movieName")
-        or raw.get("sortableMovieName")
-        or raw.get("sortableTitleName")
-        or ""
+        raw.get("movieName") or raw.get("sortableMovieName") or raw.get("sortableTitleName") or ""
     ).strip()
     raw_start = str(raw.get("showDateTimeLocal") or "").strip()
     if performance_id is None or theatre_id is None or not movie_name or not raw_start:
