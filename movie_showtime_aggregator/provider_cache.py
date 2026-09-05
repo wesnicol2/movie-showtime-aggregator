@@ -143,7 +143,9 @@ class ProviderCache:
                 (provider, limit_value, remaining_value, reset_at, now),
             )
 
-    def status(self, provider: str, *, published_daily_limit: int | None = None) -> dict[str, object]:
+    def status(
+        self, provider: str, *, published_daily_limit: int | None = None
+    ) -> dict[str, object]:
         now = self._clock()
         day = _utc_day(now)
         with self._lock, self._connect() as connection:
