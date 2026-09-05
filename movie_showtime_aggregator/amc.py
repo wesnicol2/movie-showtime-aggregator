@@ -10,13 +10,20 @@ from dataclasses import dataclass
 from datetime import date, datetime
 
 from .location import GeoPoint, distance_miles
+from .provider_cache import ProviderCache
 
 AMC_BASE_URL = "https://api.amctheatres.com"
+AMC_SHOWTIME_CACHE_TTL_SECONDS = 5 * 60
+AMC_THEATRE_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60
+AMC_SEATING_CACHE_TTL_SECONDS = 5 * 60
+AMC_SEATING_FORBIDDEN_TTL_SECONDS = 6 * 60 * 60
 USER_AGENT = "movie-showtime-aggregator/1.0"
 
 
 class AMCError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,16 +40,22 @@ class AMCShowtime:
     movie_name: str
     start_local: datetime
     ticket_price: float | None
-    a_list_eligible: bool
+    a_list_eligible: bool | None
     purchase_url: str
 
 
 class AMCClient:
-    def __init__(self, vendor_key: str, *, timeout_seconds: int = 10) -> None:
+    def __init__(
+        self,
+        vendor_key: str,
+        *,
+        timeout_seconds: int = 10,
+        provider_cache: ProviderCache | None = None,
+    ) -> None:
         self.vendor_key = vendor_key.strip()
         self.timeout_seconds = timeout_seconds
+        self.provider_cache = provider_cache
         self._theatre_cache: dict[int, AMCTheatre] = {}
-        self._seat_cache: dict[tuple[int, int], float | None] = {}
         self._lock = threading.Lock()
 
     def showtimes_near(self, show_date: date, point: GeoPoint) -> list[AMCShowtime]:
@@ -58,6 +71,7 @@ class AMCClient:
                     f"{point.latitude:.6f}/{point.longitude:.6f}"
                 ),
                 {"page-number": page, "page-size": 100},
+                cache_ttl_seconds=AMC_SHOWTIME_CACHE_TTL_SECONDS,
             )
             embedded = payload.get("_embedded")
             rows = embedded.get("showtimes") if isinstance(embedded, dict) else None
@@ -94,34 +108,55 @@ class AMCClient:
             if cached is not None:
                 return cached
 
-        payload = self._get(f"/v2/theatres/{theatre_id}")
+        payload = self._get(
+            f"/v2/theatres/{theatre_id}",
+            cache_ttl_seconds=AMC_THEATRE_CACHE_TTL_SECONDS,
+        )
         theatre = _parse_theatre(payload, theatre_id)
         with self._lock:
             self._theatre_cache[theatre_id] = theatre
         return theatre
 
     def seats_left_percent(self, theatre_id: int, performance_id: int) -> float | None:
-        cache_key = (theatre_id, performance_id)
-        with self._lock:
-            if cache_key in self._seat_cache:
-                return self._seat_cache[cache_key]
+        if self.provider_cache is not None:
+            forbidden = self.provider_cache.get_json("amc", "seating:permission-unavailable")
+            if forbidden is not None:
+                return None
 
         try:
-            payload = self._get(f"/v2/seating-layouts/{theatre_id}/{performance_id}")
-            percentage = _seat_percentage(payload)
-        except AMCError:
-            percentage = None
-
-        with self._lock:
-            self._seat_cache[cache_key] = percentage
-        return percentage
+            payload = self._get(
+                f"/v3/seating-layouts/{theatre_id}/{performance_id}",
+                cache_ttl_seconds=AMC_SEATING_CACHE_TTL_SECONDS,
+            )
+        except AMCError as exc:
+            if self.provider_cache is not None and exc.status_code in {401, 403}:
+                self.provider_cache.set_json(
+                    "amc",
+                    "seating:permission-unavailable",
+                    {"status_code": exc.status_code},
+                    ttl_seconds=AMC_SEATING_FORBIDDEN_TTL_SECONDS,
+                )
+            return None
+        return _seat_percentage(payload)
 
     def _get(
         self,
         path: str,
         params: dict[str, object] | None = None,
+        *,
+        cache_ttl_seconds: int = 0,
     ) -> dict[str, object]:
-        query = f"?{urllib.parse.urlencode(params)}" if params else ""
+        encoded_query = urllib.parse.urlencode(params) if params else ""
+        query = f"?{encoded_query}" if encoded_query else ""
+        cache_key = f"GET:{path}{query}"
+        if self.provider_cache is not None and cache_ttl_seconds > 0:
+            cached = self.provider_cache.get_json("amc", cache_key)
+            if isinstance(cached, dict):
+                return cached
+
+        if self.provider_cache is not None and not self.provider_cache.begin_request("amc"):
+            raise AMCError("AMC provider rate limit is temporarily exhausted")
+
         request = urllib.request.Request(
             f"{AMC_BASE_URL}{path}{query}",
             headers={
@@ -132,14 +167,25 @@ class AMCClient:
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                if self.provider_cache is not None:
+                    self.provider_cache.observe_headers("amc", response.headers)
                 payload = json.loads(response.read())
         except urllib.error.HTTPError as exc:
-            raise AMCError(f"AMC returned HTTP {exc.code}") from exc
+            if self.provider_cache is not None:
+                self.provider_cache.observe_headers("amc", exc.headers)
+            raise AMCError(f"AMC returned HTTP {exc.code}", status_code=exc.code) from exc
         except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
             raise AMCError(f"AMC request failed: {exc}") from exc
 
         if not isinstance(payload, dict):
             raise AMCError("AMC returned an unexpected response")
+        if self.provider_cache is not None and cache_ttl_seconds > 0:
+            self.provider_cache.set_json(
+                "amc",
+                cache_key,
+                payload,
+                ttl_seconds=cache_ttl_seconds,
+            )
         return payload
 
 
@@ -179,9 +225,14 @@ def _parse_showtime(
     raw: dict[str, object],
     theatres: dict[int, AMCTheatre],
 ) -> AMCShowtime | None:
-    performance_id = _int(raw.get("id"))
+    performance_id = _int(raw.get("performanceNumber")) or _int(raw.get("id"))
     theatre_id = _int(raw.get("theatreId"))
-    movie_name = str(raw.get("movieName") or raw.get("sortableMovieName") or "").strip()
+    movie_name = str(
+        raw.get("movieName")
+        or raw.get("sortableMovieName")
+        or raw.get("sortableTitleName")
+        or ""
+    ).strip()
     raw_start = str(raw.get("showDateTimeLocal") or "").strip()
     if performance_id is None or theatre_id is None or not movie_name or not raw_start:
         return None
@@ -202,7 +253,7 @@ def _parse_showtime(
         movie_name=movie_name,
         start_local=start,
         ticket_price=_ticket_price(raw.get("ticketPrices")),
-        a_list_eligible=not _has_no_a_list(raw.get("attributes")),
+        a_list_eligible=_a_list_eligibility(raw.get("attributes")),
         purchase_url=str(raw.get("purchaseUrl") or "").strip(),
     )
 
@@ -236,13 +287,19 @@ def _ticket_price(value: object) -> float | None:
         if price is None or price < 0:
             continue
         tax = _float(raw.get("tax")) or 0.0
-        price_type = str(raw.get("priceType") or "").casefold()
+        price_type = str(raw.get("type") or raw.get("priceType") or "").casefold()
         parsed.append(("adult" in price_type, round(price + tax, 2)))
 
     if not parsed:
         return None
     adult = [price for is_adult, price in parsed if is_adult]
     return min(adult) if adult else min(price for _, price in parsed)
+
+
+def _a_list_eligibility(value: object) -> bool | None:
+    if not isinstance(value, list):
+        return None
+    return not _has_no_a_list(value)
 
 
 def _has_no_a_list(value: object) -> bool:
@@ -262,6 +319,20 @@ def _has_no_a_list(value: object) -> bool:
 
 
 def _seat_percentage(payload: dict[str, object]) -> float | None:
+    flat_seats = payload.get("seats")
+    if isinstance(flat_seats, list):
+        total = 0
+        available = 0
+        for seat in flat_seats:
+            if not isinstance(seat, dict) or not isinstance(seat.get("available"), bool):
+                continue
+            if str(seat.get("type") or "").casefold() != "canreserve":
+                continue
+            total += 1
+            available += int(seat["available"])
+        if total:
+            return round(100 * available / total, 1)
+
     rows = payload.get("rows")
     if not isinstance(rows, list):
         return None
