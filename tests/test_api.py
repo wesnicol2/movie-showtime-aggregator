@@ -118,7 +118,7 @@ def test_api_passes_chain_previews_and_returns_chain_facets(monkeypatch):
 def test_settings_cookie_takes_precedence_over_preview_query(monkeypatch):
     service = StubService([sample_screening()])
     monkeypatch.setattr(api, "_SERVICE", service)
-    settings_cookie = 'movie_preview_minutes=%7B%22AMC%22%3A25%7D'
+    settings_cookie = "movie_preview_minutes=%7B%22AMC%22%3A25%7D"
 
     code, payload = call(
         "/api/screenings",
