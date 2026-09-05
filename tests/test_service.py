@@ -19,14 +19,14 @@ def screening(
     end="2026-09-04T20:00:00",
 ):
     return Screening(
-        showtime_id=1,
+        showtime_id="1",
         movie=movie,
         theatre=theatre,
         format=format_name,
         advertised_start=datetime.fromisoformat(advertised),
         actual_start=datetime.fromisoformat(actual),
-        estimated_end=datetime.fromisoformat(end),
-        runtime_minutes=125,
+        estimated_end=datetime.fromisoformat(end) if end else None,
+        runtime_minutes=125 if end else None,
         purchase_url="",
     )
 
@@ -60,15 +60,21 @@ def test_filter_by_actual_start_window():
     assert visible == [screenings[1]]
 
 
-def test_filter_by_estimated_end_time():
+def test_filter_by_estimated_end_time_excludes_unknown_end():
     screenings = [
         screening(end="2026-09-04T20:00:00"),
         screening(end="2026-09-04T22:15:00"),
+        screening(end=None),
     ]
 
     visible = filter_screenings(screenings, ScreeningFilters(end_by="21:00"))
 
     assert visible == [screenings[0]]
+
+
+def test_unknown_end_is_visible_without_end_filter():
+    unknown = screening(end=None)
+    assert filter_screenings([unknown], ScreeningFilters()) == [unknown]
 
 
 def test_facets_are_unique_and_sorted():
@@ -85,15 +91,15 @@ def test_facets_are_unique_and_sorted():
     }
 
 
-class FakeAMCClient:
+class FakeShowtimeClient:
     def __init__(self):
         self.calls = 0
 
-    def fetch_showtimes(self, theatre_id, show_date):
+    def fetch_showtimes(self, theatre, show_date):
         self.calls += 1
         return [
             {
-                "id": theatre_id,
+                "id": theatre.fandango_id,
                 "movieName": "Movie A",
                 "showDateTimeLocal": f"{show_date.isoformat()}T18:00:00",
                 "runTime": 100,
@@ -105,10 +111,9 @@ class FakeAMCClient:
 
 
 def test_service_caches_complete_date_before_filtering():
-    client = FakeAMCClient()
+    client = FakeShowtimeClient()
     settings = Settings(
-        vendor_key="test",
-        theatres=(Theatre("AMC One", 1), Theatre("AMC Two", 2)),
+        theatres=(Theatre("AMC One", "ABC12"), Theatre("AMC Two", "XYZ34")),
         cache_ttl_seconds=300,
     )
     service = ScreeningService(client, settings)

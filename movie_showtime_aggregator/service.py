@@ -4,10 +4,14 @@ import threading
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from time import monotonic
+from typing import Protocol
 
-from .amc import AMCClient
-from .config import Settings
+from .config import Settings, Theatre
 from .models import Screening, normalize_showtime
+
+
+class ShowtimeClient(Protocol):
+    def fetch_showtimes(self, theatre: Theatre, show_date: date) -> list[dict[str, object]]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,7 +25,7 @@ class ScreeningFilters:
 
 
 class ScreeningService:
-    def __init__(self, client: AMCClient, settings: Settings) -> None:
+    def __init__(self, client: ShowtimeClient, settings: Settings) -> None:
         self.client = client
         self.settings = settings
         self._cache: dict[date, tuple[float, list[Screening]]] = {}
@@ -36,7 +40,7 @@ class ScreeningService:
 
         screenings: list[Screening] = []
         for theatre in self.settings.theatres:
-            raw_showtimes = self.client.fetch_showtimes(theatre.theatre_id, show_date)
+            raw_showtimes = self.client.fetch_showtimes(theatre, show_date)
             for raw in raw_showtimes:
                 screening = normalize_showtime(
                     raw,
@@ -94,5 +98,7 @@ def _time_at_or_after(value: datetime, boundary: time | None) -> bool:
     return boundary is None or value.time() >= boundary
 
 
-def _time_at_or_before(value: datetime, boundary: time | None) -> bool:
-    return boundary is None or value.time() <= boundary
+def _time_at_or_before(value: datetime | None, boundary: time | None) -> bool:
+    if boundary is None:
+        return True
+    return value is not None and value.time() <= boundary

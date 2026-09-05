@@ -4,22 +4,21 @@ import os
 from dataclasses import dataclass
 
 DEFAULT_THEATRES = (
-    ("AMC Arizona Center 24", 127),
-    ("AMC DINE-IN Esplanade 14", 99),
-    ("AMC DINE-IN Desert Ridge 18", 190),
-    ("AMC Ahwatukee 24", 94),
+    ("AMC Arizona Center 24", "AAECS"),
+    ("AMC DINE-IN Esplanade 14", "AAECR"),
+    ("AMC DINE-IN Desert Ridge 18", "AAPGJ"),
+    ("AMC Ahwatukee 24", "AACGT"),
 )
 
 
 @dataclass(frozen=True, slots=True)
 class Theatre:
     name: str
-    theatre_id: int
+    fandango_id: str
 
 
 @dataclass(frozen=True, slots=True)
 class Settings:
-    vendor_key: str
     theatres: tuple[Theatre, ...]
     preshow_minutes: int = 25
     cache_ttl_seconds: int = 300
@@ -27,7 +26,6 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         return cls(
-            vendor_key=os.getenv("AMC_VENDOR_KEY", "").strip(),
             theatres=parse_theatres(os.getenv("AMC_THEATRES", "")),
             preshow_minutes=_positive_int_env("AMC_PRESHOW_MINUTES", 25),
             cache_ttl_seconds=_positive_int_env("CACHE_TTL_SECONDS", 300),
@@ -36,14 +34,17 @@ class Settings:
 
 def parse_theatres(value: str) -> tuple[Theatre, ...]:
     if not value.strip():
-        return tuple(Theatre(name, theatre_id) for name, theatre_id in DEFAULT_THEATRES)
+        return tuple(Theatre(name, fandango_id) for name, fandango_id in DEFAULT_THEATRES)
 
     parsed: list[Theatre] = []
     for part in value.split(","):
         name, separator, raw_id = part.strip().rpartition(":")
-        if not separator or not name.strip() or not raw_id.strip().isdigit():
-            raise ValueError("AMC_THEATRES must be comma-separated 'Theatre Name:id' entries")
-        parsed.append(Theatre(name.strip(), int(raw_id.strip())))
+        fandango_id = raw_id.strip().upper()
+        if not separator or not name.strip() or not fandango_id.isalnum():
+            raise ValueError(
+                "AMC_THEATRES must be comma-separated 'Theatre Name:FandangoId' entries"
+            )
+        parsed.append(Theatre(name.strip(), fandango_id))
 
     if not parsed:
         raise ValueError("AMC_THEATRES must contain at least one theatre")
