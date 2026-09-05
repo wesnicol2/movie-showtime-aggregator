@@ -19,6 +19,31 @@
     <section class="settings-card">
       <div class="settings-heading">
         <div>
+          <h2>Location</h2>
+          <p>Choose the center ZIP code and maximum straight-line distance for theaters shown in the table.</p>
+        </div>
+      </div>
+
+      <div class="settings-list">
+        <label class="settings-row">
+          <span>ZIP code</span>
+          <input id="location-zip" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" autocomplete="postal-code">
+        </label>
+        <label class="settings-row">
+          <span>Search radius (miles)</span>
+          <input id="location-radius" type="number" min="1" max="100" step="1">
+        </label>
+      </div>
+
+      <div class="settings-actions">
+        <button id="save-location" class="primary-button" type="button">Save location</button>
+        <span id="location-status" role="status"></span>
+      </div>
+    </section>
+
+    <section class="settings-card" style="margin-top: 1rem;">
+      <div class="settings-heading">
+        <div>
           <h2>Preview time by chain</h2>
           <p>Set the number of minutes between the listed showtime and the actual movie start. Leave a chain blank to keep Actual start and Ends unknown.</p>
         </div>
@@ -30,7 +55,7 @@
       </div>
 
       <div class="settings-actions">
-        <button id="save-settings" class="primary-button" type="button">Save settings</button>
+        <button id="save-settings" class="primary-button" type="button">Save preview times</button>
         <button id="clear-settings" type="button">Clear preview times</button>
         <span id="settings-status" role="status"></span>
       </div>

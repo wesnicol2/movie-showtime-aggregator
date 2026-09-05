@@ -42,6 +42,7 @@ def sample_screening(movie="Movie A", format_name="Standard", chain="AMC"):
         actual_start=datetime(2026, 9, 4, 18, 25) if chain == "AMC" else None,
         estimated_end=datetime(2026, 9, 4, 20, 25) if chain == "AMC" else None,
         runtime_minutes=120,
+        distance_miles=4.2,
         purchase_url="https://example.com/tickets",
     )
 
@@ -50,9 +51,18 @@ class StubService:
     def __init__(self, screenings):
         self.screenings = screenings
         self.preview_minutes_by_chain = None
+        self.location = None
 
-    def get_screenings(self, show_date, preview_minutes_by_chain=None):
+    def get_screenings(
+        self,
+        show_date,
+        preview_minutes_by_chain=None,
+        *,
+        zip_code=None,
+        radius_miles=None,
+    ):
         self.preview_minutes_by_chain = preview_minutes_by_chain
+        self.location = (zip_code, radius_miles)
         return list(self.screenings)
 
 
@@ -77,6 +87,10 @@ def test_root_serves_table_dashboard():
 def test_settings_page_is_served():
     code, body = call("/settings")
     assert code == 200
+    assert "Location" in body
+    assert 'id="location-zip"' in body
+    assert 'id="location-radius"' in body
+    assert 'id="save-location"' in body
     assert "Preview time by chain" in body
     assert 'id="save-settings"' in body
     assert 'src="/settings.js"' in body
@@ -93,7 +107,7 @@ def test_write_methods_are_rejected():
     assert code == 405
 
 
-def test_api_passes_chain_previews_and_returns_chain_facets(monkeypatch):
+def test_api_passes_chain_previews_location_and_returns_chain_facets(monkeypatch):
     screenings = [
         sample_screening(),
         sample_screening(movie="Movie B", format_name="IMAX", chain="Harkins Theatres"),
@@ -103,15 +117,18 @@ def test_api_passes_chain_previews_and_returns_chain_facets(monkeypatch):
 
     code, payload = call(
         "/api/screenings",
-        query="date=2026-09-04&preview=AMC%3A25&movie=Movie+A&end_by=21%3A00",
+        query=("date=2026-09-04&preview=AMC%3A25&movie=Movie+A&end_by=21%3A00&zip=85281&radius=15"),
     )
 
     assert code == 200
     assert service.preview_minutes_by_chain == {"AMC": 25}
+    assert service.location == ("85281", 15)
     assert payload["count"] == 1
     assert payload["total_count"] == 2
     assert payload["preview_minutes_by_chain"] == {"AMC": 25}
+    assert payload["location"] == {"zip_code": "85281", "radius_miles": 15}
     assert payload["screenings"][0]["movie"] == "Movie A"
+    assert payload["screenings"][0]["distance_miles"] == 4.2
     assert payload["facets"]["chains"] == ["AMC", "Harkins Theatres"]
 
 
@@ -129,6 +146,22 @@ def test_settings_cookie_takes_precedence_over_preview_query(monkeypatch):
     assert code == 200
     assert service.preview_minutes_by_chain == {"AMC": 25}
     assert payload["preview_minutes_by_chain"] == {"AMC": 25}
+
+
+def test_location_cookie_takes_precedence_over_query(monkeypatch):
+    service = StubService([sample_screening()])
+    monkeypatch.setattr(api, "_SERVICE", service)
+    location_cookie = "movie_location=%7B%22zipCode%22%3A%2285004%22%2C%22radiusMiles%22%3A30%7D"
+
+    code, payload = call(
+        "/api/screenings",
+        query="date=2026-09-04&zip=85281&radius=5",
+        cookie=location_cookie,
+    )
+
+    assert code == 200
+    assert service.location == ("85004", 30)
+    assert payload["location"] == {"zip_code": "85004", "radius_miles": 30}
 
 
 def test_empty_settings_cookie_keeps_preview_times_unknown(monkeypatch):
@@ -157,6 +190,24 @@ def test_invalid_preview_minutes_are_400(monkeypatch):
 
     assert code == 400
     assert "between 0 and 180" in payload["error"]
+
+
+def test_invalid_location_is_400(monkeypatch):
+    monkeypatch.setattr(api, "_SERVICE", StubService([sample_screening()]))
+
+    code, payload = call("/api/screenings", query="date=2026-09-04&zip=Phoenix&radius=25")
+
+    assert code == 400
+    assert "five-digit US ZIP" in payload["error"]
+
+
+def test_invalid_radius_is_400(monkeypatch):
+    monkeypatch.setattr(api, "_SERVICE", StubService([sample_screening()]))
+
+    code, payload = call("/api/screenings", query="date=2026-09-04&zip=85004&radius=101")
+
+    assert code == 400
+    assert "between 1 and 100" in payload["error"]
 
 
 def test_invalid_time_is_400(monkeypatch):

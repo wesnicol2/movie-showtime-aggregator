@@ -55,11 +55,12 @@ dimension, using the familiar Excel table pattern:
 - click the column label to sort;
 - click the dropdown area of that header to open its filter menu;
 - choose exact values with checkboxes;
-- use type-aware rules such as contains/equals for text or before/after for time.
+- use type-aware rules such as contains/equals for text, before/after for time,
+  or less-than/greater-than for numbers.
 
-Application configuration does not belong in those filter menus. Chain preview
-minutes live on a separate Settings page so table controls stay focused on the
-data currently being viewed.
+Application configuration does not belong in those filter menus. Location and
+chain preview minutes live on a separate Settings page so table controls stay
+focused on the data currently being viewed.
 
 The app keeps three times distinct:
 
@@ -74,40 +75,54 @@ preview duration as fact.
 
 ## Architecture decisions
 
-### Discover theaters by market instead of maintaining a theater list
+### Location is ZIP + radius, not a provider-defined market
 
-The Fandango market endpoint returns theaters, chain identity, movies, runtimes,
-formats, and showtimes for a ZIP-based market. `FANDANGO_ZIP_CODE` defines that
-market; the UI is not location-aware and does not calculate travel distance.
+A single Fandango ZIP query is not a reliable definition of “all theaters within
+N miles.” It returns a provider-chosen nearby market and can omit a theater the
+user reasonably considers nearby. Therefore the saved location is defined by the
+app as an explicit five-digit ZIP plus a 1–100 mile radius.
 
-The provider data is normalized before it reaches the rest of the application.
-There is no hardcoded AMC theater list, and adding another theater returned by
-the market requires no code change.
+`ZipLocator` resolves the ZIP center to coordinates through Zippopotam.us and
+caches the result in memory. Fandango theater records supply theater ZIP and
+latitude/longitude. The service starts with the requested ZIP market, selects
+geographically distributed theater ZIPs from the returned data, probes those
+markets in two bounded rounds, deduplicates showtimes, then calculates Haversine
+straight-line distance from the ZIP center and keeps only rows inside the exact
+configured radius.
+
+The expansion is intentionally bounded so a large radius cannot turn one page
+load into an unbounded crawl. Missing probe markets are tolerated; failure of the
+initial market or ZIP lookup remains a request failure.
+
+Distance is part of the normalized screening model and a first-class numeric
+table column. It is straight-line distance, not driving distance.
 
 ### The table is the filter UI
 
 Do not add a separate filter panel or wizard. Column headers are the only primary
 filter/sort surface. All columns should get the same basic affordance; variation
 comes only from data type. Text columns get text operators, time columns get time
-operators, and all columns get exact-value checkboxes.
+operators, numeric columns get comparison operators, and all columns get
+exact-value checkboxes.
 
 Do not put application preferences into a column filter menu. Settings and table
 filtering are intentionally separate concepts.
 
-### Preview timing belongs on Settings
+### Application preferences belong on Settings
 
-`/settings` is the single user-facing place to configure preview/trailer minutes
-for theater chains. Values are browser-local and persist across reloads. The
-Settings page stores them in `localStorage` and mirrors them into a browser cookie
-so `/api/screenings` can apply the configured chain timing before returning
-calculated start/end fields.
+`/settings` is the single user-facing place to configure global browser
+preferences: ZIP/radius and preview/trailer minutes for theater chains. Values
+are browser-local and persist across reloads. The Settings page stores them in
+`localStorage` and mirrors them into cookies so `/api/screenings` can apply the
+configured location and chain timing before returning data.
 
-The settings cookie is authoritative for browser requests. Direct API consumers
-without that cookie can still use `preview=Chain:minutes` query parameters.
+Settings cookies are authoritative for browser requests. Direct API consumers
+without those cookies can use `zip=`, `radius=`, and `preview=Chain:minutes`
+query parameters.
 
 ### Keep table filtering client-side
 
-The browser fetches the complete normalized market result and applies column
+The browser fetches the complete normalized radius result and applies column
 filtering/sorting in JavaScript. This is required for the spreadsheet-style UX:
 checkbox and rule changes should feel immediate and should not cause repeated
 upstream requests.
@@ -115,23 +130,29 @@ upstream requests.
 The Python service retains its server-side filter functions because the API can
 still be used directly and those semantics remain independently testable.
 
-### Saved Views stay local for now
+### Saved Views stay local and contain table state only
 
 Saved Views are for table state: useful filter/sort combinations that can be
 reapplied quickly. They use browser `localStorage`; they do not justify an account,
 database, or backend persistence layer yet. Treat them as convenience state on
 that browser, not portable user profile data.
 
-Preview timing is a global browser preference and conceptually belongs to
-Settings, not to a Saved View. Older browser-local views may still contain legacy
-preview state, but saved Settings take precedence at the API boundary.
+Location and preview timing are global browser preferences and conceptually
+belong to Settings, not to a Saved View. Legacy saved views may contain obsolete
+preview state; current Settings remain authoritative.
 
 ### Preview rules belong to chains and are applied after caching
 
 `ScreeningService` caches normalized upstream screenings with actual/end times
 unknown. Preview minutes from Settings are then applied per chain. This means
 changing a preview value does not require another Fandango request; it only
-recalculates against cached market data.
+recalculates against cached location data.
+
+### Location participates in the cache key
+
+The base screening cache key is `(date, ZIP, radius)`. Changing location must not
+reuse a result assembled for another location. Preview timing is deliberately not
+part of that key because it is applied after the base result is cached.
 
 ### Unknown time is a first-class state
 
@@ -146,12 +167,6 @@ A next-day `12:30 AM` is later than a same-day `7:00 PM`; clock-only comparisons
 are incorrect. Time filtering must construct boundaries on the advertised
 screening date and compare complete datetimes. Table display should mark a
 next-day value (for example `12:30 AM (+1d)`) so the rollover is visible.
-
-### Cache before filtering
-
-The complete normalized market result is cached by date for five minutes by
-default. Filtering and sorting operate on that result instead of triggering new
-provider calls.
 
 ### Keep the stdlib WSGI server for the MVP
 
@@ -174,9 +189,12 @@ verification but do not deploy; running integration verification happens on Test
 
 ## Repo history worth not relearning
 
-- Fandango's ZIP-based theater-with-showtimes response already includes chain
-  identity, runtime, formats, and ticket links, so the MVP does not need a
-  separate movie-metadata service or a manually maintained theater list.
+- Fandango's theater-with-showtimes response includes chain identity, runtime,
+  formats, ticket links, theater ZIP, and theater coordinates. A separate movie
+  metadata service or manually maintained theater list is not required.
+- A single Fandango ZIP market was not sufficient for the product's “near me”
+  expectation. Radius discovery now expands through nearby returned theater ZIPs
+  before enforcing an app-defined geographic radius.
 - Preview time is not a provider fact. It is user knowledge per chain and must
   stay unknown until configured.
 - Time filtering previously compared only `HH:MM`, which broke after-midnight
@@ -193,7 +211,7 @@ verification but do not deploy; running integration verification happens on Test
 
 ## Things deliberately not done
 
-- No geolocation, travel time, or leave-by calculation in MVP.
+- No device geolocation, driving-time calculation, or leave-by calculation yet.
 - No accounts or server-side saved-view/settings persistence.
 - No ratings or recommendation engine.
 - No seat maps or ticket purchasing.

@@ -4,6 +4,7 @@ const SAVED_VIEWS_KEY = "movie-showtime-aggregator.saved-views.v1";
 const columns = [
   { key: "movie", label: "Movie", type: "text" },
   { key: "theatre", label: "Theater", type: "text" },
+  { key: "distance_miles", label: "Distance", type: "number" },
   { key: "chain", label: "Chain", type: "text" },
   { key: "advertised_start", label: "Listed", type: "time" },
   { key: "actual_start", label: "Actual start", type: "time" },
@@ -13,7 +14,6 @@ const columns = [
 
 const state = {
   screenings: [],
-  previewMinutes: new Map(),
   filters: Object.fromEntries(
     columns.map((column) => [
       column.key,
@@ -22,7 +22,7 @@ const state = {
   ),
   sort: { key: "advertised_start", direction: "asc" },
   openColumn: null,
-  marketZip: "",
+  location: null,
 };
 
 function browserDate() {
@@ -34,11 +34,7 @@ function browserDate() {
 }
 
 function buildParams() {
-  const params = new URLSearchParams({ date: browserDate() });
-  for (const [chain, minutes] of state.previewMinutes.entries()) {
-    params.append("preview", `${chain}:${minutes}`);
-  }
-  return params;
+  return new URLSearchParams({ date: browserDate() });
 }
 
 async function loadScreenings() {
@@ -51,10 +47,11 @@ async function loadScreenings() {
     if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
 
     state.screenings = payload.screenings || [];
-    state.marketZip = payload.market_zip || "";
+    state.location = payload.location || null;
     renderAll();
   } catch (err) {
     state.screenings = [];
+    state.location = null;
     renderRows();
     document.getElementById("result-count").textContent = "Unavailable";
     error.textContent = err.message;
@@ -161,17 +158,17 @@ function renderRows() {
 
   for (const screening of visible) {
     const row = document.createElement("tr");
-    for (const column of columns) {
-      row.append(renderCell(screening, column));
-    }
+    for (const column of columns) row.append(renderCell(screening, column));
     body.append(row);
   }
 
   const filterCount = columns.filter((column) => isFilterActive(column.key)).length;
   const filterText = filterCount ? ` · ${filterCount} filter${filterCount === 1 ? "" : "s"}` : "";
-  const zipText = state.marketZip ? ` · ZIP ${state.marketZip}` : "";
+  const locationText = state.location
+    ? ` · ${state.location.radius_miles} mi from ${state.location.zip_code}`
+    : "";
   document.getElementById("result-count").textContent =
-    `${visible.length} of ${state.screenings.length} screenings${zipText}${filterText}`;
+    `${visible.length} of ${state.screenings.length} screenings${locationText}${filterText}`;
 }
 
 function renderCell(screening, column) {
@@ -188,15 +185,21 @@ function renderCell(screening, column) {
     return td;
   }
 
+  const value = screening[column.key];
   if (column.type === "time") {
-    const value = screening[column.key];
     td.textContent = value ? formatTableTime(value, screening.advertised_start) : "Unknown";
     if (!value) td.classList.add("unknown");
     if (column.key !== "advertised_start") td.classList.add("calculated-time");
     return td;
   }
 
-  td.textContent = screening[column.key] || "Unknown";
+  if (column.type === "number") {
+    td.textContent = value == null ? "Unknown" : `${Number(value).toFixed(1)} mi`;
+    if (value == null) td.classList.add("unknown");
+    return td;
+  }
+
+  td.textContent = value || "Unknown";
   return td;
 }
 
@@ -233,6 +236,21 @@ function matchesRule(screening, column, filter) {
       case "not_equals": return actual !== expected;
       case "begins_with": return actual.startsWith(expected);
       case "ends_with": return actual.endsWith(expected);
+      default: return true;
+    }
+  }
+
+  if (column.type === "number") {
+    const actual = Number(value);
+    const expected = Number(filter.operand);
+    if (!Number.isFinite(actual) || !Number.isFinite(expected)) return false;
+    switch (filter.operator) {
+      case "less_than": return actual < expected;
+      case "less_or_equal": return actual <= expected;
+      case "greater_than": return actual > expected;
+      case "greater_or_equal": return actual >= expected;
+      case "equals": return actual === expected;
+      case "not_equals": return actual !== expected;
       default: return true;
     }
   }
@@ -277,6 +295,8 @@ function sortRows(screenings) {
     let comparison;
     if (column.type === "time") {
       comparison = new Date(leftValue).getTime() - new Date(rightValue).getTime();
+    } else if (column.type === "number") {
+      comparison = Number(leftValue) - Number(rightValue);
     } else {
       comparison = String(leftValue).localeCompare(String(rightValue), undefined, {
         numeric: true,
@@ -332,8 +352,6 @@ function renderColumnMenu(columnKey) {
   menu.append(renderSortSection(column));
   menu.append(renderRuleSection(column, filter));
   menu.append(renderValuesSection(column, filter));
-  if (column.key === "chain") menu.append(renderPreviewSection());
-
   positionColumnMenu(columnKey);
 }
 
@@ -343,12 +361,16 @@ function renderSortSection(column) {
 
   const asc = document.createElement("button");
   asc.type = "button";
-  asc.textContent = column.type === "time" ? "Sort earliest → latest" : "Sort A → Z";
+  if (column.type === "time") asc.textContent = "Sort earliest → latest";
+  else if (column.type === "number") asc.textContent = "Sort smallest → largest";
+  else asc.textContent = "Sort A → Z";
   asc.addEventListener("click", () => setSort(column.key, "asc"));
 
   const desc = document.createElement("button");
   desc.type = "button";
-  desc.textContent = column.type === "time" ? "Sort latest → earliest" : "Sort Z → A";
+  if (column.type === "time") desc.textContent = "Sort latest → earliest";
+  else if (column.type === "number") desc.textContent = "Sort largest → smallest";
+  else desc.textContent = "Sort Z → A";
   desc.addEventListener("click", () => setSort(column.key, "desc"));
 
   section.append(asc, desc);
@@ -361,7 +383,9 @@ function renderRuleSection(column, filter) {
 
   const label = document.createElement("label");
   label.className = "menu-label";
-  label.textContent = column.type === "time" ? "Time filter" : "Text filter";
+  if (column.type === "time") label.textContent = "Time filter";
+  else if (column.type === "number") label.textContent = "Number filter";
+  else label.textContent = "Text filter";
 
   const controls = document.createElement("div");
   controls.className = "rule-controls";
@@ -376,7 +400,14 @@ function renderRuleSection(column, filter) {
   }
 
   const operand = document.createElement("input");
-  operand.type = column.type === "time" ? "time" : "search";
+  if (column.type === "time") operand.type = "time";
+  else if (column.type === "number") {
+    operand.type = "number";
+    operand.step = "0.1";
+    operand.min = "0";
+  } else {
+    operand.type = "search";
+  }
   operand.placeholder = column.type === "time" ? "Time" : "Value";
   operand.value = filter.operand;
   operand.hidden = ["", "is_unknown", "is_not_unknown"].includes(filter.operator);
@@ -410,6 +441,20 @@ function ruleOptions(type) {
       ["before_or_equal", "Before or equal to"],
       ["after", "After"],
       ["after_or_equal", "After or equal to"],
+      ["equals", "Equals"],
+      ["not_equals", "Does not equal"],
+      ["is_unknown", "Is unknown"],
+      ["is_not_unknown", "Is not unknown"],
+    ];
+  }
+
+  if (type === "number") {
+    return [
+      ["", "No rule"],
+      ["less_than", "Less than"],
+      ["less_or_equal", "Less than or equal to"],
+      ["greater_than", "Greater than"],
+      ["greater_or_equal", "Greater than or equal to"],
       ["equals", "Equals"],
       ["not_equals", "Does not equal"],
       ["is_unknown", "Is unknown"],
@@ -524,6 +569,7 @@ function uniqueValues(column) {
     if (left === UNKNOWN) return 1;
     if (right === UNKNOWN) return -1;
     if (column.type === "time") return new Date(left).getTime() - new Date(right).getTime();
+    if (column.type === "number") return Number(left) - Number(right);
     return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
   });
 }
@@ -534,74 +580,13 @@ function canonicalValue(value) {
 
 function displayMenuValue(value, column) {
   if (value === UNKNOWN) return "Unknown";
+  if (column.type === "number") return `${Number(value).toFixed(1)} mi`;
   if (column.type !== "time") return value;
   return new Intl.DateTimeFormat(undefined, {
     weekday: "short",
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
-}
-
-function renderPreviewSection() {
-  const section = document.createElement("div");
-  section.className = "menu-section preview-section";
-
-  const heading = document.createElement("div");
-  heading.className = "preview-heading";
-  const title = document.createElement("span");
-  title.className = "menu-label";
-  title.textContent = "Preview minutes by chain";
-  const note = document.createElement("p");
-  note.textContent = "Blank keeps Actual start and Ends unknown for that chain.";
-  heading.append(title, note);
-
-  const list = document.createElement("div");
-  list.className = "preview-list";
-
-  const chainColumn = columns.find((column) => column.key === "chain");
-  const chains = uniqueValues(chainColumn).filter((chain) => chain !== UNKNOWN);
-  for (const chain of chains) {
-    const label = document.createElement("label");
-    label.className = "preview-option";
-
-    const name = document.createElement("span");
-    name.textContent = chain;
-
-    const input = document.createElement("input");
-    input.type = "number";
-    input.min = "0";
-    input.max = "180";
-    input.step = "1";
-    input.placeholder = "Unknown";
-    if (state.previewMinutes.has(chain)) input.value = state.previewMinutes.get(chain);
-
-    input.addEventListener("change", async () => {
-      const raw = input.value.trim();
-      if (raw === "") {
-        state.previewMinutes.delete(chain);
-      } else {
-        const minutes = Number(raw);
-        if (!Number.isInteger(minutes) || minutes < 0 || minutes > 180) {
-          input.setCustomValidity("Use a whole number from 0 to 180.");
-          input.reportValidity();
-          return;
-        }
-        input.setCustomValidity("");
-        state.previewMinutes.set(chain, minutes);
-      }
-
-      state.filters.actual_start.selected = null;
-      state.filters.estimated_end.selected = null;
-      markViewDirty();
-      await loadScreenings();
-    });
-
-    label.append(name, input);
-    list.append(label);
-  }
-
-  section.append(heading, list);
-  return section;
 }
 
 function positionColumnMenu(columnKey) {
@@ -662,7 +647,6 @@ function writeSavedViews(views) {
 function serializeCurrentView() {
   return {
     sort: { ...state.sort },
-    previewMinutes: Object.fromEntries(state.previewMinutes),
     filters: Object.fromEntries(
       columns.map((column) => {
         const filter = state.filters[column.key];
@@ -722,7 +706,7 @@ function saveCurrentView() {
   renderSavedViews(name);
 }
 
-async function applySavedView(name) {
+function applySavedView(name) {
   if (!name) {
     document.getElementById("delete-view").disabled = true;
     return;
@@ -750,14 +734,8 @@ async function applySavedView(name) {
     };
   }
 
-  state.previewMinutes = new Map(
-    Object.entries(saved.previewMinutes || {})
-      .map(([chain, minutes]) => [chain, Number(minutes)])
-      .filter(([, minutes]) => Number.isInteger(minutes) && minutes >= 0 && minutes <= 180),
-  );
-
   closeColumnMenu();
-  await loadScreenings();
+  renderAll();
   renderSavedViews(name);
 }
 

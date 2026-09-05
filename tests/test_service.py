@@ -1,6 +1,7 @@
 from datetime import date, datetime
 
 from movie_showtime_aggregator.config import Settings
+from movie_showtime_aggregator.location import GeoPoint
 from movie_showtime_aggregator.models import Screening
 from movie_showtime_aggregator.service import (
     ScreeningFilters,
@@ -18,6 +19,7 @@ def screening(
     advertised="2026-09-04T17:30:00",
     actual="2026-09-04T17:55:00",
     end="2026-09-04T20:00:00",
+    distance=5.0,
 ):
     return Screening(
         showtime_id="1",
@@ -29,8 +31,37 @@ def screening(
         actual_start=datetime.fromisoformat(actual) if actual else None,
         estimated_end=datetime.fromisoformat(end) if end else None,
         runtime_minutes=125,
+        distance_miles=distance,
         purchase_url="",
     )
+
+
+def raw_showtime(
+    showtime_id,
+    theatre,
+    *,
+    movie="Movie A",
+    chain="AMC",
+    zip_code="85004",
+    latitude=0,
+    longitude=0,
+    hour=18,
+):
+    return {
+        "id": showtime_id,
+        "movieName": movie,
+        "theatreName": theatre,
+        "chainName": chain,
+        "theatreZip": zip_code,
+        "theatreLatitude": latitude,
+        "theatreLongitude": longitude,
+        "showDateTimeLocal": f"2026-09-04T{hour:02d}:00:00",
+        "runTime": 100,
+        "premiumFormat": "",
+        "isCanceled": False,
+        "isSoldOut": False,
+        "isExpired": False,
+    }
 
 
 def test_filter_by_movie_theatre_and_format():
@@ -143,6 +174,16 @@ def test_facets_include_chains():
     }
 
 
+class FakeLocator:
+    def __init__(self, point=None):
+        self.point = point or GeoPoint(0, 0)
+        self.calls = []
+
+    def lookup_zip(self, zip_code):
+        self.calls.append(zip_code)
+        return self.point
+
+
 class FakeShowtimeClient:
     def __init__(self):
         self.calls = 0
@@ -152,44 +193,117 @@ class FakeShowtimeClient:
         assert zip_code == "85004"
         assert page_limit == 50
         return [
-            {
-                "id": "amc-1",
-                "movieName": "Movie A",
-                "theatreName": "AMC One",
-                "chainName": "AMC",
-                "showDateTimeLocal": f"{show_date.isoformat()}T18:00:00",
-                "runTime": 100,
-                "premiumFormat": "",
-                "isCanceled": False,
-                "isSoldOut": False,
-            },
-            {
-                "id": "harkins-1",
-                "movieName": "Movie B",
-                "theatreName": "Harkins One",
-                "chainName": "Harkins Theatres",
-                "showDateTimeLocal": f"{show_date.isoformat()}T19:00:00",
-                "runTime": 120,
-                "premiumFormat": "",
-                "isCanceled": False,
-                "isSoldOut": False,
-            },
+            raw_showtime("amc-1", "AMC One"),
+            raw_showtime(
+                "harkins-1",
+                "Harkins One",
+                movie="Movie B",
+                chain="Harkins Theatres",
+                hour=19,
+            ),
         ]
 
 
-def test_service_caches_market_data_and_applies_previews_per_chain():
+def test_service_caches_location_data_and_applies_previews_per_chain():
     client = FakeShowtimeClient()
-    service = ScreeningService(client, Settings())
+    locator = FakeLocator()
+    service = ScreeningService(client, Settings(), locator=locator)
     show_date = date(2026, 9, 4)
 
     unknown = service.get_screenings(show_date)
     configured = service.get_screenings(show_date, {"AMC": 25})
 
     assert client.calls == 1
+    assert locator.calls == ["85004"]
     assert all(item.actual_start is None for item in unknown)
     amc = next(item for item in configured if item.chain == "AMC")
     harkins = next(item for item in configured if item.chain == "Harkins Theatres")
     assert amc.actual_start == datetime(2026, 9, 4, 18, 25)
     assert amc.estimated_end == datetime(2026, 9, 4, 20, 5)
+    assert amc.distance_miles == 0
     assert harkins.actual_start is None
     assert harkins.estimated_end is None
+
+
+class RadiusShowtimeClient:
+    def __init__(self):
+        self.calls = []
+
+    def fetch_showtimes(self, zip_code, show_date, *, page_limit=50):
+        self.calls.append(zip_code)
+        if zip_code == "85004":
+            return [
+                raw_showtime(
+                    "edge-1",
+                    "AMC Edge Seed",
+                    zip_code="85032",
+                    longitude=0.2,
+                )
+            ]
+        if zip_code == "85032":
+            return [
+                raw_showtime(
+                    "deer-1",
+                    "AMC Deer Valley 17",
+                    zip_code="85085",
+                    longitude=0.3,
+                ),
+                raw_showtime(
+                    "far-1",
+                    "AMC Too Far",
+                    zip_code="85399",
+                    longitude=0.5,
+                ),
+            ]
+        if zip_code == "85085":
+            return [
+                raw_showtime(
+                    "deer-1",
+                    "AMC Deer Valley 17",
+                    zip_code="85085",
+                    longitude=0.3,
+                )
+            ]
+        return []
+
+
+def test_radius_discovery_probes_neighbor_markets_and_filters_by_distance():
+    client = RadiusShowtimeClient()
+    service = ScreeningService(client, Settings(), locator=FakeLocator())
+    show_date = date(2026, 9, 4)
+
+    screenings = service.get_screenings(
+        show_date,
+        zip_code="85004",
+        radius_miles=25,
+    )
+
+    theatres = {item.theatre for item in screenings}
+    assert "85004" in client.calls
+    assert "85032" in client.calls
+    assert "AMC Edge Seed" in theatres
+    assert "AMC Deer Valley 17" in theatres
+    assert "AMC Too Far" not in theatres
+    deer = next(item for item in screenings if item.theatre == "AMC Deer Valley 17")
+    assert deer.distance_miles == 20.7
+
+
+def test_cache_key_includes_location_and_radius():
+    class CountingClient:
+        def __init__(self):
+            self.calls = []
+
+        def fetch_showtimes(self, zip_code, show_date, *, page_limit=50):
+            self.calls.append(zip_code)
+            return [raw_showtime(f"{zip_code}-1", f"AMC {zip_code}", zip_code=zip_code)]
+
+    client = CountingClient()
+    locator = FakeLocator()
+    service = ScreeningService(client, Settings(), locator=locator)
+    show_date = date(2026, 9, 4)
+
+    service.get_screenings(show_date, zip_code="85004", radius_miles=25)
+    service.get_screenings(show_date, zip_code="85004", radius_miles=25)
+    service.get_screenings(show_date, zip_code="85004", radius_miles=10)
+
+    assert client.calls == ["85004", "85004"]

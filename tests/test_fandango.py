@@ -2,11 +2,25 @@ from movie_showtime_aggregator.fandango import flatten_market_showtimes
 
 
 def market_payload():
-    def theater(name, chain, theater_id, title, runtime, ticketing_date, *, film_format=""):
+    def theater(
+        name,
+        chain,
+        theater_id,
+        title,
+        runtime,
+        ticketing_date,
+        *,
+        film_format="",
+        zip_code="85004",
+        latitude=33.45,
+        longitude=-112.07,
+    ):
         return {
             "id": theater_id,
             "name": name,
             "chainName": chain,
+            "zip": zip_code,
+            "geo": {"latitude": latitude, "longitude": longitude},
             "movies": [
                 {
                     "title": title,
@@ -55,17 +69,23 @@ def market_payload():
                 "Movie B",
                 124,
                 "2026-09-04+19:00",
+                zip_code="85015",
+                latitude=33.52,
+                longitude=-112.10,
             ),
         ]
     }
 
 
-def test_flatten_market_showtimes_preserves_theater_chain_runtime_and_format():
+def test_flatten_market_showtimes_preserves_theater_chain_location_runtime_and_format():
     showtimes = flatten_market_showtimes(market_payload())
 
     assert len(showtimes) == 2
     assert showtimes[0]["theatreName"] == "AMC Arizona Center 24"
     assert showtimes[0]["chainName"] == "AMC"
+    assert showtimes[0]["theatreZip"] == "85004"
+    assert showtimes[0]["theatreLatitude"] == 33.45
+    assert showtimes[0]["theatreLongitude"] == -112.07
     assert showtimes[0]["runTime"] == 101
     assert showtimes[0]["premiumFormat"] == "Dolby Cinema"
     assert showtimes[0]["showDateTimeLocal"] == "2026-09-04T18:30"
