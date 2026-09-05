@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+from contextlib import suppress
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -53,15 +54,11 @@ class SettingsStore:
                 json.dumps(asdict(settings), indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
-            try:
+            with suppress(OSError):
                 temporary.chmod(0o600)
-            except OSError:
-                pass
             temporary.replace(self.path)
-            try:
+            with suppress(OSError):
                 self.path.chmod(0o600)
-            except OSError:
-                pass
             return settings
 
     def update(self, **changes: object) -> PersistentSettings:
