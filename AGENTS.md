@@ -1,22 +1,14 @@
 # AGENTS.md — why this repo is shaped the way it is
 
-`README.md` covers how to use the app and `CONTRIBUTING.md` covers process; this
-file holds the reasoning behind the code.
+`README.md` covers how to use the app and `CONTRIBUTING.md` covers process; this file holds architectural intent and decisions future agents should preserve.
 
 ## Which docs an agent may change
 
-**Keep current as you go — `README.md` and `AGENTS.md`.** If a change you make
-contradicts something either file says, update it in the same work.
+**Keep current as you go — `README.md` and `AGENTS.md`.** If implementation contradicts either file, update it in the same work.
 
-**Do not touch without explicit human approval — `CONTRIBUTING.md` and
-`docs/*.md`.** These are the contracts. Ask first and get a clear yes, every
-time.
+**Do not touch without explicit human approval — `CONTRIBUTING.md` and `docs/*.md`.** These are human-owned contracts.
 
 ## Local fix and verification contract
-
-Agents are expected to have a local shell/runtime, but they do not need access
-to a deployed Test environment to produce lint-clean, formatted, unit-tested
-code.
 
 After editing Python, run:
 
@@ -24,197 +16,162 @@ After editing Python, run:
 bash scripts/fix
 ```
 
-Do not manually predict Ruff's formatting. The repository pins Ruff and the
-script applies its safe lint fixes followed by its formatter. If an issue cannot
-be auto-fixed, `bash scripts/verify` reports it for an explicit code change.
-
 Before every push, run:
 
 ```bash
 bash scripts/verify
 ```
 
-This is a hard pre-push gate. It runs Ruff linting, Ruff's format check, syntax
-compilation of tracked Python files, and pytest. CI invokes this exact same
-script. CI is confirmation of local verification, not the first environment in
-which an agent should discover formatting, lint, syntax, or unit-test failures.
-
-A deployed Test environment has a different job: integration verification after
-a `dev/*` branch is promoted to `feature/*`. Use Test for behavior that depends
-on containers, networking, credentials, upstream services, persistent data, or
-other runtime conditions that local unit tests do not reproduce.
+The repo pins Ruff and CI invokes the exact same verification script. CI is confirmation, not the preferred place to discover deterministic lint/format/test failures. A deployed Test environment is still required for behavior involving containers, credentials, upstream services, networking, or persistent volumes.
 
 ---
 
-## The core idea
+## Product surfaces
 
-The home page is the product: one large screening table. There are no standalone
-filter panels. Every displayed column is treated as a first-class sort/filter
-dimension, using the familiar Excel table pattern:
+The product has three intentional user-facing surfaces.
+
+### Screening table
+
+The home page is one large spreadsheet-style table. Do not recreate standalone filtering panels. Every displayed column is a first-class sort/filter dimension:
 
 - click the column label to sort;
-- click the dropdown area of that header to open its filter menu;
-- choose exact values with checkboxes;
-- use type-aware rules such as contains/equals for text, before/after for time,
-  or less-than/greater-than for numbers.
+- click the dropdown side of the header to filter;
+- all columns get exact-value checkboxes;
+- text columns get text rules;
+- time columns get time rules;
+- numeric columns get numeric comparison rules.
 
-Application configuration does not belong in those filter menus. Location and
-chain preview minutes live on a separate Settings page so table controls stay
-focused on the data currently being viewed.
+New data should normally become another ordinary typed column rather than a special filter panel.
 
-The app keeps three times distinct:
+### Movie Selection
 
-- **listed start** — the showtime published by the theater;
-- **actual start** — listed start plus that chain's user-configured preview time;
-- **end** — actual start plus movie runtime.
+`/movies` is a poster-first, dark Now Playing grid inspired by the supplied AMC mobile layout. The poster tile itself is the checkbox; it should not become a detail-heavy card grid. Titles may appear below posters, and the page may expose lightweight sorting, but the posters remain the visual focus.
 
-A chain has no assumed preview time. If the user has not configured one, actual
-start and end are unknown. A known runtime is not enough to calculate end until
-actual start is known. This is intentional: the app must not present an invented
-preview duration as fact.
+The selected movie titles live in browser local storage and are also the source of truth for the table's Movie exact-value filter. Changes from either surface should stay synchronized. This is browser convenience state, not an account/profile system.
 
-## Architecture decisions
+### Settings
 
-### Location is ZIP + radius, not a provider-defined market
+Application configuration belongs on `/settings`, never in table filter dropdowns. There are two persistence scopes and they must remain visibly distinct.
 
-A single Fandango ZIP query is not a reliable definition of “all theaters within
-N miles.” It returns a provider-chosen nearby market and can omit a theater the
-user reasonably considers nearby. Therefore the saved location is defined by the
-app as an explicit five-digit ZIP plus a 1–100 mile radius.
+**Browser-local:** ZIP/radius and per-chain preview minutes. These use `localStorage` plus cookies because the screening endpoint must see them before returning calculated times/location results.
 
-`ZipLocator` resolves the ZIP center to coordinates through Zippopotam.us and
-caches the result in memory. Fandango theater records supply theater ZIP and
-latitude/longitude. The service starts with the requested ZIP market, selects
-geographically distributed theater ZIPs from the returned data, probes those
-markets in two bounded rounds, deduplicates showtimes, then calculates Haversine
-straight-line distance from the ZIP center and keeps only rows inside the exact
-configured radius.
+**Shared server settings:** home address/geocoded coordinates, AMC developer key, OMDb key, and A-List preference. These live in `./common/settings.json` through `SettingsStore`. Compose mounts the same `./common` directory into Test and Production as `/srv/common`, while caches remain isolated in `./data` and `./data-test`.
 
-The expansion is intentionally bounded so a large radius cannot turn one page
-load into an unbounded crawl. Missing probe markets are tolerated; failure of the
-initial market or ZIP lookup remains a request failure.
+Never return stored API-key values to the browser. `/api/settings` may return booleans indicating whether a key is configured, but the key itself is write-only from the UI's point of view. `common/` is git-ignored. The current store is plaintext on the trusted home server with best-effort mode `0600`; do not describe it as encrypted.
 
-Distance is part of the normalized screening model and a first-class numeric
-table column. It is straight-line distance, not driving distance.
+## Core data model
 
-### The table is the filter UI
+Fandango remains the base screening provider. Every normalized row can then be enriched independently and fail-soft.
 
-Do not add a separate filter panel or wizard. Column headers are the only primary
-filter/sort surface. All columns should get the same basic affordance; variation
-comes only from data type. Text columns get text operators, time columns get time
-operators, numeric columns get comparison operators, and all columns get
-exact-value checkboxes.
+Base facts include movie, theater, chain, listed start, runtime, format, purchase URL, theater coordinates, and straight-line distance. Enrichment fields are nullable/defaulted so upstream enrichment failure never invalidates the base row.
 
-Do not put application preferences into a column filter menu. Settings and table
-filtering are intentionally separate concepts.
+The important derived timing model is:
 
-### Application preferences belong on Settings
+```text
+actual start = listed start + configured chain preview minutes
+end          = actual start + runtime
+leave home   = actual start - outbound drive estimate
+back home    = end + return drive estimate
+```
 
-`/settings` is the single user-facing place to configure global browser
-preferences: ZIP/radius and preview/trailer minutes for theater chains. Values
-are browser-local and persist across reloads. The Settings page stores them in
-`localStorage` and mirrors them into cookies so `/api/screenings` can apply the
-configured location and chain timing before returning data.
+No preview duration is assumed. Missing preview means actual start/end/travel timing remain unknown. Missing runtime means end/back-home remain unknown. Missing home/theater route means leave/back-home remain unknown.
 
-Settings cookies are authoritative for browser requests. Direct API consumers
-without those cookies can use `zip=`, `radius=`, and `preview=Chain:minutes`
-query parameters.
+All time filtering compares complete datetimes. Do not regress to clock-only `HH:MM` comparisons; after-midnight rows must remain ordered correctly and display `(+1d)` when applicable.
 
-### Keep table filtering client-side
+## Location discovery
 
-The browser fetches the complete normalized radius result and applies column
-filtering/sorting in JavaScript. This is required for the spreadsheet-style UX:
-checkbox and rule changes should feel immediate and should not cause repeated
-upstream requests.
+The product's location is ZIP + radius, not “whatever Fandango returns for one ZIP.” `ZipLocator` resolves the ZIP center, then `ScreeningService` starts with that Fandango market, probes a bounded set of geographically distributed returned theater ZIPs, deduplicates showtimes, calculates Haversine distance, and removes rows outside the requested radius.
 
-The Python service retains its server-side filter functions because the API can
-still be used directly and those semantics remain independently testable.
+The cache key is `(date, ZIP, radius)`. Preview settings are applied after base-screening caching so changing trailer time does not force another Fandango fetch.
 
-### Saved Views stay local and contain table state only
+Distance is straight-line distance, not drive distance. Drive estimates are a separate optional enrichment.
 
-Saved Views are for table state: useful filter/sort combinations that can be
-reapplied quickly. They use browser `localStorage`; they do not justify an account,
-database, or backend persistence layer yet. Treat them as convenience state on
-that browser, not portable user profile data.
+## Enrichment architecture
 
-Location and preview timing are global browser preferences and conceptually
-belong to Settings, not to a Saved View. Legacy saved views may contain obsolete
-preview state; current Settings remain authoritative.
+Enrichment is deliberately optional and must not make showtime retrieval brittle. A missing key, unavailable upstream API, unmatched movie/performance, or denied seating endpoint produces `Unknown`, not an error for the whole screening table.
 
-### Preview rules belong to chains and are applied after caching
+### OMDb metadata
 
-`ScreeningService` caches normalized upstream screenings with actual/end times
-unknown. Preview minutes from Settings are then applied per chain. This means
-changing a preview value does not require another Fandango request; it only
-recalculates against cached location data.
+`metadata.py` supplies poster URL, IMDb ID/rating, Metacritic score, and Rotten Tomatoes percentage. `enrichment.py` queries unique titles concurrently and caches through `OmdbClient`.
 
-### Location participates in the cache key
+The IMDb ID is also the stable bridge for source links:
 
-The base screening cache key is `(date, ZIP, radius)`. Changing location must not
-reuse a result assembled for another location. Preview timing is deliberately not
-part of that key because it is applied after the base result is cached.
+- IMDb → exact IMDb title page;
+- Letterboxd → `letterboxd.com/imdb/{tt...}/`, which redirects to the film;
+- Rotten Tomatoes and Metacritic currently use provider search URLs for the title because OMDb does not supply canonical provider URLs.
 
-### Unknown time is a first-class state
+Do not block base screenings when metadata lookup fails.
 
-`actual_start` and `estimated_end` are nullable. Timing filters exclude rows when
-the time needed by that filter is unknown unless the user explicitly filters for
-unknown values. A configured preview plus missing runtime produces a known actual
-start and unknown end.
+### AMC enrichment
 
-### Midnight rollover must compare full datetimes
+`amc.py` uses the official AMC developer API with `X-AMC-Vendor-Key`. It fetches nearby official AMC showtimes and matches them to Fandango rows using movie title, listed local time, and theater identity/location.
 
-A next-day `12:30 AM` is later than a same-day `7:00 PM`; clock-only comparisons
-are incorrect. Time filtering must construct boundaries on the advertised
-screening date and compare complete datetimes. Table display should mark a
-next-day value (for example `12:30 AM (+1d)`) so the rollover is visible.
+Only confidently matched AMC performances may populate AMC-derived fields.
 
-### Keep the stdlib WSGI server for the MVP
+**Ticket price:** prefer a reported Adult price and include reported tax. Treat it as a display estimate; final checkout may differ.
 
-The app still needs only a few routes, a JSON API, and static files. A framework
-would add runtime surface area without solving a current problem.
+**A-List:** the official performance attribute `NOALIST` / “Excluded from A-List” is the authoritative exclusion signal. If the user enables A-List, a matched AMC performance may be displayed as `$0.00` only when it is not excluded. The app does not infer geographic plan-tier eligibility; Settings explicitly says the toggle assumes the user's plan covers the searched locations.
 
-### Browser supplies "today"
+**Seats left:** use the official reserved-seating layout when available. Calculate available / total reservable seats, excluding wheelchair and companion positions. Seating permission/API failure leaves this field unknown.
 
-The UI sends the browser's local calendar date to avoid container-timezone drift.
-The API also accepts an explicit date for tests and future date selection.
+Do not scrape AMC checkout pages as a fallback for price or seat availability. Non-AMC ticket price/seats stay unknown until an equally defensible source is added.
+
+### Home geocoding and routing
+
+`routing.py` uses OpenStreetMap Nominatim to geocode the saved home address and public OSRM for static driving durations. Geocode once when Settings saves the address; persist the resulting coordinates. Route estimates are cached in-process by home/destination coordinates.
+
+These are rough static drive estimates, not live traffic. Source links for Leave home / Back home should open the underlying OpenStreetMap/OSRM route.
+
+## Cell-level provenance
+
+Known externally sourced table values should be clickable to their most specific defensible source. Current intent:
+
+- Movie → Letterboxd film;
+- IMDb → IMDb;
+- Rotten Tomatoes → Rotten Tomatoes;
+- Metacritic → Metacritic;
+- price/seats → matched AMC performance when AMC supplied them;
+- leave/back-home → route source;
+- Fandango-derived screening fields → Fandango screening/ticket URL.
+
+Unknown values stay plain text. Never manufacture a source link solely to make the table look complete.
+
+## Client-side table behavior
+
+The browser fetches the complete normalized radius result once and performs table sort/filter changes client-side for immediate spreadsheet-like interaction. The Python server retains server-side filter helpers for direct API consumers and independent testing.
+
+Saved Views remain browser-local table state only. Applying a Saved View also synchronizes any exact Movie selection into the poster-selection state. Application Settings are not part of a Saved View.
 
 ## Deployment shape
 
-Two environments — Test (`:test`) and Production (`:latest`) — each pinned to its
-own GHCR tag, with Watchtower polling on the home server. The full contract is in
-`CONTRIBUTING.md`.
+Two environments:
 
-There is deliberately no per-`dev/*` environment. Dev branches get full
-verification but do not deploy; running integration verification happens on Test.
+- Test follows GHCR `:test` from `feature/*`;
+- Production follows `:latest` from `main`.
+
+There is no per-dev environment. Dev branches get deterministic verification but no published image. Test and Production intentionally share `./common` settings while keeping mutable cache/data directories separate.
+
+See `CONTRIBUTING.md` for the full promotion contract.
 
 ## Repo history worth not relearning
 
-- Fandango's theater-with-showtimes response includes chain identity, runtime,
-  formats, ticket links, theater ZIP, and theater coordinates. A separate movie
-  metadata service or manually maintained theater list is not required.
-- A single Fandango ZIP market was not sufficient for the product's “near me”
-  expectation. Radius discovery now expands through nearby returned theater ZIPs
-  before enforcing an app-defined geographic radius.
-- Preview time is not a provider fact. It is user knowledge per chain and must
-  stay unknown until configured.
-- Time filtering previously compared only `HH:MM`, which broke after-midnight
-  results. Always compare complete datetimes.
-- The first UI used standalone filter panels. The product direction changed to
-  an Excel-style table where headers own filtering and sorting; do not recreate
-  the old panel UI.
-- Preview configuration briefly lived inside the Chain filter dropdown. It was
-  intentionally moved to `/settings`; do not put app configuration back into
-  table filters.
-- Ruff formatting previously caused avoidable CI back-and-forth. The repo now
-  pins Ruff and owns `scripts/fix` plus `scripts/verify`; agents should run those
-  locally instead of guessing formatting or waiting for CI to teach them.
+- A single Fandango ZIP response can omit nearby theaters; radius discovery therefore expands through nearby returned ZIP markets before enforcing the exact app-defined radius.
+- Preview/trailer time is user knowledge, not a provider fact. It belongs in Settings and remains unknown until configured.
+- Preview configuration briefly lived inside the Chain filter menu. It was intentionally moved out.
+- The first UI used standalone filter panels. Product direction changed to an Excel-style table where headers own sorting/filtering.
+- Time filtering once compared clock values and broke next-day rows. Always compare full datetimes.
+- Ratings/posters are enrichment, not a dependency of screening retrieval.
+- AMC price/A-List/seats should use the official AMC API and fail to Unknown rather than rely on checkout scraping.
+- Shared API credentials must survive image/container replacement through the host-mounted common storage, not browser local storage or committed env files.
+- Ruff formatting previously caused CI back-and-forth. Use `scripts/fix` and `scripts/verify` instead of guessing formatter output.
 
 ## Things deliberately not done
 
-- No device geolocation, driving-time calculation, or leave-by calculation yet.
-- No accounts or server-side saved-view/settings persistence.
-- No ratings or recommendation engine.
-- No seat maps or ticket purchasing.
-- No frontend framework or JavaScript build toolchain.
-- No persistent server cache.
-- No mypy, no ESLint. Ruff only. See `CONTRIBUTING.md`.
+- No accounts or cross-device browser-state sync.
+- No live-traffic ETA prediction.
+- No automatic inference of AMC A-List geographic plan tier.
+- No non-AMC price/seat scraping.
+- No ticket purchasing inside the app.
+- No frontend framework/build toolchain yet.
+- No persistent server cache beyond deliberate shared settings; upstream caches remain in-process.
+- No mypy or ESLint; Ruff is the Python gate.
