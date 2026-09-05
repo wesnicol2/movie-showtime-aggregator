@@ -1,13 +1,27 @@
-const state = {
-  facets: { movies: [], theatres: [], formats: [], chains: [] },
-  selected: { movies: null, theatres: null, formats: null },
-  previewMinutes: new Map(),
-};
+const UNKNOWN = "__unknown__";
 
-const facetConfig = {
-  movies: { element: "movies-filter", param: "movie" },
-  theatres: { element: "theatres-filter", param: "theatre" },
-  formats: { element: "formats-filter", param: "format" },
+const columns = [
+  { key: "movie", label: "Movie", type: "text" },
+  { key: "theatre", label: "Theater", type: "text" },
+  { key: "chain", label: "Chain", type: "text" },
+  { key: "advertised_start", label: "Listed", type: "time" },
+  { key: "actual_start", label: "Actual start", type: "time" },
+  { key: "estimated_end", label: "Ends", type: "time" },
+  { key: "format", label: "Format", type: "text" },
+];
+
+const state = {
+  screenings: [],
+  previewMinutes: new Map(),
+  filters: Object.fromEntries(
+    columns.map((column) => [
+      column.key,
+      { selected: null, operator: "", operand: "" },
+    ]),
+  ),
+  sort: { key: "advertised_start", direction: "asc" },
+  openColumn: null,
+  marketZip: "",
 };
 
 function browserDate() {
@@ -20,29 +34,8 @@ function browserDate() {
 
 function buildParams() {
   const params = new URLSearchParams({ date: browserDate() });
-
-  for (const [facet, config] of Object.entries(facetConfig)) {
-    const selected = state.selected[facet];
-    if (selected === null) continue;
-    if (selected.size === 0) {
-      params.append(config.param, "__none__");
-      continue;
-    }
-    for (const value of selected) params.append(config.param, value);
-  }
-
   for (const [chain, minutes] of state.previewMinutes.entries()) {
     params.append("preview", `${chain}:${minutes}`);
-  }
-
-  const times = [
-    ["start_after", "start-after"],
-    ["start_before", "start-before"],
-    ["end_by", "end-by"],
-  ];
-  for (const [param, id] of times) {
-    const value = document.getElementById(id).value;
-    if (value) params.set(param, value);
   }
   return params;
 }
@@ -50,65 +43,515 @@ function buildParams() {
 async function loadScreenings() {
   const error = document.getElementById("error");
   error.hidden = true;
+
   try {
     const response = await fetch(`/api/screenings?${buildParams()}`);
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
 
-    syncFacets(payload.facets);
-    renderRows(payload.screenings);
-    document.getElementById("result-count").textContent =
-      `${payload.count} of ${payload.total_count} screenings · ZIP ${payload.market_zip}`;
+    state.screenings = payload.screenings || [];
+    state.marketZip = payload.market_zip || "";
+    renderAll();
   } catch (err) {
+    state.screenings = [];
+    renderRows();
     document.getElementById("result-count").textContent = "Unavailable";
-    document.getElementById("screenings-body").replaceChildren();
-    document.getElementById("empty-state").hidden = true;
     error.textContent = err.message;
     error.hidden = false;
   }
 }
 
-function syncFacets(facets) {
-  for (const facet of Object.keys(facetConfig)) {
-    const values = facets[facet] || [];
-    state.facets[facet] = values;
-    if (state.selected[facet] === null) state.selected[facet] = new Set(values);
-    renderFacet(facet);
-  }
-  state.facets.chains = facets.chains || [];
-  renderChainPreviews();
+function renderAll() {
+  renderHeaders();
+  renderRows();
+  if (state.openColumn) renderColumnMenu(state.openColumn);
 }
 
-function renderFacet(facet) {
-  const container = document.getElementById(facetConfig[facet].element);
-  const selected = state.selected[facet];
+function renderHeaders() {
+  const head = document.getElementById("screenings-head");
+  head.replaceChildren();
+
+  for (const column of columns) {
+    const th = document.createElement("th");
+    th.dataset.column = column.key;
+    th.setAttribute("aria-sort", ariaSort(column.key));
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "column-header";
+
+    const sortButton = document.createElement("button");
+    sortButton.type = "button";
+    sortButton.className = "sort-control";
+    sortButton.dataset.sortColumn = column.key;
+    sortButton.title = `Sort by ${column.label}`;
+
+    const label = document.createElement("span");
+    label.textContent = column.label;
+
+    const indicator = document.createElement("span");
+    indicator.className = "sort-indicator";
+    indicator.setAttribute("aria-hidden", "true");
+    if (state.sort.key === column.key) {
+      indicator.textContent = state.sort.direction === "asc" ? "▲" : "▼";
+      th.classList.add("sorted");
+    }
+
+    sortButton.append(label, indicator);
+    sortButton.addEventListener("click", () => toggleSort(column.key));
+
+    const filterButton = document.createElement("button");
+    filterButton.type = "button";
+    filterButton.className = "filter-control";
+    filterButton.dataset.filterColumn = column.key;
+    filterButton.setAttribute("aria-label", `Filter ${column.label}`);
+    filterButton.setAttribute("aria-expanded", String(state.openColumn === column.key));
+    filterButton.textContent = "▾";
+    filterButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (state.openColumn === column.key) closeColumnMenu();
+      else openColumnMenu(column.key);
+    });
+
+    if (isFilterActive(column.key)) {
+      th.classList.add("filtered");
+      filterButton.title = `${column.label} has an active filter`;
+    } else {
+      filterButton.title = `Filter ${column.label}`;
+    }
+
+    wrapper.append(sortButton, filterButton);
+    th.append(wrapper);
+    head.append(th);
+  }
+}
+
+function toggleSort(columnKey) {
+  if (state.sort.key === columnKey) {
+    state.sort.direction = state.sort.direction === "asc" ? "desc" : "asc";
+  } else {
+    state.sort = { key: columnKey, direction: "asc" };
+  }
+  closeColumnMenu();
+  renderHeaders();
+  renderRows();
+}
+
+function setSort(columnKey, direction) {
+  state.sort = { key: columnKey, direction };
+  closeColumnMenu();
+  renderHeaders();
+  renderRows();
+}
+
+function ariaSort(columnKey) {
+  if (state.sort.key !== columnKey) return "none";
+  return state.sort.direction === "asc" ? "ascending" : "descending";
+}
+
+function renderRows() {
+  const body = document.getElementById("screenings-body");
+  const empty = document.getElementById("empty-state");
+  const visible = sortRows(filterRows(state.screenings));
+
+  body.replaceChildren();
+  empty.hidden = visible.length !== 0;
+
+  for (const screening of visible) {
+    const row = document.createElement("tr");
+    for (const column of columns) {
+      row.append(renderCell(screening, column));
+    }
+    body.append(row);
+  }
+
+  const filterCount = columns.filter((column) => isFilterActive(column.key)).length;
+  const filterText = filterCount ? ` · ${filterCount} filter${filterCount === 1 ? "" : "s"}` : "";
+  const zipText = state.marketZip ? ` · ZIP ${state.marketZip}` : "";
+  document.getElementById("result-count").textContent =
+    `${visible.length} of ${state.screenings.length} screenings${zipText}${filterText}`;
+}
+
+function renderCell(screening, column) {
+  const td = document.createElement("td");
+  td.dataset.column = column.key;
+
+  if (column.key === "movie" && screening.purchase_url) {
+    const link = document.createElement("a");
+    link.href = screening.purchase_url;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = screening.movie;
+    td.append(link);
+    return td;
+  }
+
+  if (column.type === "time") {
+    const value = screening[column.key];
+    td.textContent = value ? formatTableTime(value, screening.advertised_start) : "Unknown";
+    if (!value) td.classList.add("unknown");
+    if (column.key !== "advertised_start") td.classList.add("calculated-time");
+    return td;
+  }
+
+  td.textContent = screening[column.key] || "Unknown";
+  return td;
+}
+
+function filterRows(screenings) {
+  return screenings.filter((screening) =>
+    columns.every((column) => matchesColumnFilter(screening, column)),
+  );
+}
+
+function matchesColumnFilter(screening, column) {
+  const filter = state.filters[column.key];
+  const canonical = canonicalValue(screening[column.key]);
+
+  if (filter.selected !== null && !filter.selected.has(canonical)) return false;
+  if (!filter.operator) return true;
+  return matchesRule(screening, column, filter);
+}
+
+function matchesRule(screening, column, filter) {
+  const value = screening[column.key];
+
+  if (filter.operator === "is_unknown") return value == null || value === "";
+  if (filter.operator === "is_not_unknown") return value != null && value !== "";
+  if (!filter.operand) return true;
+  if (value == null || value === "") return false;
+
+  if (column.type === "text") {
+    const actual = String(value).toLocaleLowerCase();
+    const expected = filter.operand.toLocaleLowerCase();
+    switch (filter.operator) {
+      case "contains": return actual.includes(expected);
+      case "not_contains": return !actual.includes(expected);
+      case "equals": return actual === expected;
+      case "not_equals": return actual !== expected;
+      case "begins_with": return actual.startsWith(expected);
+      case "ends_with": return actual.endsWith(expected);
+      default: return true;
+    }
+  }
+
+  const boundary = boundaryForScreening(screening, filter.operand);
+  const actual = new Date(value).getTime();
+  if (!Number.isFinite(boundary) || !Number.isFinite(actual)) return false;
+
+  switch (filter.operator) {
+    case "before": return actual < boundary;
+    case "before_or_equal": return actual <= boundary;
+    case "after": return actual > boundary;
+    case "after_or_equal": return actual >= boundary;
+    case "equals": return Math.floor(actual / 60000) === Math.floor(boundary / 60000);
+    case "not_equals": return Math.floor(actual / 60000) !== Math.floor(boundary / 60000);
+    default: return true;
+  }
+}
+
+function boundaryForScreening(screening, timeValue) {
+  const [hours, minutes] = timeValue.split(":").map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return Number.NaN;
+
+  const boundary = new Date(screening.advertised_start);
+  boundary.setHours(hours, minutes, 0, 0);
+  return boundary.getTime();
+}
+
+function sortRows(screenings) {
+  const column = columns.find((item) => item.key === state.sort.key);
+  if (!column) return [...screenings];
+
+  const direction = state.sort.direction === "asc" ? 1 : -1;
+  return [...screenings].sort((left, right) => {
+    const leftValue = left[column.key];
+    const rightValue = right[column.key];
+
+    if (leftValue == null && rightValue == null) return 0;
+    if (leftValue == null) return 1;
+    if (rightValue == null) return -1;
+
+    let comparison;
+    if (column.type === "time") {
+      comparison = new Date(leftValue).getTime() - new Date(rightValue).getTime();
+    } else {
+      comparison = String(leftValue).localeCompare(String(rightValue), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+    }
+    return comparison * direction;
+  });
+}
+
+function openColumnMenu(columnKey) {
+  state.openColumn = columnKey;
+  renderHeaders();
+  renderColumnMenu(columnKey);
+}
+
+function closeColumnMenu() {
+  state.openColumn = null;
+  const menu = document.getElementById("column-menu");
+  menu.hidden = true;
+  renderHeaders();
+}
+
+function renderColumnMenu(columnKey) {
+  const column = columns.find((item) => item.key === columnKey);
+  if (!column) return;
+
+  const filter = state.filters[columnKey];
+  const menu = document.getElementById("column-menu");
+  menu.replaceChildren();
+  menu.hidden = false;
+  menu.onclick = (event) => event.stopPropagation();
+
+  const heading = document.createElement("div");
+  heading.className = "menu-heading";
+  const title = document.createElement("strong");
+  title.textContent = column.label;
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "link-button";
+  clear.textContent = "Clear filter";
+  clear.disabled = !isFilterActive(columnKey);
+  clear.addEventListener("click", () => {
+    state.filters[columnKey] = { selected: null, operator: "", operand: "" };
+    renderRows();
+    renderHeaders();
+    renderColumnMenu(columnKey);
+  });
+  heading.append(title, clear);
+  menu.append(heading);
+
+  menu.append(renderSortSection(column));
+  menu.append(renderRuleSection(column, filter));
+  menu.append(renderValuesSection(column, filter));
+  if (column.key === "chain") menu.append(renderPreviewSection());
+
+  positionColumnMenu(columnKey);
+}
+
+function renderSortSection(column) {
+  const section = document.createElement("div");
+  section.className = "menu-section sort-section";
+
+  const asc = document.createElement("button");
+  asc.type = "button";
+  asc.textContent = column.type === "time" ? "Sort earliest → latest" : "Sort A → Z";
+  asc.addEventListener("click", () => setSort(column.key, "asc"));
+
+  const desc = document.createElement("button");
+  desc.type = "button";
+  desc.textContent = column.type === "time" ? "Sort latest → earliest" : "Sort Z → A";
+  desc.addEventListener("click", () => setSort(column.key, "desc"));
+
+  section.append(asc, desc);
+  return section;
+}
+
+function renderRuleSection(column, filter) {
+  const section = document.createElement("div");
+  section.className = "menu-section rule-section";
+
+  const label = document.createElement("label");
+  label.className = "menu-label";
+  label.textContent = column.type === "time" ? "Time filter" : "Text filter";
+
+  const controls = document.createElement("div");
+  controls.className = "rule-controls";
+
+  const select = document.createElement("select");
+  for (const [value, text] of ruleOptions(column.type)) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = text;
+    option.selected = filter.operator === value;
+    select.append(option);
+  }
+
+  const operand = document.createElement("input");
+  operand.type = column.type === "time" ? "time" : "search";
+  operand.placeholder = column.type === "time" ? "Time" : "Value";
+  operand.value = filter.operand;
+  operand.hidden = ["", "is_unknown", "is_not_unknown"].includes(filter.operator);
+
+  select.addEventListener("change", () => {
+    filter.operator = select.value;
+    operand.hidden = ["", "is_unknown", "is_not_unknown"].includes(filter.operator);
+    renderRows();
+    renderHeaders();
+  });
+
+  operand.addEventListener("input", () => {
+    filter.operand = operand.value;
+    renderRows();
+    renderHeaders();
+  });
+
+  controls.append(select, operand);
+  label.append(controls);
+  section.append(label);
+  return section;
+}
+
+function ruleOptions(type) {
+  if (type === "time") {
+    return [
+      ["", "No rule"],
+      ["before", "Before"],
+      ["before_or_equal", "Before or equal to"],
+      ["after", "After"],
+      ["after_or_equal", "After or equal to"],
+      ["equals", "Equals"],
+      ["not_equals", "Does not equal"],
+      ["is_unknown", "Is unknown"],
+      ["is_not_unknown", "Is not unknown"],
+    ];
+  }
+
+  return [
+    ["", "No rule"],
+    ["contains", "Contains"],
+    ["not_contains", "Does not contain"],
+    ["equals", "Equals"],
+    ["not_equals", "Does not equal"],
+    ["begins_with", "Begins with"],
+    ["ends_with", "Ends with"],
+    ["is_unknown", "Is unknown"],
+    ["is_not_unknown", "Is not unknown"],
+  ];
+}
+
+function renderValuesSection(column, filter) {
+  const section = document.createElement("div");
+  section.className = "menu-section values-section";
+
+  const heading = document.createElement("div");
+  heading.className = "values-heading";
+  const label = document.createElement("span");
+  label.className = "menu-label";
+  label.textContent = "Values";
+  const actions = document.createElement("div");
+  actions.className = "mini-actions";
+
+  const all = document.createElement("button");
+  all.type = "button";
+  all.className = "link-button";
+  all.textContent = "All";
+  all.addEventListener("click", () => {
+    filter.selected = null;
+    renderRows();
+    renderHeaders();
+    renderColumnMenu(column.key);
+  });
+
+  const none = document.createElement("button");
+  none.type = "button";
+  none.className = "link-button";
+  none.textContent = "None";
+  none.addEventListener("click", () => {
+    filter.selected = new Set();
+    renderRows();
+    renderHeaders();
+    renderColumnMenu(column.key);
+  });
+
+  actions.append(all, none);
+  heading.append(label, actions);
+
+  const search = document.createElement("input");
+  search.type = "search";
+  search.placeholder = "Search values";
+  search.className = "value-search";
+
+  const list = document.createElement("div");
+  list.className = "value-list";
+  renderValueList(list, column, filter, "");
+
+  search.addEventListener("input", () => {
+    renderValueList(list, column, filter, search.value);
+  });
+
+  section.append(heading, search, list);
+  return section;
+}
+
+function renderValueList(container, column, filter, query) {
+  const values = uniqueValues(column);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
   container.replaceChildren();
 
-  for (const value of state.facets[facet]) {
+  for (const value of values) {
+    const display = displayMenuValue(value, column);
+    if (normalizedQuery && !display.toLocaleLowerCase().includes(normalizedQuery)) continue;
+
     const label = document.createElement("label");
-    label.className = "check-option";
+    label.className = "value-option";
 
     const input = document.createElement("input");
     input.type = "checkbox";
-    input.checked = selected.has(value);
+    input.checked = filter.selected === null || filter.selected.has(value);
     input.addEventListener("change", () => {
-      if (input.checked) selected.add(value);
-      else selected.delete(value);
-      loadScreenings();
+      if (filter.selected === null) filter.selected = new Set(values);
+      if (input.checked) filter.selected.add(value);
+      else filter.selected.delete(value);
+      if (filter.selected.size === values.length) filter.selected = null;
+      renderRows();
+      renderHeaders();
     });
 
     const text = document.createElement("span");
-    text.textContent = value;
+    text.textContent = display;
     label.append(input, text);
     container.append(label);
   }
 }
 
-function renderChainPreviews() {
-  const container = document.getElementById("chain-previews");
-  container.replaceChildren();
+function uniqueValues(column) {
+  const values = new Set(state.screenings.map((screening) => canonicalValue(screening[column.key])));
+  return [...values].sort((left, right) => {
+    if (left === UNKNOWN) return 1;
+    if (right === UNKNOWN) return -1;
+    if (column.type === "time") return new Date(left).getTime() - new Date(right).getTime();
+    return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
+  });
+}
 
-  for (const chain of state.facets.chains) {
+function canonicalValue(value) {
+  return value == null || value === "" ? UNKNOWN : String(value);
+}
+
+function displayMenuValue(value, column) {
+  if (value === UNKNOWN) return "Unknown";
+  if (column.type !== "time") return value;
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function renderPreviewSection() {
+  const section = document.createElement("div");
+  section.className = "menu-section preview-section";
+
+  const heading = document.createElement("div");
+  heading.className = "preview-heading";
+  const title = document.createElement("span");
+  title.className = "menu-label";
+  title.textContent = "Preview minutes by chain";
+  const note = document.createElement("p");
+  note.textContent = "Blank keeps Actual start and Ends unknown for that chain.";
+  heading.append(title, note);
+
+  const list = document.createElement("div");
+  list.className = "preview-list";
+
+  const chainColumn = columns.find((column) => column.key === "chain");
+  const chains = uniqueValues(chainColumn).filter((chain) => chain !== UNKNOWN);
+  for (const chain of chains) {
     const label = document.createElement("label");
     label.className = "preview-option";
 
@@ -122,7 +565,8 @@ function renderChainPreviews() {
     input.step = "1";
     input.placeholder = "Unknown";
     if (state.previewMinutes.has(chain)) input.value = state.previewMinutes.get(chain);
-    input.addEventListener("change", () => {
+
+    input.addEventListener("change", async () => {
       const raw = input.value.trim();
       if (raw === "") {
         state.previewMinutes.delete(chain);
@@ -136,81 +580,74 @@ function renderChainPreviews() {
         input.setCustomValidity("");
         state.previewMinutes.set(chain, minutes);
       }
-      loadScreenings();
+
+      state.filters.actual_start.selected = null;
+      state.filters.estimated_end.selected = null;
+      await loadScreenings();
     });
 
     label.append(name, input);
-    container.append(label);
+    list.append(label);
+  }
+
+  section.append(heading, list);
+  return section;
+}
+
+function positionColumnMenu(columnKey) {
+  const trigger = document.querySelector(`[data-filter-column="${columnKey}"]`);
+  const menu = document.getElementById("column-menu");
+  if (!trigger || menu.hidden) return;
+
+  const rect = trigger.getBoundingClientRect();
+  const menuWidth = Math.min(380, window.innerWidth - 16);
+  menu.style.width = `${menuWidth}px`;
+  const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+
+  menu.style.left = `${left}px`;
+  menu.style.top = `${rect.bottom + 4}px`;
+
+  const menuHeight = menu.getBoundingClientRect().height;
+  if (rect.bottom + menuHeight + 8 > window.innerHeight && rect.top > menuHeight + 8) {
+    menu.style.top = `${rect.top - menuHeight - 4}px`;
   }
 }
 
-function renderRows(screenings) {
-  const body = document.getElementById("screenings-body");
-  const empty = document.getElementById("empty-state");
-  body.replaceChildren();
-  empty.hidden = screenings.length !== 0;
-
-  for (const screening of screenings) {
-    const row = document.createElement("tr");
-    const movieCell = document.createElement("td");
-    if (screening.purchase_url) {
-      const link = document.createElement("a");
-      link.href = screening.purchase_url;
-      link.target = "_blank";
-      link.rel = "noreferrer";
-      link.textContent = screening.movie;
-      movieCell.append(link);
-    } else {
-      movieCell.textContent = screening.movie;
-    }
-
-    row.append(
-      movieCell,
-      cell(screening.theatre),
-      cell(screening.chain),
-      cell(formatTime(screening.advertised_start), "muted"),
-      cell(screening.actual_start ? formatTime(screening.actual_start) : "Unknown", "primary-time"),
-      cell(screening.estimated_end ? formatTime(screening.estimated_end) : "Unknown", "primary-time"),
-      cell(screening.format),
-    );
-    body.append(row);
-  }
+function isFilterActive(columnKey) {
+  const filter = state.filters[columnKey];
+  return filter.selected !== null || Boolean(filter.operator);
 }
 
-function cell(text, className = "") {
-  const td = document.createElement("td");
-  td.textContent = text;
-  if (className) td.className = className;
-  return td;
-}
-
-function formatTime(value) {
-  return new Intl.DateTimeFormat(undefined, {
+function formatTableTime(value, advertisedStart) {
+  const formatted = new Intl.DateTimeFormat(undefined, {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+  const offset = calendarDayOffset(advertisedStart, value);
+  if (offset === 0) return formatted;
+  return `${formatted} (${offset > 0 ? "+" : ""}${offset}d)`;
 }
 
-for (const button of document.querySelectorAll("[data-action]")) {
-  button.addEventListener("click", () => {
-    const facet = button.dataset.filter;
-    state.selected[facet] = button.dataset.action === "all"
-      ? new Set(state.facets[facet])
-      : new Set();
-    renderFacet(facet);
-    loadScreenings();
-  });
+function calendarDayOffset(baseValue, value) {
+  const [baseYear, baseMonth, baseDay] = baseValue.slice(0, 10).split("-").map(Number);
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  const base = Date.UTC(baseYear, baseMonth - 1, baseDay);
+  const current = Date.UTC(year, month - 1, day);
+  return Math.round((current - base) / 86400000);
 }
 
-for (const id of ["start-after", "start-before", "end-by"]) {
-  document.getElementById(id).addEventListener("change", loadScreenings);
-}
-
-document.getElementById("clear-times").addEventListener("click", () => {
-  for (const id of ["start-after", "start-before", "end-by"]) {
-    document.getElementById(id).value = "";
-  }
-  loadScreenings();
+document.addEventListener("click", (event) => {
+  const menu = document.getElementById("column-menu");
+  if (!menu.hidden && !menu.contains(event.target)) closeColumnMenu();
 });
 
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.openColumn) closeColumnMenu();
+});
+
+window.addEventListener("resize", () => {
+  if (state.openColumn) positionColumnMenu(state.openColumn);
+});
+
+renderHeaders();
 loadScreenings();
