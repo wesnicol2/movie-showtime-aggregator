@@ -15,7 +15,8 @@ from .config import Settings
 from .enrichment import enrich_amc_details, enrich_movie_metadata, enrich_travel_times
 from .fandango import FandangoClient, FandangoError
 from .location import GeoPoint, LocationError, ZipLocator
-from .metadata import OmdbClient
+from .metadata import OMDB_DAILY_LIMIT, OmdbClient
+from .provider_cache import ProviderCache
 from .routing import AddressGeocoder, GeocodingError, OsrmRouter
 from .service import ScreeningFilters, ScreeningService, facets, filter_screenings
 from .storage import PersistentSettings, SettingsStore
@@ -37,6 +38,7 @@ STATIC_ROUTES = {
 _SETTINGS = Settings.from_env()
 _SERVICE = ScreeningService(FandangoClient(), _SETTINGS)
 _STORE = SettingsStore()
+_PROVIDER_CACHE = ProviderCache()
 _GEOCODER = AddressGeocoder()
 _ROUTER = OsrmRouter()
 _ZIP_LOCATOR = ZipLocator()
@@ -130,7 +132,7 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
 
 def _settings_response(environ: dict, start_response: Callable, method: str) -> Iterable[bytes]:
     if method in {"GET", "HEAD"}:
-        return _json_response(start_response, 200, _STORE.load().public_dict(), method)
+        return _json_response(start_response, 200, _settings_payload(_STORE.load()), method)
 
     try:
         payload = _read_json_body(environ)
@@ -182,7 +184,16 @@ def _settings_response(environ: dict, start_response: Callable, method: str) -> 
     except GeocodingError as exc:
         return _json_response(start_response, 503, {"error": str(exc)}, method)
 
-    return _json_response(start_response, 200, updated.public_dict(), method)
+    return _json_response(start_response, 200, _settings_payload(updated), method)
+
+
+def _settings_payload(settings: PersistentSettings) -> dict[str, object]:
+    payload = settings.public_dict()
+    payload["provider_usage"] = {
+        "omdb": _PROVIDER_CACHE.status("omdb", published_daily_limit=OMDB_DAILY_LIMIT),
+        "amc": _PROVIDER_CACHE.status("amc"),
+    }
+    return payload
 
 
 def _apply_secret_change(
@@ -228,7 +239,7 @@ def _omdb_client(api_key: str) -> OmdbClient | None:
     if not key:
         return None
     with _CLIENT_LOCK:
-        return _OMDB_CLIENTS.setdefault(key, OmdbClient(key))
+        return _OMDB_CLIENTS.setdefault(key, OmdbClient(key, provider_cache=_PROVIDER_CACHE))
 
 
 def _amc_client(vendor_key: str) -> AMCClient | None:
@@ -236,7 +247,7 @@ def _amc_client(vendor_key: str) -> AMCClient | None:
     if not key:
         return None
     with _CLIENT_LOCK:
-        return _AMC_CLIENTS.setdefault(key, AMCClient(key))
+        return _AMC_CLIENTS.setdefault(key, AMCClient(key, provider_cache=_PROVIDER_CACHE))
 
 
 def _home_point(settings: PersistentSettings) -> GeoPoint | None:
