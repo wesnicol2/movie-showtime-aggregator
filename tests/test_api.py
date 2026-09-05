@@ -58,12 +58,15 @@ def test_health_is_ok():
     assert payload == {"status": "ok"}
 
 
-def test_root_serves_dashboard():
+def test_root_serves_table_dashboard():
     code, body = call("/")
     assert code == 200
-    assert "Movie options, minus the noise." in body
-    assert "Preview time by chain" in body
-    assert "Actual start" in body
+    assert '<table id="screening-table">' in body
+    assert '<tr id="screenings-head"></tr>' in body
+    assert 'id="saved-view-select"' in body
+    assert 'id="save-view"' in body
+    assert 'id="column-menu"' in body
+    assert 'class="filters"' not in body
 
 
 def test_unknown_path_is_404():
