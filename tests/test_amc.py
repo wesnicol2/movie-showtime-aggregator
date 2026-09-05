@@ -3,7 +3,9 @@ from datetime import datetime
 from movie_showtime_aggregator.amc import (
     AMCShowtime,
     AMCTheatre,
+    _a_list_eligibility,
     _has_no_a_list,
+    _parse_showtime,
     _seat_percentage,
     _ticket_price,
     match_showtime,
@@ -16,11 +18,17 @@ def test_adult_ticket_price_includes_reported_tax():
         _ticket_price(
             [
                 {"priceType": "Child", "price": 8, "tax": 1},
-                {"priceType": "Adult", "price": 12.5, "tax": 1.25},
+                {"type": "ADULT", "price": 12.5, "tax": 1.25},
             ]
         )
         == 13.75
     )
+
+
+def test_a_list_eligibility_is_unknown_without_official_attributes():
+    assert _a_list_eligibility(None) is None
+    assert _a_list_eligibility([]) is True
+    assert _a_list_eligibility([{"code": "NOALIST"}]) is False
 
 
 def test_noalist_attribute_is_detected_from_official_showtime_attributes():
@@ -28,21 +36,38 @@ def test_noalist_attribute_is_detected_from_official_showtime_attributes():
     assert _has_no_a_list([{"code": "IMAX", "name": "IMAX"}]) is False
 
 
-def test_seat_percentage_uses_reservable_non_accessibility_seats():
+def test_seat_percentage_uses_v3_can_reserve_seats():
     payload = {
-        "rows": [
-            {
-                "seats": [
-                    {"seatType": "Recliner", "isAvailable": True},
-                    {"seatType": "Recliner", "isAvailable": False},
-                    {"seatType": "Wheelchair", "isAvailable": True},
-                    {"seatType": "Companion", "isAvailable": True},
-                ]
-            }
-        ]
+        "rows": 1,
+        "columns": 4,
+        "seats": [
+            {"type": "CanReserve", "available": True},
+            {"type": "CanReserve", "available": False},
+            {"type": "NotASeat", "available": True},
+            {"type": "Wheelchair", "available": True},
+        ],
     }
 
     assert _seat_percentage(payload) == 50.0
+
+
+def test_showtime_prefers_performance_number_for_seating_lookup():
+    theatre = AMCTheatre(1, "AMC Test 10", GeoPoint(33.5, -112.1))
+    parsed = _parse_showtime(
+        {
+            "id": 26250458,
+            "performanceNumber": 97027,
+            "theatreId": 1,
+            "sortableTitleName": "Test Movie",
+            "showDateTimeLocal": "2026-09-05T19:00:00",
+            "attributes": [],
+        },
+        {1: theatre},
+    )
+
+    assert parsed is not None
+    assert parsed.performance_id == 97027
+    assert parsed.a_list_eligible is True
 
 
 def test_match_showtime_uses_title_time_and_theatre_location():
