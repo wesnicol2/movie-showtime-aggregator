@@ -8,8 +8,8 @@ from pathlib import Path
 from urllib.parse import parse_qs
 from wsgiref.simple_server import make_server
 
-from .amc import AMCClient, AMCError
 from .config import Settings
+from .fandango import FandangoClient, FandangoError
 from .service import ScreeningFilters, ScreeningService, facets, filter_screenings
 
 JSON_HEADERS = [("Content-Type", "application/json; charset=utf-8")]
@@ -21,7 +21,7 @@ STATIC_ROUTES = {
 }
 
 _SETTINGS = Settings.from_env()
-_SERVICE = ScreeningService(AMCClient(_SETTINGS.vendor_key), _SETTINGS)
+_SERVICE = ScreeningService(FandangoClient(), _SETTINGS)
 
 
 def health() -> dict[str, str]:
@@ -59,8 +59,8 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
             end_by=query.get("end_by", [None])[0],
         )
         visible = filter_screenings(all_screenings, filters)
-    except (ValueError, AMCError) as exc:
-        status = 503 if isinstance(exc, AMCError) else 400
+    except (ValueError, FandangoError) as exc:
+        status = 503 if isinstance(exc, FandangoError) else 400
         return _json_response(start_response, status, {"error": str(exc)}, method)
 
     payload = {
