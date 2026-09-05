@@ -1,4 +1,5 @@
 const UNKNOWN = "__unknown__";
+const SAVED_VIEWS_KEY = "movie-showtime-aggregator.saved-views.v1";
 
 const columns = [
   { key: "movie", label: "Movie", type: "text" },
@@ -131,6 +132,7 @@ function toggleSort(columnKey) {
   } else {
     state.sort = { key: columnKey, direction: "asc" };
   }
+  markViewDirty();
   closeColumnMenu();
   renderHeaders();
   renderRows();
@@ -138,6 +140,7 @@ function toggleSort(columnKey) {
 
 function setSort(columnKey, direction) {
   state.sort = { key: columnKey, direction };
+  markViewDirty();
   closeColumnMenu();
   renderHeaders();
   renderRows();
@@ -318,6 +321,7 @@ function renderColumnMenu(columnKey) {
   clear.disabled = !isFilterActive(columnKey);
   clear.addEventListener("click", () => {
     state.filters[columnKey] = { selected: null, operator: "", operand: "" };
+    markViewDirty();
     renderRows();
     renderHeaders();
     renderColumnMenu(columnKey);
@@ -380,12 +384,14 @@ function renderRuleSection(column, filter) {
   select.addEventListener("change", () => {
     filter.operator = select.value;
     operand.hidden = ["", "is_unknown", "is_not_unknown"].includes(filter.operator);
+    markViewDirty();
     renderRows();
     renderHeaders();
   });
 
   operand.addEventListener("input", () => {
     filter.operand = operand.value;
+    markViewDirty();
     renderRows();
     renderHeaders();
   });
@@ -442,6 +448,7 @@ function renderValuesSection(column, filter) {
   all.textContent = "All";
   all.addEventListener("click", () => {
     filter.selected = null;
+    markViewDirty();
     renderRows();
     renderHeaders();
     renderColumnMenu(column.key);
@@ -453,6 +460,7 @@ function renderValuesSection(column, filter) {
   none.textContent = "None";
   none.addEventListener("click", () => {
     filter.selected = new Set();
+    markViewDirty();
     renderRows();
     renderHeaders();
     renderColumnMenu(column.key);
@@ -498,6 +506,7 @@ function renderValueList(container, column, filter, query) {
       if (input.checked) filter.selected.add(value);
       else filter.selected.delete(value);
       if (filter.selected.size === values.length) filter.selected = null;
+      markViewDirty();
       renderRows();
       renderHeaders();
     });
@@ -583,6 +592,7 @@ function renderPreviewSection() {
 
       state.filters.actual_start.selected = null;
       state.filters.estimated_end.selected = null;
+      markViewDirty();
       await loadScreenings();
     });
 
@@ -636,6 +646,133 @@ function calendarDayOffset(baseValue, value) {
   return Math.round((current - base) / 86400000);
 }
 
+function readSavedViews() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SAVED_VIEWS_KEY) || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSavedViews(views) {
+  localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(views));
+}
+
+function serializeCurrentView() {
+  return {
+    sort: { ...state.sort },
+    previewMinutes: Object.fromEntries(state.previewMinutes),
+    filters: Object.fromEntries(
+      columns.map((column) => {
+        const filter = state.filters[column.key];
+        return [
+          column.key,
+          {
+            selected: filter.selected === null ? null : [...filter.selected],
+            operator: filter.operator,
+            operand: filter.operand,
+          },
+        ];
+      }),
+    ),
+  };
+}
+
+function renderSavedViews(selectedName = "") {
+  const select = document.getElementById("saved-view-select");
+  const deleteButton = document.getElementById("delete-view");
+  const views = readSavedViews();
+  const names = Object.keys(views).sort((left, right) => left.localeCompare(right));
+
+  select.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Saved views";
+  select.append(placeholder);
+
+  for (const name of names) {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    select.append(option);
+  }
+
+  select.value = names.includes(selectedName) ? selectedName : "";
+  deleteButton.disabled = !select.value;
+}
+
+function markViewDirty() {
+  const select = document.getElementById("saved-view-select");
+  if (!select) return;
+  select.value = "";
+  document.getElementById("delete-view").disabled = true;
+}
+
+function saveCurrentView() {
+  const rawName = window.prompt("Name this filter view:");
+  if (rawName === null) return;
+  const name = rawName.trim();
+  if (!name) return;
+
+  const views = readSavedViews();
+  if (views[name] && !window.confirm(`Replace saved view “${name}”?`)) return;
+  views[name] = serializeCurrentView();
+  writeSavedViews(views);
+  renderSavedViews(name);
+}
+
+async function applySavedView(name) {
+  if (!name) {
+    document.getElementById("delete-view").disabled = true;
+    return;
+  }
+
+  const saved = readSavedViews()[name];
+  if (!saved) {
+    renderSavedViews();
+    return;
+  }
+
+  if (saved.sort && columns.some((column) => column.key === saved.sort.key)) {
+    state.sort = {
+      key: saved.sort.key,
+      direction: saved.sort.direction === "desc" ? "desc" : "asc",
+    };
+  }
+
+  for (const column of columns) {
+    const savedFilter = saved.filters?.[column.key] || {};
+    state.filters[column.key] = {
+      selected: Array.isArray(savedFilter.selected) ? new Set(savedFilter.selected) : null,
+      operator: typeof savedFilter.operator === "string" ? savedFilter.operator : "",
+      operand: typeof savedFilter.operand === "string" ? savedFilter.operand : "",
+    };
+  }
+
+  state.previewMinutes = new Map(
+    Object.entries(saved.previewMinutes || {})
+      .map(([chain, minutes]) => [chain, Number(minutes)])
+      .filter(([, minutes]) => Number.isInteger(minutes) && minutes >= 0 && minutes <= 180),
+  );
+
+  closeColumnMenu();
+  await loadScreenings();
+  renderSavedViews(name);
+}
+
+function deleteSelectedView() {
+  const select = document.getElementById("saved-view-select");
+  const name = select.value;
+  if (!name) return;
+  if (!window.confirm(`Delete saved view “${name}”?`)) return;
+
+  const views = readSavedViews();
+  delete views[name];
+  writeSavedViews(views);
+  renderSavedViews();
+}
+
 document.addEventListener("click", (event) => {
   const menu = document.getElementById("column-menu");
   if (!menu.hidden && !menu.contains(event.target)) closeColumnMenu();
@@ -649,5 +786,12 @@ window.addEventListener("resize", () => {
   if (state.openColumn) positionColumnMenu(state.openColumn);
 });
 
+document.getElementById("save-view").addEventListener("click", saveCurrentView);
+document.getElementById("delete-view").addEventListener("click", deleteSelectedView);
+document.getElementById("saved-view-select").addEventListener("change", (event) => {
+  applySavedView(event.target.value);
+});
+
+renderSavedViews();
 renderHeaders();
 loadScreenings();
