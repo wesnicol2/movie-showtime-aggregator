@@ -79,6 +79,7 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         show_date = date.fromisoformat(raw_date) if raw_date else date.today()
         preview_minutes_by_chain = _preview_minutes_from_request(environ, query)
         zip_code, radius_miles = _location_from_request(environ, query)
+        enrichment_enabled = _parse_enrichment_enabled(query.get("enrich", ["true"])[0])
         all_screenings = _SERVICE.get_screenings(
             show_date,
             preview_minutes_by_chain,
@@ -86,18 +87,21 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
             radius_miles=radius_miles,
         )
         stored = _STORE.load()
-        all_screenings = enrich_movie_metadata(all_screenings, _omdb_client(stored.omdb_api_key))
-
-        origin = _safe_zip_point(zip_code)
-        if origin is not None:
-            all_screenings = enrich_amc_details(
-                all_screenings,
-                show_date,
-                origin,
-                _amc_client(stored.amc_vendor_key),
-                a_list_enabled=stored.amc_a_list,
+        if enrichment_enabled:
+            all_screenings = enrich_movie_metadata(
+                all_screenings, _omdb_client(stored.omdb_api_key)
             )
-        all_screenings = enrich_travel_times(all_screenings, _home_point(stored), _ROUTER)
+
+            origin = _safe_zip_point(zip_code)
+            if origin is not None:
+                all_screenings = enrich_amc_details(
+                    all_screenings,
+                    show_date,
+                    origin,
+                    _amc_client(stored.amc_vendor_key),
+                    a_list_enabled=stored.amc_a_list,
+                )
+            all_screenings = enrich_travel_times(all_screenings, _home_point(stored), _ROUTER)
 
         filters = ScreeningFilters(
             movies=frozenset(query.get("movie", [])),
@@ -122,6 +126,7 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         },
         "preferences": stored.public_dict(),
         "preview_minutes_by_chain": preview_minutes_by_chain,
+        "enrichment_enabled": enrichment_enabled,
         "count": len(visible),
         "total_count": len(all_screenings),
         "facets": facets(all_screenings),
@@ -261,6 +266,15 @@ def _safe_zip_point(zip_code: str) -> GeoPoint | None:
         return _ZIP_LOCATOR.lookup_zip(zip_code)
     except (LocationError, ValueError):
         return None
+
+
+def _parse_enrichment_enabled(value: object) -> bool:
+    normalized = str(value or "").strip().casefold()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError("enrich must be true or false")
 
 
 def _preview_minutes_from_request(environ: dict, query: dict[str, list[str]]) -> dict[str, int]:
