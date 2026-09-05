@@ -43,7 +43,8 @@ def test_omdb_persistent_cache_avoids_request_after_client_recreation(monkeypatc
     calls = []
 
     class FakeResponse:
-        headers = {}
+        def __init__(self):
+            self.headers = {}
 
         def __enter__(self):
             return self
