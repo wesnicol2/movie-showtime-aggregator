@@ -13,7 +13,9 @@ from .location import GeoPoint
 
 NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org"
 OSRM_BASE_URL = "https://router.project-osrm.org"
-USER_AGENT = "movie-showtime-aggregator/1.0 (https://github.com/wesnicol2/movie-showtime-aggregator)"
+USER_AGENT = (
+    "movie-showtime-aggregator/1.0 (https://github.com/wesnicol2/movie-showtime-aggregator)"
+)
 
 
 class GeocodingError(RuntimeError):
@@ -128,9 +130,7 @@ class OsrmRouter:
             return {}
 
         points = [home, *destinations]
-        coordinates = ";".join(
-            f"{point.longitude:.6f},{point.latitude:.6f}" for point in points
-        )
+        coordinates = ";".join(f"{point.longitude:.6f},{point.latitude:.6f}" for point in points)
         request = urllib.request.Request(
             f"{OSRM_BASE_URL}/table/v1/driving/{coordinates}?annotations=duration",
             headers={
