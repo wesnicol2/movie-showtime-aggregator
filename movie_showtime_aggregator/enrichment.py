@@ -53,7 +53,7 @@ def enrich_movie_metadata(
         enriched.append(
             replace(
                 screening,
-                poster_url=details.poster_url,
+                poster_url=screening.poster_url or details.poster_url,
                 imdb_id=details.imdb_id,
                 imdb_rating=details.imdb_rating,
                 metacritic_score=details.metacritic_score,

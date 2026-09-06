@@ -86,6 +86,7 @@ def normalize_showtime(raw: dict[str, object]) -> Screening | None:
         movie_source_id=str(raw.get("movieSourceId") or "").strip(),
         theatre_latitude=_coordinate(raw.get("theatreLatitude"), minimum=-90, maximum=90),
         theatre_longitude=_coordinate(raw.get("theatreLongitude"), minimum=-180, maximum=180),
+        poster_url=str(raw.get("posterUrl") or "").strip(),
     )
 
 

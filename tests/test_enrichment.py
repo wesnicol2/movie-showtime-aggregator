@@ -40,7 +40,7 @@ class FakeMetadataClient:
         self.calls.append((title, source_id, runtime_minutes))
         return MovieMetadata(
             title=title,
-            poster_url="https://example.com/poster.jpg",
+            poster_url="https://example.com/omdb-poster.jpg",
             imdb_id="tt1234567",
             imdb_rating=8.0,
             metacritic_score=70,
@@ -53,11 +53,23 @@ def test_movie_metadata_enrichment_adds_ratings_and_source_links():
     enriched = enrich_movie_metadata([screening()], client)[0]
 
     assert client.calls == [("Test Movie", "246821", 120)]
-    assert enriched.poster_url == "https://example.com/poster.jpg"
+    assert enriched.poster_url == "https://example.com/omdb-poster.jpg"
     assert enriched.imdb_rating == 8.0
     assert enriched.rotten_tomatoes_score == 90
     assert enriched.metacritic_score == 70
     assert enriched.letterboxd_url == "https://letterboxd.com/imdb/tt1234567/"
+
+
+def test_fandango_poster_is_preserved_when_omdb_also_has_artwork():
+    client = FakeMetadataClient()
+    enriched = enrich_movie_metadata(
+        [screening(poster_url="https://images.example/fandango-poster.jpg")],
+        client,
+    )[0]
+
+    assert enriched.poster_url == "https://images.example/fandango-poster.jpg"
+    assert enriched.imdb_id == "tt1234567"
+    assert enriched.imdb_rating == 8.0
 
 
 def test_same_title_with_different_fandango_ids_resolves_separately():
