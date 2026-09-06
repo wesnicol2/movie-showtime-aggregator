@@ -34,6 +34,7 @@ function writeBrowserSettings(settings: BrowserSettings): void {
 }
 
 function writeCookie(name: string, value: unknown): void {
+  // biome-ignore lint/suspicious/noDocumentCookie: The Python screening endpoint synchronously reads this compatibility cookie.
   document.cookie = `${name}=${encodeURIComponent(JSON.stringify(value))}; Max-Age=31536000; Path=/; SameSite=Lax`;
 }
 
@@ -118,6 +119,7 @@ export function SettingsPage() {
     }
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Settings are intentionally loaded once; explicit refreshes call loadSettings directly.
   useEffect(() => {
     void loadSettings();
   }, []);
