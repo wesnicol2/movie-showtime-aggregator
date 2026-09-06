@@ -17,6 +17,7 @@ class Screening:
     runtime_minutes: int | None
     distance_miles: float | None
     purchase_url: str
+    movie_source_id: str = ""
     theatre_latitude: float | None = None
     theatre_longitude: float | None = None
     drive_to_minutes: int | None = None
@@ -82,6 +83,7 @@ def normalize_showtime(raw: dict[str, object]) -> Screening | None:
         runtime_minutes=_runtime_minutes(raw.get("runTime")),
         distance_miles=_distance_miles(raw.get("distanceMiles")),
         purchase_url=str(raw.get("purchaseUrl") or ""),
+        movie_source_id=str(raw.get("movieSourceId") or "").strip(),
         theatre_latitude=_coordinate(raw.get("theatreLatitude"), minimum=-90, maximum=90),
         theatre_longitude=_coordinate(raw.get("theatreLongitude"), minimum=-180, maximum=180),
     )
