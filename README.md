@@ -31,13 +31,15 @@ Known external values are source links:
 
 **Distance** is straight-line distance from the configured ZIP center to the theater. It is not driving distance.
 
-**Saved views** store table filter/sort state in that browser's local storage. Settings are deliberately separate from Saved Views.
+**Saved views** store table filter/sort state in that browser's local storage, but deliberately exclude the exact Movie Selection. Loading a Saved View preserves whichever movies are currently selected; older saved views are migrated to remove stored movie selections. Settings are also deliberately separate from Saved Views.
 
 ## Movie Selection
 
 Open `/movies` or use **Movies** in the application navigation. The page is a dark, poster-first grid inspired by a theater-app Now Playing screen. The poster itself is the selection control; selecting or deselecting a movie immediately updates the browser-persistent Movie filter used by the screening table.
 
-The selection page can sort movies by title, IMDb, Rotten Tomatoes, or Metacritic. Posters and ratings require an OMDb API key configured in Settings. The page and the core showtime table still work when that metadata is unavailable.
+Movie Selection has local filters for title, selected/unselected status, minimum IMDb/Rotten Tomatoes/Metacritic ratings, and initial release date. It can sort in either direction by title, initial release date, IMDb, Rotten Tomatoes, or Metacritic. The active sort field and value are shown under every title so the current ordering is visible without opening a detail view.
+
+Posters, ratings, and initial release date require an OMDb API key configured in Settings. The backend normalizes OMDb's `Released` value for the release-date sort/filter; unavailable values remain `Unknown`. The page and the core showtime table still work when that metadata is unavailable.
 
 ## Settings
 
@@ -59,7 +61,7 @@ The Settings API never returns saved API-key values. The UI can only see whether
 
 **AMC developer key** enables official AMC enrichment for matched AMC performances: display ticket price, A-List exclusion status, and reserved-seat availability where the issued key has access. If **I have AMC A-List** is enabled, a matched AMC performance is shown as `$0.00` only when official AMC attributes make eligibility known and do not contain the A-List exclusion. Missing attributes remain unknown. Geographic A-List plan-tier coverage is not inferred; the toggle assumes the user's plan covers the searched AMC locations.
 
-**OMDb API key** enables posters plus IMDb, Rotten Tomatoes, and Metacritic ratings. Metadata failures are fail-soft: they produce `Unknown` cells instead of preventing showtimes from loading.
+**OMDb API key** enables posters plus IMDb, Rotten Tomatoes, Metacritic, and release-date metadata. Metadata failures are fail-soft: they produce `Unknown` values instead of preventing showtimes from loading.
 
 ### Provider cache and usage status
 
@@ -220,7 +222,7 @@ A deployed Test environment remains the integration gate for real upstream crede
 - `movie_showtime_aggregator/fandango.py` — base theater/showtime discovery.
 - `movie_showtime_aggregator/location.py` — ZIP lookup and geographic calculations.
 - `movie_showtime_aggregator/routing.py` — address geocoding and static driving-route estimates.
-- `movie_showtime_aggregator/metadata.py` — optional OMDb poster/rating enrichment and persistent metadata cache use.
+- `movie_showtime_aggregator/metadata.py` — optional OMDb poster/rating/release-date enrichment and persistent metadata cache use.
 - `movie_showtime_aggregator/amc.py` — optional official AMC showtime/price/seating enrichment and provider cache use.
 - `movie_showtime_aggregator/provider_cache.py` — shared persistent provider responses, request accounting, and observed rate-limit state.
 - `movie_showtime_aggregator/enrichment.py` — fail-soft enrichment orchestration.

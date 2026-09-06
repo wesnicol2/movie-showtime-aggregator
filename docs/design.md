@@ -39,17 +39,23 @@ A screening may expose an in-context inspector for additional detail and evidenc
 
 ### Saved Views
 
-Saved Views are browser-local snapshots of table sort and filter state. They do not contain application Settings.
+Saved Views are browser-local snapshots of table sort and filter state. They do not contain application Settings or the exact Movie Selection.
 
-Applying a Saved View also synchronizes its exact Movie selection with Movie Selection. Editing the Movie filter from the table synchronizes in the opposite direction.
+Saving a view strips the Movie filter's exact selected-title set, including when the view was created while Movie Selection was active. Loading a view preserves whichever movies are currently selected. Older locally stored views that contain selected movie titles are migrated by removing that selection when read.
+
+A non-selection Movie column rule, such as a text operator/operand, may still be part of a Saved View. Editing the table's exact Movie selection and selecting poster tiles continue to synchronize with each other independently of Saved Views.
 
 ## Movie Selection
 
 Movie Selection is poster-first and optimized for fast inclusion/exclusion. The poster tile itself is the selection control, with a visible selected state and an equivalent accessible pressed state.
 
-The view may sort by title and available ratings, but it should not turn into a detail-heavy movie card catalog. Movie selection is browser-local and is the source of truth for the Screenings table's exact Movie filter.
+The view has local filtering for title text, selected/unselected status, minimum IMDb/Rotten Tomatoes/Metacritic ratings, and an initial-release-date range. These filters only change which poster tiles are visible; they do not mutate the Screenings table's filters or issue another screening request.
 
-Poster or metadata enrichment failure must not make a movie unselectable. A clear title fallback is required.
+The view can sort in either direction by title, initial release date, IMDb, Rotten Tomatoes, or Metacritic. The active sort field and each movie's value for that field are shown directly under the title so the ordering can be audited without opening a detail view. Known values sort ahead of unknown values.
+
+Initial release date is backend-supplied metadata. The current enrichment path normalizes OMDb's `Released` value to an ISO calendar date; missing or unavailable metadata remains `Unknown`. The frontend must not infer a release date from the movie title, the current screening date, or another unrelated field.
+
+Movie selection itself is browser-local and is the source of truth for the Screenings table's exact Movie filter. Poster or metadata enrichment failure must not make a movie unselectable. A clear title fallback is required.
 
 ## Settings
 
@@ -73,7 +79,7 @@ Desktop prioritizes maximum comparison density and can use a persistent or adjac
 
 Mobile is designed intentionally rather than produced by uniformly shrinking desktop. Navigation and primary actions remain reachable, the screening table remains a real table with horizontal scrolling as needed, and the Movie column should retain orientation while scrolling when practical. Column filtering remains usable with touch-sized controls and may use a full-width sheet presentation.
 
-No mobile layout may silently drop a screening field solely to fit the viewport.
+Movie Selection filter controls reflow into fewer columns as the viewport narrows rather than becoming a horizontally scrolling desktop form. No mobile layout may silently drop a screening field solely to fit the viewport.
 
 ## Accessibility
 
