@@ -21,7 +21,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - run: npm run format
+      - run: npm exec biome format --write frontend
       - name: Commit formatter output
         run: |
           git config user.name "github-actions[bot]"
