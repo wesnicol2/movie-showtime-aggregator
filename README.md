@@ -1,11 +1,11 @@
 # movie-showtime-aggregator
 
-A movie-going decision dashboard built around two views:
+A React-based movie-going decision workstation built around two tightly synchronized views:
 
 - an Excel-style screening table where every displayed column can be sorted or filtered from its header;
 - a poster-first **Movie Selection** page where the whole poster tile acts as the checkbox for the table's Movie filter.
 
-The app discovers theaters around a configured ZIP code and radius, applies user-known preview times, and can optionally enrich screenings with movie ratings/posters, rough home travel times, and official AMC pricing/seating data.
+The app discovers theaters around a configured ZIP code and radius, applies user-known preview times, and can optionally enrich screenings with movie ratings/posters, rough home travel times, and official AMC pricing/seating data. The Python backend remains authoritative for screening data, provider semantics, calculations, and enrichment; the React frontend consumes typed API contracts and performs only already-loaded interaction such as table sorting/filtering.
 
 > **Fresh from the template?** Work through
 > [docs/new-repo-checklist.md](docs/new-repo-checklist.md) first. It covers the
@@ -35,7 +35,7 @@ Known external values are source links:
 
 ## Movie Selection
 
-Open `/movies` or use **Movie selection** above the table. The page is a dark, poster-first grid inspired by a theater-app Now Playing screen. The poster itself is the selection control; selecting or deselecting a movie immediately updates the browser-persistent Movie filter used by the screening table.
+Open `/movies` or use **Movies** in the application navigation. The page is a dark, poster-first grid inspired by a theater-app Now Playing screen. The poster itself is the selection control; selecting or deselecting a movie immediately updates the browser-persistent Movie filter used by the screening table.
 
 The selection page can sort movies by title, IMDb, Rotten Tomatoes, or Metacritic. Posters and ratings require an OMDb API key configured in Settings. The page and the core showtime table still work when that metadata is unavailable.
 
@@ -114,6 +114,8 @@ cp .env.example .env
 docker compose up -d
 ```
 
+The production image is multi-stage: Node builds the Vite/React application, then only compiled frontend assets are copied into the Python runtime image. Python serves the SPA and API from the same process.
+
 Production tracks `:latest`; Test tracks `:test`. Their base screening caches are isolated in `./data` and `./data-test`, while deliberate user configuration and optional-provider cache/accounting are shared in `./common`.
 
 For a one-off container, mount a common directory yourself:
@@ -147,21 +149,46 @@ API keys are intentionally entered through `/settings`, not committed to `.env` 
 
 ## Run from source
 
-```bash
-python -m movie_showtime_aggregator.api --host 0.0.0.0 --port 8000
-```
-
-Then open `http://localhost:8000/`.
-
-## Verify changes
-
-Install development dependencies once:
+Install deterministic frontend dependencies and Python development dependencies:
 
 ```bash
+npm ci
+pip install -r requirements.txt
 pip install -e ".[dev]"
 ```
 
-After editing Python:
+For frontend development, run the Python API and Vite dev server in separate terminals:
+
+```bash
+python -m movie_showtime_aggregator.api --host 127.0.0.1 --port 8000
+```
+
+```bash
+npm run dev
+```
+
+Vite proxies `/api` and `/health` to the Python process. Open the Vite URL printed in the terminal.
+
+To exercise the same serving shape used by the production container without Docker, build first and then start Python:
+
+```bash
+npm run build
+python -m movie_showtime_aggregator.api --host 0.0.0.0 --port 8000
+```
+
+The WSGI runtime serves the generated `frontend/dist` SPA in a source checkout and the copied package-static assets inside the production image.
+
+## Verify changes
+
+Install dependencies once for the checkout:
+
+```bash
+npm ci
+pip install -r requirements.txt
+pip install -e ".[dev]"
+```
+
+After editing frontend or Python code:
 
 ```bash
 bash scripts/fix
@@ -173,11 +200,13 @@ Before every push:
 bash scripts/verify
 ```
 
-That exact gate checks Ruff linting/formatting, Python compilation, and pytest. A deployed Test environment remains the integration gate for real upstream credentials, networking, persistent volumes, AMC matching/seating permissions, and container behavior.
+That repo-owned deterministic gate checks Biome, strict TypeScript, a Vite production build, Ruff lint/format, Python compilation, and pytest. CI then additionally builds the production Docker image, boots that exact image, and runs Playwright Chromium smoke coverage at desktop and mobile sizes with screening/settings API responses mocked. The browser smoke therefore verifies production asset serving and core UI state behavior without consuming Fandango, OMDb, or AMC quota.
+
+A deployed Test environment remains the integration gate for real upstream credentials, networking, persistent volumes, AMC matching/seating permissions, and external-provider behavior.
 
 ## Endpoints
 
-- `/` — spreadsheet-style screening table.
+- `/` — spreadsheet-style screening workstation.
 - `/movies` — poster-first Movie Selection page.
 - `/settings` — browser settings plus shared server settings/integration credentials and provider usage/cache status.
 - `/api/settings` — GET public settings/provider-usage state; POST shared settings. Secret values are never returned.
@@ -186,7 +215,8 @@ That exact gate checks Ruff linting/formatting, Python compilation, and pytest. 
 
 ## Project structure
 
-- `movie_showtime_aggregator/api.py` — WSGI routes and composition of enrichment layers.
+- `frontend/` — React 19 + strict TypeScript + Vite UI, Zustand state, Biome configuration target, and Playwright smoke tests.
+- `movie_showtime_aggregator/api.py` — WSGI API routes and production SPA/static-asset serving.
 - `movie_showtime_aggregator/fandango.py` — base theater/showtime discovery.
 - `movie_showtime_aggregator/location.py` — ZIP lookup and geographic calculations.
 - `movie_showtime_aggregator/routing.py` — address geocoding and static driving-route estimates.
@@ -197,8 +227,8 @@ That exact gate checks Ruff linting/formatting, Python compilation, and pytest. 
 - `movie_showtime_aggregator/storage.py` — shared persistent user settings and secrets.
 - `movie_showtime_aggregator/models.py` — normalized screening and derived fields.
 - `movie_showtime_aggregator/service.py` — Fandango caching, radius discovery, facets, filters.
-- `movie_showtime_aggregator/static/` — screening table, movie selection, and Settings UI.
-- `tests/` — unit/API tests.
+- `tests/` — Python unit/API tests, including the SPA-serving contract.
 - `scripts/` — deterministic local fix/verification commands used by agents and CI.
+- `Dockerfile` — multi-stage React build plus Python production runtime.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch/Test/Production process and [AGENTS.md](AGENTS.md) for architecture decisions.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch/Test/Production process, [AGENTS.md](AGENTS.md) for architecture decisions, and [docs/design.md](docs/design.md) for the durable UI/UX contract.
