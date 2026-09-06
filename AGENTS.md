@@ -10,7 +10,7 @@
 
 ## Local fix and verification contract
 
-After editing Python, run:
+After editing frontend or Python code, run:
 
 ```bash
 bash scripts/fix
@@ -19,12 +19,33 @@ bash scripts/fix
 Before every push, run:
 
 ```bash
+npm ci
 bash scripts/verify
 ```
 
-The repo pins Ruff and CI invokes the exact same verification script. CI is confirmation, not the preferred place to discover deterministic lint/format/test failures. A deployed Test environment is still required for behavior involving containers, credentials, upstream services, networking, or persistent volumes.
+The repo pins the frontend toolchain and Ruff. CI invokes the same repo-owned verification script, so Biome, strict TypeScript, Vite production build, Ruff, syntax checks, and pytest are deterministic local gates. CI is confirmation, not the preferred place to discover deterministic failures. A deployed Test environment is still required for behavior involving containers, credentials, upstream services, networking, or persistent volumes.
 
 ---
+
+## Frontend architecture
+
+The user interface is React 19 + TypeScript + Vite. Keep TypeScript strict. Biome is the only JS/TS formatter and linter. Zustand owns the small amount of explicit shared application state used to synchronize screenings, filters, Saved Views, movie selection, and inspection state.
+
+The architecture is intentionally:
+
+```text
+Python backend / canonical logic
+→ HTTP API contracts
+→ typed frontend API layer
+→ Zustand shared application state
+→ React components
+```
+
+Do not recreate backend calculations, provider semantics, filtering semantics for API consumers, or enrichment logic in the browser. Client code may sort/filter already-loaded rows for immediate workstation interaction, but canonical screening values come from the backend.
+
+Apache ECharts is not currently installed because the product has no analytical visualization that improves the primary decision. Add it only when a real chart use case exists; charts must consume application state rather than own it.
+
+Keep component boundaries clear. Avoid monolithic page files and avoid using modal flows when a persistent inspector can preserve context.
 
 ## Product surfaces
 
@@ -45,7 +66,7 @@ New data should normally become another ordinary typed column rather than a spec
 
 ### Movie Selection
 
-`/movies` is a poster-first, dark Now Playing grid inspired by the supplied AMC mobile layout. The poster tile itself is the checkbox; it should not become a detail-heavy card grid. Titles may appear below posters, and the page may expose lightweight sorting, but the posters remain the visual focus.
+`/movies` is a poster-first, dark Now Playing grid inspired by the supplied AMC mobile layout. The poster tile itself is the checkbox; it should not become a detail-heavy card grid. The page may expose compact local filters and sorting controls, but posters remain the visual focus. When sorting by a field, show that field's value directly under each title so the ordering is auditable. Initial release date is one supported sort/filter dimension and must come from backend metadata rather than frontend inference.
 
 The selected movie titles live in browser local storage and are also the source of truth for the table's Movie exact-value filter. Changes from either surface should stay synchronized. This is browser convenience state, not an account/profile system.
 
@@ -92,7 +113,7 @@ Enrichment is deliberately optional and must not make showtime retrieval brittle
 
 ### OMDb metadata
 
-`metadata.py` supplies poster URL, IMDb ID/rating, Metacritic score, and Rotten Tomatoes percentage. `enrichment.py` queries unique titles concurrently and caches through `OmdbClient`.
+`metadata.py` supplies poster URL, IMDb ID/rating, Metacritic score, Rotten Tomatoes percentage, and normalized initial release date. `enrichment.py` queries unique titles concurrently and caches through `OmdbClient`. OMDb's `Released` value is normalized to an ISO date for frontend sort/filter use; missing or invalid values stay unknown.
 
 The IMDb ID is also the stable bridge for source links:
 
@@ -140,7 +161,13 @@ Unknown values stay plain text. Never manufacture a source link solely to make t
 
 The browser fetches the complete normalized radius result once and performs table sort/filter changes client-side for immediate spreadsheet-like interaction. The Python server retains server-side filter helpers for direct API consumers and independent testing.
 
-Saved Views remain browser-local table state only. Applying a Saved View also synchronizes any exact Movie selection into the poster-selection state. Application Settings are not part of a Saved View.
+Saved Views remain browser-local table state only. They deliberately exclude the exact selected-movie set: saving strips it, loading preserves the current Movie Selection, and older stored views are migrated by stripping any saved exact selection. Non-selection Movie-column rules may still be saved. Application Settings are not part of a Saved View.
+
+## Frontend production assets
+
+Vite builds production assets; do not hand-edit compiled JavaScript or CSS. The production Docker image uses a Node build stage and then serves the compiled assets from the existing Python runtime. Development uses Vite's proxy for `/api` and `/health`.
+
+The browser smoke suite must run against the built production container and mock screening/settings API responses so CI remains deterministic and does not consume provider quota.
 
 ## Deployment shape
 
@@ -164,6 +191,7 @@ See `CONTRIBUTING.md` for the full promotion contract.
 - AMC price/A-List/seats should use the official AMC API and fail to Unknown rather than rely on checkout scraping.
 - Shared API credentials must survive image/container replacement through the host-mounted common storage, not browser local storage or committed env files.
 - Ruff formatting previously caused CI back-and-forth. Use `scripts/fix` and `scripts/verify` instead of guessing formatter output.
+- The React modernization deliberately kept the old static UI serving until parity code passed deterministic verification; after cutover, do not reintroduce parallel frontend implementations.
 
 ## Things deliberately not done
 
@@ -172,6 +200,6 @@ See `CONTRIBUTING.md` for the full promotion contract.
 - No automatic inference of AMC A-List geographic plan tier.
 - No non-AMC price/seat scraping.
 - No ticket purchasing inside the app.
-- No frontend framework/build toolchain yet.
+- No chart dependency without a concrete visualization use case.
 - No persistent server cache beyond deliberate shared settings; upstream caches remain in-process.
-- No mypy or ESLint; Ruff is the Python gate.
+- No mypy, ESLint, or Prettier; Ruff is the Python gate and Biome is the JS/TS gate.

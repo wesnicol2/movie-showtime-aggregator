@@ -10,6 +10,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -19,11 +28,45 @@ jobs:
             requirements.txt
             pyproject.toml
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           pip install -r requirements.txt
           pip install -e ".[dev]"
 
-      # Exact same gate agents are required to run before pushing.
-      - name: Verify
+      # Exact same deterministic source gate agents run before pushing.
+      - name: Verify source
         run: bash scripts/verify
+
+      - name: Build production image
+        run: docker build --tag movie-showtime-smoke:${{ github.sha }} .
+
+      - name: Start production container
+        run: |
+          docker run --detach --rm \
+            --name movie-showtime-smoke \
+            --publish 127.0.0.1:8000:8000 \
+            movie-showtime-smoke:${{ github.sha }}
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs movie-showtime-smoke
+          exit 1
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8000
+        run: npm run test:e2e
+
+      - name: Production container logs
+        if: always()
+        run: docker logs movie-showtime-smoke || true
+
+      - name: Stop production container
+        if: always()
+        run: docker rm --force movie-showtime-smoke || true
