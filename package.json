@@ -1,0 +1,31 @@
+{
+  "name": "movie-showtime-aggregator-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite --config frontend/vite.config.ts",
+    "format": "biome check --write frontend",
+    "check": "biome ci frontend",
+    "typecheck": "tsc -p frontend/tsconfig.json --noEmit",
+    "build": "vite build --config frontend/vite.config.ts",
+    "test:e2e": "playwright test -c frontend/playwright.config.ts"
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.12",
+    "@playwright/test": "1.62.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "7.0.2",
+    "vite": "8.2.2"
+  }
+}
