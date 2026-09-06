@@ -13,8 +13,8 @@ const screeningsPayload = {
   },
   preview_minutes_by_chain: { AMC: 25 },
   enrichment_enabled: true,
-  count: 2,
-  total_count: 2,
+  count: 3,
+  total_count: 3,
   facets: {
     chains: ["AMC", "Harkins Theatres"],
     movies: ["Alpha", "Beta"],
@@ -56,6 +56,41 @@ const screeningsPayload = {
       rotten_tomatoes_url: "https://example.test/rt-alpha",
       metacritic_url: "https://example.test/mc-alpha",
       route_source_url: "https://example.test/route-alpha",
+    },
+    {
+      showtime_id: "alpha-2",
+      movie: "Alpha",
+      theatre: "Harkins Valley 14",
+      chain: "Harkins Theatres",
+      format: "Standard",
+      advertised_start: "2026-09-06T20:30:00",
+      actual_start: null,
+      estimated_end: null,
+      runtime_minutes: 120,
+      distance_miles: 8.7,
+      purchase_url: "https://example.test/alpha-harkins",
+      movie_source_id: "alpha",
+      theatre_latitude: 33.5,
+      theatre_longitude: -112.1,
+      drive_to_minutes: null,
+      drive_home_minutes: null,
+      leave_home: null,
+      home_arrival: null,
+      poster_url: "",
+      imdb_id: "tt0000001",
+      imdb_rating: 8.1,
+      metacritic_score: 77,
+      rotten_tomatoes_score: 91,
+      initial_release_date: "2026-08-15",
+      ticket_price: null,
+      seats_left_percent: null,
+      amc_a_list_eligible: null,
+      amc_source_url: "",
+      letterboxd_url: "https://example.test/letterboxd-alpha",
+      imdb_url: "https://example.test/imdb-alpha",
+      rotten_tomatoes_url: "https://example.test/rt-alpha",
+      metacritic_url: "https://example.test/mc-alpha",
+      route_source_url: "",
     },
     {
       showtime_id: "beta-1",
@@ -121,6 +156,24 @@ test("movie selection supports filtering and release-date sorting", async ({ pag
   await page.getByRole("button", { name: "Clear filters" }).click();
   await page.getByLabel("Minimum IMDb").fill("8");
   await expect(page.getByRole("button", { name: "Select Alpha" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Select Beta" })).toHaveCount(0);
+});
+
+test("movie selection filters by actual theater and chain availability", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/movies");
+
+  await page.getByLabel("Filter by theater").selectOption({ label: "AMC Center 8" });
+  await expect(page.getByRole("button", { name: "Select Alpha" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Select Beta" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await page.getByLabel("Filter by chain").selectOption({ label: "Harkins Theatres" });
+  await expect(page.getByRole("button", { name: "Select Alpha" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Select Beta" })).toBeVisible();
+
+  await page.getByLabel("Filter by theater").selectOption({ label: "AMC Center 8" });
+  await expect(page.getByRole("button", { name: "Select Alpha" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Select Beta" })).toHaveCount(0);
 });
 
