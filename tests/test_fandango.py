@@ -27,6 +27,13 @@ def market_payload():
                     "id": movie_id,
                     "title": title,
                     "runtime": runtime,
+                    "poster": {
+                        "size": {
+                            "100": "https://images.example/poster-100.jpg",
+                            "400": "https://images.example/poster-400.jpg",
+                            "500": "https://images.example/poster-500.jpg",
+                        }
+                    },
                     "variants": [
                         {
                             "filmFormatHeader": film_format or "Standard",
@@ -91,6 +98,7 @@ def test_flatten_market_showtimes_preserves_theater_chain_location_runtime_and_f
     assert showtimes[0]["theatreLatitude"] == 33.45
     assert showtimes[0]["theatreLongitude"] == -112.07
     assert showtimes[0]["movieSourceId"] == "246821"
+    assert showtimes[0]["posterUrl"] == "https://images.example/poster-400.jpg"
     assert showtimes[0]["runTime"] == 101
     assert showtimes[0]["premiumFormat"] == "Dolby Cinema"
     assert showtimes[0]["showDateTimeLocal"] == "2026-09-04T18:30"
@@ -106,6 +114,14 @@ def test_movie_source_id_can_be_recovered_from_fandango_movie_url():
     movie["movieUrl"] = "https://www.fandango.com/american-summer-2026-246821/movie-overview"
 
     assert flatten_market_showtimes(payload)[0]["movieSourceId"] == "246821"
+
+
+def test_fandango_poster_falls_back_to_other_available_sizes():
+    payload = market_payload()
+    sizes = payload["theaters"][0]["movies"][0]["poster"]["size"]
+    sizes.pop("400")
+
+    assert flatten_market_showtimes(payload)[0]["posterUrl"] == "https://images.example/poster-500.jpg"
 
 
 def test_zero_runtime_is_preserved_for_unknown_end_handling():
