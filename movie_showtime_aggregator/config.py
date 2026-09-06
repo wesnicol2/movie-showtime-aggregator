@@ -7,6 +7,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True, slots=True)
 class Settings:
     zip_code: str = "85004"
+    radius_miles: int = 25
     market_page_limit: int = 50
     cache_ttl_seconds: int = 300
 
@@ -14,6 +15,12 @@ class Settings:
     def from_env(cls) -> Settings:
         return cls(
             zip_code=_zip_code_env("FANDANGO_ZIP_CODE", "85004"),
+            radius_miles=_bounded_int_env(
+                "FANDANGO_RADIUS_MILES",
+                25,
+                minimum=1,
+                maximum=100,
+            ),
             market_page_limit=_positive_int_env("FANDANGO_PAGE_LIMIT", 50),
             cache_ttl_seconds=_positive_int_env("CACHE_TTL_SECONDS", 300),
         )
@@ -36,4 +43,17 @@ def _positive_int_env(name: str, default: int) -> int:
         raise ValueError(f"{name} must be an integer") from exc
     if value <= 0:
         raise ValueError(f"{name} must be greater than zero")
+    return value
+
+
+def _bounded_int_env(
+    name: str,
+    default: int,
+    *,
+    minimum: int,
+    maximum: int,
+) -> int:
+    value = _positive_int_env(name, default)
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
     return value
