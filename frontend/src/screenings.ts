@@ -32,7 +32,7 @@ export type Filters = Record<ColumnKey, ColumnFilter>;
 
 const UNKNOWN = "__unknown__";
 
-export const COLUMNS = [
+export const COLUMNS: readonly ColumnDefinition[] = [
   { key: "movie", label: "Movie", type: "text" },
   { key: "imdb_rating", label: "IMDb", type: "number", format: "rating" },
   { key: "rotten_tomatoes_score", label: "RT", type: "number", format: "percent" },
@@ -48,7 +48,7 @@ export const COLUMNS = [
   { key: "estimated_end", label: "Ends", type: "time", calculated: true },
   { key: "home_arrival", label: "Home", type: "time", calculated: true },
   { key: "format", label: "Format", type: "text" },
-] as const satisfies readonly ColumnDefinition[];
+] as const;
 
 export function createEmptyFilters(): Filters {
   return Object.fromEntries(
@@ -159,6 +159,7 @@ export function filterAndSort(
   sort: SortState,
 ): Screening[] {
   const sortColumn = COLUMNS.find((column) => column.key === sort.key) ?? COLUMNS[0];
+  if (!sortColumn) return [...screenings];
   return screenings
     .filter((screening) =>
       COLUMNS.every((column) => matchesFilter(screening, column, filters[column.key])),
