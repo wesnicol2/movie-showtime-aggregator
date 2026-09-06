@@ -115,6 +115,7 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
                 continue
             title = _clean_title(str(movie.get("title") or ""))
             movie_source_id = _movie_source_id(movie)
+            poster_url = _movie_poster_url(movie)
             runtime = movie.get("runtime")
             variants = movie.get("variants")
             if not title or not isinstance(variants, list):
@@ -149,6 +150,7 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
                                 "showtimeHashCode": showtime.get("showtimeHashCode"),
                                 "movieName": title,
                                 "movieSourceId": movie_source_id,
+                                "posterUrl": poster_url,
                                 "theatreName": theatre_name,
                                 "chainName": chain_name,
                                 "theatreZip": theatre_zip,
@@ -179,6 +181,20 @@ def _movie_source_id(movie: dict[str, object]) -> str:
         match = re.search(r"-(\d{5,})(?:/|\?|$)", value)
         if match is not None:
             return match.group(1)
+    return ""
+
+
+def _movie_poster_url(movie: dict[str, object]) -> str:
+    poster = movie.get("poster")
+    if not isinstance(poster, dict):
+        return ""
+    sizes = poster.get("size")
+    if not isinstance(sizes, dict):
+        return ""
+    for key in ("400", "500", "full", "300", "200", "100"):
+        value = str(sizes.get(key) or "").strip()
+        if value:
+            return value
     return ""
 
 
