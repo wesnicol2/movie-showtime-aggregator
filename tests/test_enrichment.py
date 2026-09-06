@@ -24,6 +24,7 @@ def screening(**overrides):
         "runtime_minutes": 120,
         "distance_miles": 2.0,
         "purchase_url": "https://fandango.example/tickets",
+        "movie_source_id": "246821",
         "theatre_latitude": 33.5,
         "theatre_longitude": -112.1,
     }
@@ -32,7 +33,11 @@ def screening(**overrides):
 
 
 class FakeMetadataClient:
-    def lookup(self, title):
+    def __init__(self):
+        self.calls = []
+
+    def lookup(self, title, *, source_id="", runtime_minutes=None):
+        self.calls.append((title, source_id, runtime_minutes))
         return MovieMetadata(
             title=title,
             poster_url="https://example.com/poster.jpg",
@@ -44,13 +49,28 @@ class FakeMetadataClient:
 
 
 def test_movie_metadata_enrichment_adds_ratings_and_source_links():
-    enriched = enrich_movie_metadata([screening()], FakeMetadataClient())[0]
+    client = FakeMetadataClient()
+    enriched = enrich_movie_metadata([screening()], client)[0]
 
+    assert client.calls == [("Test Movie", "246821", 120)]
     assert enriched.poster_url == "https://example.com/poster.jpg"
     assert enriched.imdb_rating == 8.0
     assert enriched.rotten_tomatoes_score == 90
     assert enriched.metacritic_score == 70
     assert enriched.letterboxd_url == "https://letterboxd.com/imdb/tt1234567/"
+
+
+def test_same_title_with_different_fandango_ids_resolves_separately():
+    client = FakeMetadataClient()
+    enrich_movie_metadata(
+        [screening(movie_source_id="111"), screening(movie_source_id="222", showtime_id="2")],
+        client,
+    )
+
+    assert sorted(client.calls) == [
+        ("Test Movie", "111", 120),
+        ("Test Movie", "222", 120),
+    ]
 
 
 class FakeRouter:
