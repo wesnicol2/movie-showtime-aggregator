@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 import urllib.error
 import urllib.parse
@@ -14,6 +15,7 @@ OMDB_DAILY_LIMIT = 1000
 OMDB_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
 OMDB_NEGATIVE_CACHE_TTL_SECONDS = 6 * 60 * 60
 USER_AGENT = "movie-showtime-aggregator/1.0"
+YEAR_SUFFIX_RE = re.compile(r"\s*\((\d{4})\)\s*$")
 
 
 class MetadataError(RuntimeError):
@@ -69,7 +71,11 @@ class OmdbClient:
         if not self.api_key:
             raise MetadataError("OMDb API key is not configured")
 
-        cache_key = normalized.casefold()
+        query_title, year = _split_title_year(normalized)
+        cache_key = query_title.casefold()
+        if year is not None:
+            cache_key = f"year-v2:{cache_key}:{year}"
+
         if self.provider_cache is not None:
             cached_payload = self.provider_cache.get_json("omdb", f"title:{cache_key}")
             if cached_payload is not None:
@@ -86,15 +92,16 @@ class OmdbClient:
         ):
             raise MetadataError("OMDb daily request budget is exhausted")
 
-        params = urllib.parse.urlencode(
-            {
-                "apikey": self.api_key,
-                "t": normalized,
-                "type": "movie",
-                "plot": "short",
-                "r": "json",
-            }
-        )
+        request_params = {
+            "apikey": self.api_key,
+            "t": query_title,
+            "type": "movie",
+            "plot": "short",
+            "r": "json",
+        }
+        if year is not None:
+            request_params["y"] = year
+        params = urllib.parse.urlencode(request_params)
         request = urllib.request.Request(
             f"{OMDB_BASE_URL}?{params}",
             headers={"Accept": "application/json", "User-Agent": USER_AGENT},
@@ -123,6 +130,16 @@ class OmdbClient:
             with self._lock:
                 self._cache[cache_key] = metadata
         return metadata
+
+
+def _split_title_year(title: str) -> tuple[str, str | None]:
+    match = YEAR_SUFFIX_RE.search(title)
+    if match is None:
+        return title, None
+    query_title = title[: match.start()].strip()
+    if not query_title:
+        return title, None
+    return query_title, match.group(1)
 
 
 def _parse_payload(payload: object, title: str) -> MovieMetadata:
