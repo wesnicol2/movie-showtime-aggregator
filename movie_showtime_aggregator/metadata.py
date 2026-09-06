@@ -8,6 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime
 from difflib import SequenceMatcher
 
 from .provider_cache import ProviderCache
@@ -45,6 +46,7 @@ class MovieMetadata:
     imdb_rating: float | None = None
     metacritic_score: int | None = None
     rotten_tomatoes_score: int | None = None
+    initial_release_date: str | None = None
 
     @property
     def imdb_url(self) -> str:
@@ -417,7 +419,20 @@ def _parse_payload(payload: object, title: str) -> MovieMetadata:
         imdb_rating=_float_or_none(payload.get("imdbRating"), minimum=0, maximum=10),
         metacritic_score=_int_or_none(payload.get("Metascore"), minimum=0, maximum=100),
         rotten_tomatoes_score=rotten_tomatoes,
+        initial_release_date=_release_date(payload.get("Released")),
     )
+
+
+def _release_date(value: object) -> str | None:
+    text = str(value or "").strip()
+    if not text or text.casefold() == "n/a":
+        return None
+    for date_format in ("%d %b %Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text, date_format).date().isoformat()
+        except ValueError:
+            continue
+    return None
 
 
 def _imdb_id(value: object) -> str:

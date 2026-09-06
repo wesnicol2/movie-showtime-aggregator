@@ -1,0 +1,80 @@
+.movie-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.7fr) repeat(6, minmax(110px, 1fr)) auto;
+  gap: 8px;
+  padding: 10px 0 14px;
+  border-top: 1px solid var(--line);
+}
+
+.movie-filter-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.movie-filter-field input,
+.movie-filter-field select,
+.movie-filter-actions button {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.movie-filter-actions {
+  display: flex;
+  align-items: end;
+}
+
+.movie-sort-value {
+  min-height: 16px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .movie-filter-bar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .movie-filter-field.title-filter {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 680px) {
+  .movie-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .movie-filter-field.title-filter,
+  .movie-filter-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 420px) {
+  .movie-filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .movie-filter-field.title-filter,
+  .movie-filter-actions {
+    grid-column: auto;
+  }
+}
