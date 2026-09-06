@@ -1,6 +1,6 @@
 .movie-filter-bar {
   display: grid;
-  grid-template-columns: minmax(180px, 1.7fr) repeat(6, minmax(110px, 1fr)) auto;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
   margin: 0;
@@ -18,6 +18,10 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.movie-filter-field.title-filter {
+  grid-column: span 2;
 }
 
 .movie-filter-field input,
@@ -53,10 +57,6 @@
 @media (max-width: 1100px) {
   .movie-filter-bar {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .movie-filter-field.title-filter {
-    grid-column: span 2;
   }
 }
 
