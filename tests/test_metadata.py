@@ -1,4 +1,5 @@
 import json
+from typing import ClassVar
 from urllib.parse import parse_qs, urlparse
 
 from movie_showtime_aggregator.metadata import OmdbClient, _parse_payload
@@ -46,7 +47,7 @@ def test_omdb_persistent_cache_avoids_request_after_client_recreation(monkeypatc
     calls = []
 
     class FakeResponse:
-        headers = {}
+        headers: ClassVar[dict[str, str]] = {}
 
         def __enter__(self):
             return self
@@ -84,7 +85,7 @@ def test_year_suffix_is_split_into_title_and_year_and_bypasses_old_negative_cach
     calls = []
 
     class FakeResponse:
-        headers = {}
+        headers: ClassVar[dict[str, str]] = {}
 
         def __enter__(self):
             return self
@@ -142,7 +143,7 @@ def test_nearby_canonical_year_is_accepted_and_fandango_mapping_is_reused(monkey
     }
 
     class FakeResponse:
-        headers = {}
+        headers: ClassVar[dict[str, str]] = {}
 
         def __init__(self, payload):
             self.payload = payload
@@ -189,7 +190,7 @@ def test_wrong_old_same_title_is_rejected_then_search_selects_nearby_year(monkey
     calls = []
 
     class FakeResponse:
-        headers = {}
+        headers: ClassVar[dict[str, str]] = {}
 
         def __init__(self, payload):
             self.payload = payload
@@ -255,7 +256,7 @@ def test_release_qualifier_can_resolve_original_movie_across_large_year_gap(monk
     calls = []
 
     class FakeResponse:
-        headers = {}
+        headers: ClassVar[dict[str, str]] = {}
 
         def __init__(self, payload):
             self.payload = payload
@@ -299,7 +300,7 @@ def test_multi_film_event_is_not_forced_to_single_movie(monkeypatch, tmp_path):
     calls = []
 
     class FakeResponse:
-        headers = {}
+        headers: ClassVar[dict[str, str]] = {}
 
         def __enter__(self):
             return self
