@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import mimetypes
 import threading
 from collections.abc import Callable, Iterable
 from datetime import date
@@ -23,17 +24,11 @@ from .storage import PersistentSettings, SettingsStore
 
 JSON_HEADERS = [("Content-Type", "application/json; charset=utf-8")]
 STATIC_DIR = Path(__file__).with_name("static")
+SOURCE_STATIC_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+STATIC_ROOTS = (STATIC_DIR, SOURCE_STATIC_DIR)
+SPA_ROUTES = {"/", "/movies", "/settings"}
 PREVIEW_COOKIE = "movie_preview_minutes"
 LOCATION_COOKIE = "movie_location"
-STATIC_ROUTES = {
-    "/": ("index.html", "text/html; charset=utf-8"),
-    "/movies": ("movies.html", "text/html; charset=utf-8"),
-    "/settings": ("settings.html", "text/html; charset=utf-8"),
-    "/app.js": ("app.js", "text/javascript; charset=utf-8"),
-    "/movies.js": ("movies.js", "text/javascript; charset=utf-8"),
-    "/settings.js": ("settings.js", "text/javascript; charset=utf-8"),
-    "/styles.css": ("styles.css", "text/css; charset=utf-8"),
-}
 
 _SETTINGS = Settings.from_env()
 _SERVICE = ScreeningService(FandangoClient(), _SETTINGS)
@@ -67,8 +62,10 @@ def application(environ: dict, start_response: Callable) -> Iterable[bytes]:
         return _json_response(start_response, 200, health(), method)
     if path == "/api/screenings":
         return _screenings_response(environ, start_response, method)
-    if path in STATIC_ROUTES:
-        return _static_response(start_response, path, method)
+    if path in SPA_ROUTES:
+        return _static_response(start_response, "index.html", method, requested_path=path)
+    if path.startswith("/assets/"):
+        return _static_response(start_response, path.lstrip("/"), method, requested_path=path)
     return _json_response(start_response, 404, {"error": "not found", "path": path}, method)
 
 
@@ -388,12 +385,35 @@ def _parse_preview_minutes(values: list[str]) -> dict[str, int]:
     return previews
 
 
-def _static_response(start_response: Callable, path: str, method: str) -> Iterable[bytes]:
-    filename, content_type = STATIC_ROUTES[path]
-    body = (STATIC_DIR / filename).read_bytes()
+def _static_response(
+    start_response: Callable,
+    relative_path: str,
+    method: str,
+    *,
+    requested_path: str,
+) -> Iterable[bytes]:
+    path = Path(relative_path)
+    if path.is_absolute() or ".." in path.parts:
+        return _json_response(start_response, 404, {"error": "not found", "path": requested_path}, method)
+
+    asset = next((root / path for root in STATIC_ROOTS if (root / path).is_file()), None)
+    if asset is None:
+        return _json_response(start_response, 404, {"error": "not found", "path": requested_path}, method)
+
+    body = asset.read_bytes()
+    content_type = mimetypes.guess_type(asset.name)[0] or "application/octet-stream"
+    if content_type.startswith("text/") or content_type in {"application/javascript", "application/json"}:
+        content_type = f"{content_type}; charset=utf-8"
+    cache_control = (
+        "public, max-age=31536000, immutable" if relative_path.startswith("assets/") else "no-cache"
+    )
     start_response(
         "200 OK",
-        [("Content-Type", content_type), ("Content-Length", str(len(body)))],
+        [
+            ("Content-Type", content_type),
+            ("Content-Length", str(len(body))),
+            ("Cache-Control", cache_control),
+        ],
     )
     return [] if method == "HEAD" else [body]
 
