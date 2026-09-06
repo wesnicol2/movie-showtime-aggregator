@@ -18,20 +18,35 @@ def enrich_movie_metadata(
     if client is None or not screenings:
         return screenings
 
-    titles = sorted({screening.movie for screening in screenings}, key=str.casefold)
-    metadata: dict[str, MovieMetadata] = {}
-    with ThreadPoolExecutor(max_workers=min(5, len(titles))) as executor:
-        futures = {executor.submit(client.lookup, title): title for title in titles}
+    identities = sorted(
+        {
+            (screening.movie_source_id, screening.movie, screening.runtime_minutes)
+            for screening in screenings
+        },
+        key=lambda identity: (identity[1].casefold(), identity[0], identity[2] or 0),
+    )
+    metadata: dict[tuple[str, str, int | None], MovieMetadata] = {}
+    with ThreadPoolExecutor(max_workers=min(5, len(identities))) as executor:
+        futures = {
+            executor.submit(
+                client.lookup,
+                title,
+                source_id=source_id,
+                runtime_minutes=runtime_minutes,
+            ): (source_id, title, runtime_minutes)
+            for source_id, title, runtime_minutes in identities
+        }
         for future in as_completed(futures):
-            title = futures[future]
+            identity = futures[future]
             try:
-                metadata[title] = future.result()
+                metadata[identity] = future.result()
             except (MetadataError, ValueError):
                 continue
 
     enriched: list[Screening] = []
     for screening in screenings:
-        details = metadata.get(screening.movie)
+        identity = (screening.movie_source_id, screening.movie, screening.runtime_minutes)
+        details = metadata.get(identity)
         if details is None:
             enriched.append(screening)
             continue
