@@ -66,7 +66,7 @@ New data should normally become another ordinary typed column rather than a spec
 
 ### Movie Selection
 
-`/movies` is a poster-first, dark Now Playing grid inspired by the supplied AMC mobile layout. The poster tile itself is the checkbox; it should not become a detail-heavy card grid. Titles may appear below posters, and the page may expose lightweight sorting, but the posters remain the visual focus.
+`/movies` is a poster-first, dark Now Playing grid inspired by the supplied AMC mobile layout. The poster tile itself is the checkbox; it should not become a detail-heavy card grid. The page may expose compact local filters and sorting controls, but posters remain the visual focus. When sorting by a field, show that field's value directly under each title so the ordering is auditable. Initial release date is one supported sort/filter dimension and must come from backend metadata rather than frontend inference.
 
 The selected movie titles live in browser local storage and are also the source of truth for the table's Movie exact-value filter. Changes from either surface should stay synchronized. This is browser convenience state, not an account/profile system.
 
@@ -113,7 +113,7 @@ Enrichment is deliberately optional and must not make showtime retrieval brittle
 
 ### OMDb metadata
 
-`metadata.py` supplies poster URL, IMDb ID/rating, Metacritic score, and Rotten Tomatoes percentage. `enrichment.py` queries unique titles concurrently and caches through `OmdbClient`.
+`metadata.py` supplies poster URL, IMDb ID/rating, Metacritic score, Rotten Tomatoes percentage, and normalized initial release date. `enrichment.py` queries unique titles concurrently and caches through `OmdbClient`. OMDb's `Released` value is normalized to an ISO date for frontend sort/filter use; missing or invalid values stay unknown.
 
 The IMDb ID is also the stable bridge for source links:
 
@@ -161,7 +161,7 @@ Unknown values stay plain text. Never manufacture a source link solely to make t
 
 The browser fetches the complete normalized radius result once and performs table sort/filter changes client-side for immediate spreadsheet-like interaction. The Python server retains server-side filter helpers for direct API consumers and independent testing.
 
-Saved Views remain browser-local table state only. Applying a Saved View also synchronizes any exact Movie selection into the poster-selection state. Application Settings are not part of a Saved View.
+Saved Views remain browser-local table state only. They deliberately exclude the exact selected-movie set: saving strips it, loading preserves the current Movie Selection, and older stored views are migrated by stripping any saved exact selection. Non-selection Movie-column rules may still be saved. Application Settings are not part of a Saved View.
 
 ## Frontend production assets
 

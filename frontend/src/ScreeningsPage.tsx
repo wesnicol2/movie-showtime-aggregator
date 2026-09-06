@@ -3,7 +3,13 @@ import { useMemo, useState } from "react";
 import { ScreeningInspector } from "./components/ScreeningInspector";
 import { ScreeningTable } from "./components/ScreeningTable";
 import { filterAndSort, isFilterActive } from "./screenings";
-import { readSavedViews, type SavedView, useAppStore, writeSavedViews } from "./store";
+import {
+  createSavedView,
+  readSavedViews,
+  type SavedView,
+  useAppStore,
+  writeSavedViews,
+} from "./store";
 import { useScreenings } from "./useScreenings";
 
 export function ScreeningsPage() {
@@ -35,7 +41,7 @@ export function ScreeningsPage() {
     const name = rawName.trim();
     if (!name) return;
     if (savedViews[name] && !window.confirm(`Replace saved view “${name}”?`)) return;
-    const view: SavedView = { sort: { ...sort }, filters: structuredClone(filters) };
+    const view: SavedView = createSavedView(sort, filters);
     const next = { ...savedViews, [name]: view };
     writeSavedViews(next);
     setSavedViews(next);

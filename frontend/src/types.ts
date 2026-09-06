@@ -50,6 +50,7 @@ export interface Screening {
   imdb_rating: number | null;
   metacritic_score: number | null;
   rotten_tomatoes_score: number | null;
+  initial_release_date: string | null;
   ticket_price: number | null;
   seats_left_percent: number | null;
   amc_a_list_eligible: boolean | null;

@@ -35,18 +35,38 @@ function persistMovieSelection(values: string[]): void {
   localStorage.setItem(MOVIE_SELECTION_KEY, JSON.stringify([...values].sort()));
 }
 
+function withoutMovieSelection(view: SavedView): SavedView {
+  const filters = structuredClone(view.filters);
+  filters.movie = { ...filters.movie, selected: null };
+  return { sort: { ...view.sort }, filters };
+}
+
+export function createSavedView(sort: SortState, filters: Filters): SavedView {
+  return withoutMovieSelection({ sort, filters });
+}
+
 export function readSavedViews(): Record<string, SavedView> {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(SAVED_VIEWS_KEY) ?? "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    return parsed as Record<string, SavedView>;
+    const migrated = Object.fromEntries(
+      Object.entries(parsed).map(([name, view]) => [
+        name,
+        withoutMovieSelection(view as SavedView),
+      ]),
+    );
+    localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(migrated));
+    return migrated;
   } catch {
     return {};
   }
 }
 
 export function writeSavedViews(views: Record<string, SavedView>): void {
-  localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(views));
+  const sanitized = Object.fromEntries(
+    Object.entries(views).map(([name, view]) => [name, withoutMovieSelection(view)]),
+  );
+  localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(sanitized));
 }
 
 const initialSelection = readMovieSelection();
@@ -148,14 +168,17 @@ export const useAppStore = create<AppState>((set) => ({
 
   setInspectedShowtimeId: (inspectedShowtimeId) => set({ inspectedShowtimeId }),
 
-  applySavedView: (view) => {
-    const selectedMovies = view.filters.movie.selected ?? [];
-    persistMovieSelection(selectedMovies);
-    set({
-      sort: { ...view.sort },
-      filters: structuredClone(view.filters),
-      selectedMovies,
-      inspectedShowtimeId: null,
-    });
-  },
+  applySavedView: (view) =>
+    set((state) => {
+      const filters = structuredClone(view.filters);
+      filters.movie = {
+        ...filters.movie,
+        selected: state.filters.movie.selected,
+      };
+      return {
+        sort: { ...view.sort },
+        filters,
+        inspectedShowtimeId: null,
+      };
+    }),
 }));
