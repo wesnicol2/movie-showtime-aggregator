@@ -50,7 +50,10 @@ export function readSavedViews(): Record<string, SavedView> {
     const parsed: unknown = JSON.parse(localStorage.getItem(SAVED_VIEWS_KEY) ?? "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
     const migrated = Object.fromEntries(
-      Object.entries(parsed).map(([name, view]) => [name, withoutMovieSelection(view as SavedView)]),
+      Object.entries(parsed).map(([name, view]) => [
+        name,
+        withoutMovieSelection(view as SavedView),
+      ]),
     );
     localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(migrated));
     return migrated;

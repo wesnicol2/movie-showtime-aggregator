@@ -105,7 +105,8 @@ export function MoviesPage() {
         </div>
       </div>
 
-      <div className="movie-filter-bar" aria-label="Movie filters">
+      <fieldset className="movie-filter-bar">
+        <legend className="sr-only">Movie filters</legend>
         <label className="movie-filter-field title-filter">
           <span>Title</span>
           <input
@@ -168,9 +169,7 @@ export function MoviesPage() {
             step="1"
             inputMode="numeric"
             value={filters.minimumMetacritic}
-            onChange={(event) =>
-              setFilters({ ...filters, minimumMetacritic: event.target.value })
-            }
+            onChange={(event) => setFilters({ ...filters, minimumMetacritic: event.target.value })}
           />
         </label>
         <label className="movie-filter-field">
@@ -200,7 +199,7 @@ export function MoviesPage() {
             Clear filters
           </button>
         </div>
-      </div>
+      </fieldset>
 
       {status === "loading" ? <div className="status-strip">Loading posters…</div> : null}
       {error ? (
