@@ -94,7 +94,9 @@ def test_year_suffix_is_split_into_title_and_year_and_bypasses_old_negative_cach
             return False
 
         def read(self):
-            return b'{"Response":"True","Title":"Toy Story 5","imdbID":"tt1234567","imdbRating":"7.4"}'
+            return (
+                b'{"Response":"True","Title":"Toy Story 5","imdbID":"tt1234567","imdbRating":"7.4"}'
+            )
 
     def fake_urlopen(request, timeout):
         calls.append((request.full_url, timeout))
