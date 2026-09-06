@@ -394,15 +394,22 @@ def _static_response(
 ) -> Iterable[bytes]:
     path = Path(relative_path)
     if path.is_absolute() or ".." in path.parts:
-        return _json_response(start_response, 404, {"error": "not found", "path": requested_path}, method)
+        return _json_response(
+            start_response, 404, {"error": "not found", "path": requested_path}, method
+        )
 
     asset = next((root / path for root in STATIC_ROOTS if (root / path).is_file()), None)
     if asset is None:
-        return _json_response(start_response, 404, {"error": "not found", "path": requested_path}, method)
+        return _json_response(
+            start_response, 404, {"error": "not found", "path": requested_path}, method
+        )
 
     body = asset.read_bytes()
     content_type = mimetypes.guess_type(asset.name)[0] or "application/octet-stream"
-    if content_type.startswith("text/") or content_type in {"application/javascript", "application/json"}:
+    if content_type.startswith("text/") or content_type in {
+        "application/javascript",
+        "application/json",
+    }:
         content_type = f"{content_type}; charset=utf-8"
     cache_control = (
         "public, max-age=31536000, immutable" if relative_path.startswith("assets/") else "no-cache"
