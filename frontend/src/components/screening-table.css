@@ -1,0 +1,9 @@
+.table-scroll {
+  min-height: min(360px, calc(100vh - 174px));
+}
+
+@media (max-width: 680px) {
+  .table-scroll {
+    min-height: min(240px, calc(100vh - 210px));
+  }
+}

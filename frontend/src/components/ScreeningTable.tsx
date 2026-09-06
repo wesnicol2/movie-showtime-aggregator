@@ -4,6 +4,7 @@ import { COLUMNS, type Filters, formatCell, type SortState, sourceUrl } from "..
 import { useAppStore } from "../store";
 import type { ColumnKey, Screening } from "../types";
 import { ColumnFilter } from "./ColumnFilter";
+import "./screening-table.css";
 
 interface Props {
   screenings: Screening[];
