@@ -14,6 +14,7 @@ def raw_showtime(**overrides):
         "distanceMiles": 4.2,
         "premiumFormat": "Dolby Cinema",
         "purchaseUrl": "https://example.com/tickets",
+        "posterUrl": "https://images.example/fandango-poster.jpg",
         "isCanceled": False,
         "isSoldOut": False,
         "isExpired": False,
@@ -34,6 +35,7 @@ def test_normalize_leaves_actual_start_and_end_unknown():
     assert screening.estimated_end is None
     assert screening.runtime_minutes == 132
     assert screening.distance_miles == 4.2
+    assert screening.poster_url == "https://images.example/fandango-poster.jpg"
 
 
 def test_preview_minutes_derives_actual_start_and_end():
