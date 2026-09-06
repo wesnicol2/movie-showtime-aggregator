@@ -14,9 +14,16 @@ type MovieSort =
 type MovieSortDirection = "asc" | "desc";
 type SelectionFilter = "all" | "selected" | "unselected";
 
+interface MovieOption {
+  representative: Screening;
+  screenings: Screening[];
+}
+
 interface MovieFilters {
   title: string;
   selection: SelectionFilter;
+  theater: string;
+  chain: string;
   minimumImdb: string;
   minimumRottenTomatoes: string;
   minimumMetacritic: string;
@@ -27,6 +34,8 @@ interface MovieFilters {
 const EMPTY_FILTERS: MovieFilters = {
   title: "",
   selection: "all",
+  theater: "",
+  chain: "",
   minimumImdb: "",
   minimumRottenTomatoes: "",
   minimumMetacritic: "",
@@ -46,21 +55,43 @@ export function MoviesPage() {
   const [filters, setFilters] = useState<MovieFilters>(EMPTY_FILTERS);
 
   const allMovies = useMemo(() => {
-    const unique = new Map<string, Screening>();
+    const unique = new Map<string, MovieOption>();
     for (const screening of response?.screenings ?? []) {
       const existing = unique.get(screening.movie);
-      if (!existing || metadataCompleteness(screening) > metadataCompleteness(existing)) {
-        unique.set(screening.movie, screening);
+      if (!existing) {
+        unique.set(screening.movie, { representative: screening, screenings: [screening] });
+        continue;
+      }
+      existing.screenings.push(screening);
+      if (metadataCompleteness(screening) > metadataCompleteness(existing.representative)) {
+        existing.representative = screening;
       }
     }
     return [...unique.values()];
   }, [response]);
 
+  const theaters = useMemo(
+    () =>
+      [...new Set((response?.screenings ?? []).map((screening) => screening.theatre))].sort(
+        compareText,
+      ),
+    [response],
+  );
+  const chains = useMemo(
+    () =>
+      [...new Set((response?.screenings ?? []).map((screening) => screening.chain))].sort(
+        compareText,
+      ),
+    [response],
+  );
+
   const movies = useMemo(() => {
     const selected = new Set(selectedMovies);
     return allMovies
       .filter((movie) => matchesMovieFilters(movie, selected, filters))
-      .sort((left, right) => compareMovies(left, right, sort, sortDirection));
+      .sort((left, right) =>
+        compareMovies(left.representative, right.representative, sort, sortDirection),
+      );
   }, [allMovies, filters, selectedMovies, sort, sortDirection]);
 
   const activeFilterCount = Object.entries(filters).filter(
@@ -129,6 +160,36 @@ export function MoviesPage() {
             <option value="all">All</option>
             <option value="selected">Selected</option>
             <option value="unselected">Unselected</option>
+          </select>
+        </label>
+        <label className="movie-filter-field">
+          <span>Theater</span>
+          <select
+            aria-label="Filter by theater"
+            value={filters.theater}
+            onChange={(event) => setFilters({ ...filters, theater: event.target.value })}
+          >
+            <option value="">All theaters</option>
+            {theaters.map((theater) => (
+              <option key={theater} value={theater}>
+                {theater}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="movie-filter-field">
+          <span>Chain</span>
+          <select
+            aria-label="Filter by chain"
+            value={filters.chain}
+            onChange={(event) => setFilters({ ...filters, chain: event.target.value })}
+          >
+            <option value="">All chains</option>
+            {chains.map((chain) => (
+              <option key={chain} value={chain}>
+                {chain}
+              </option>
+            ))}
           </select>
         </label>
         <label className="movie-filter-field">
@@ -232,28 +293,33 @@ export function MoviesPage() {
       ) : null}
       <div className="movie-grid" aria-live="polite">
         {movies.map((movie) => {
-          const selected = selectedMovies.includes(movie.movie);
+          const screening = movie.representative;
+          const selected = selectedMovies.includes(screening.movie);
           return (
             <button
-              key={movie.movie}
+              key={screening.movie}
               type="button"
               className={`movie-tile ${selected ? "selected" : ""}`}
               aria-pressed={selected}
-              aria-label={`${selected ? "Deselect" : "Select"} ${movie.movie}`}
-              onClick={() => toggleMovie(movie.movie)}
+              aria-label={`${selected ? "Deselect" : "Select"} ${screening.movie}`}
+              onClick={() => toggleMovie(screening.movie)}
             >
               <span className="poster-frame">
-                {movie.poster_url ? (
-                  <img src={movie.poster_url} alt={`${movie.movie} poster`} loading="lazy" />
+                {screening.poster_url ? (
+                  <img
+                    src={screening.poster_url}
+                    alt={`${screening.movie} poster`}
+                    loading="lazy"
+                  />
                 ) : (
-                  <span className="poster-fallback">{movie.movie}</span>
+                  <span className="poster-fallback">{screening.movie}</span>
                 )}
                 <span className="poster-check" aria-hidden="true">
                   ✓
                 </span>
               </span>
-              <span className="movie-title">{movie.movie}</span>
-              <span className="movie-sort-value">{sortValueLabel(movie, sort)}</span>
+              <span className="movie-title">{screening.movie}</span>
+              <span className="movie-sort-value">{sortValueLabel(screening, sort)}</span>
             </button>
           );
         })}
@@ -279,42 +345,61 @@ function numberFilter(value: string): number | null {
 }
 
 function matchesMovieFilters(
-  movie: Screening,
+  movie: MovieOption,
   selectedMovies: Set<string>,
   filters: MovieFilters,
 ): boolean {
+  const representative = movie.representative;
   const title = filters.title.trim().toLocaleLowerCase();
-  if (title && !movie.movie.toLocaleLowerCase().includes(title)) return false;
-  if (filters.selection === "selected" && !selectedMovies.has(movie.movie)) return false;
-  if (filters.selection === "unselected" && selectedMovies.has(movie.movie)) return false;
+  if (title && !representative.movie.toLocaleLowerCase().includes(title)) return false;
+  if (filters.selection === "selected" && !selectedMovies.has(representative.movie)) return false;
+  if (filters.selection === "unselected" && selectedMovies.has(representative.movie)) return false;
+
+  if (
+    (filters.theater || filters.chain) &&
+    !movie.screenings.some(
+      (screening) =>
+        (!filters.theater || screening.theatre === filters.theater) &&
+        (!filters.chain || screening.chain === filters.chain),
+    )
+  ) {
+    return false;
+  }
 
   const minimumImdb = numberFilter(filters.minimumImdb);
-  if (minimumImdb !== null && (movie.imdb_rating === null || movie.imdb_rating < minimumImdb)) {
+  if (
+    minimumImdb !== null &&
+    (representative.imdb_rating === null || representative.imdb_rating < minimumImdb)
+  ) {
     return false;
   }
   const minimumRottenTomatoes = numberFilter(filters.minimumRottenTomatoes);
   if (
     minimumRottenTomatoes !== null &&
-    (movie.rotten_tomatoes_score === null || movie.rotten_tomatoes_score < minimumRottenTomatoes)
+    (representative.rotten_tomatoes_score === null ||
+      representative.rotten_tomatoes_score < minimumRottenTomatoes)
   ) {
     return false;
   }
   const minimumMetacritic = numberFilter(filters.minimumMetacritic);
   if (
     minimumMetacritic !== null &&
-    (movie.metacritic_score === null || movie.metacritic_score < minimumMetacritic)
+    (representative.metacritic_score === null ||
+      representative.metacritic_score < minimumMetacritic)
   ) {
     return false;
   }
   if (
     filters.releasedFrom &&
-    (movie.initial_release_date === null || movie.initial_release_date < filters.releasedFrom)
+    (representative.initial_release_date === null ||
+      representative.initial_release_date < filters.releasedFrom)
   ) {
     return false;
   }
   if (
     filters.releasedThrough &&
-    (movie.initial_release_date === null || movie.initial_release_date > filters.releasedThrough)
+    (representative.initial_release_date === null ||
+      representative.initial_release_date > filters.releasedThrough)
   ) {
     return false;
   }
@@ -328,16 +413,13 @@ function compareMovies(
   direction: MovieSortDirection,
 ): number {
   if (sort === "title") {
-    const comparison = left.movie.localeCompare(right.movie, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
+    const comparison = compareText(left.movie, right.movie);
     return direction === "asc" ? comparison : -comparison;
   }
 
   const leftValue = left[sort];
   const rightValue = right[sort];
-  if (leftValue === null && rightValue === null) return left.movie.localeCompare(right.movie);
+  if (leftValue === null && rightValue === null) return compareText(left.movie, right.movie);
   if (leftValue === null) return 1;
   if (rightValue === null) return -1;
 
@@ -346,7 +428,11 @@ function compareMovies(
       ? String(leftValue).localeCompare(String(rightValue))
       : Number(leftValue) - Number(rightValue);
   const directed = direction === "asc" ? comparison : -comparison;
-  return directed || left.movie.localeCompare(right.movie);
+  return directed || compareText(left.movie, right.movie);
+}
+
+function compareText(left: string, right: string): number {
+  return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
 }
 
 function sortDirectionLabel(sort: MovieSort, direction: MovieSortDirection): string {
