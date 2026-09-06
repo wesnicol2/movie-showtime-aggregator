@@ -121,7 +121,10 @@ def test_fandango_poster_falls_back_to_other_available_sizes():
     sizes = payload["theaters"][0]["movies"][0]["poster"]["size"]
     sizes.pop("400")
 
-    assert flatten_market_showtimes(payload)[0]["posterUrl"] == "https://images.example/poster-500.jpg"
+    assert (
+        flatten_market_showtimes(payload)[0]["posterUrl"]
+        == "https://images.example/poster-500.jpg"
+    )
 
 
 def test_zero_runtime_is_preserved_for_unknown_end_handling():
