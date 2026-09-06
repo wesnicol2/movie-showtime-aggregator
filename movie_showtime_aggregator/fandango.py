@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -113,6 +114,7 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
             if not isinstance(movie, dict):
                 continue
             title = _clean_title(str(movie.get("title") or ""))
+            movie_source_id = _movie_source_id(movie)
             runtime = movie.get("runtime")
             variants = movie.get("variants")
             if not title or not isinstance(variants, list):
@@ -146,6 +148,7 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
                                 "id": showtime.get("id") or showtime.get("showtimeHashCode"),
                                 "showtimeHashCode": showtime.get("showtimeHashCode"),
                                 "movieName": title,
+                                "movieSourceId": movie_source_id,
                                 "theatreName": theatre_name,
                                 "chainName": chain_name,
                                 "theatreZip": theatre_zip,
@@ -163,6 +166,20 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
                             }
                         )
     return flattened
+
+
+def _movie_source_id(movie: dict[str, object]) -> str:
+    for key in ("id", "movieId", "movieID", "fandangoMovieId", "fandangoId"):
+        value = movie.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+
+    for key in ("url", "movieUrl", "movieURL", "movieLink", "moviePageUrl", "detailUrl"):
+        value = str(movie.get(key) or "").strip()
+        match = re.search(r"-(\d{5,})(?:/|\?|$)", value)
+        if match is not None:
+            return match.group(1)
+    return ""
 
 
 def _theater_coordinates(theater: dict[str, object]) -> tuple[object, object]:
