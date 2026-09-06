@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { createEmptyFilters, type ColumnFilter, type Filters, type SortState } from "./screenings";
+import { type ColumnFilter, createEmptyFilters, type Filters, type SortState } from "./screenings";
 import type { ColumnKey, ScreeningsResponse } from "./types";
 
 const MOVIE_SELECTION_KEY = "movie-showtime-aggregator.selected-movies.v1";

@@ -21,7 +21,9 @@ interface BrowserSettings {
 function readBrowserSettings(): BrowserSettings {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}");
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as BrowserSettings) : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as BrowserSettings)
+      : {};
   } catch {
     return {};
   }
@@ -43,7 +45,11 @@ function timeUntil(timestamp?: string | null): string {
   const totalMinutes = Math.ceil(milliseconds / 60000);
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  return hours >= 24 ? `${Math.floor(hours / 24)}d ${hours % 24}h` : hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+  return hours >= 24
+    ? `${Math.floor(hours / 24)}d ${hours % 24}h`
+    : hours
+      ? `${hours}h ${minutes}m`
+      : `${minutes}m`;
 }
 
 function usageText(name: "OMDb" | "AMC", usage?: ProviderUsage): string {
@@ -56,9 +62,10 @@ function usageText(name: "OMDb" | "AMC", usage?: ProviderUsage): string {
     return `${requests} requests · ${hits} cache hits · ${remaining ?? "?"} estimated remaining${percent == null ? "" : ` · ${Number(percent).toFixed(1)}% used`} · app counter resets in ${timeUntil(usage.app_counter_reset_at)}`;
   }
   const provider = usage.provider_rate_limit;
-  const quota = provider?.limit != null && provider.remaining != null
-    ? ` · provider reports ${provider.remaining} / ${provider.limit} remaining${provider.reset_at ? ` · resets in ${timeUntil(provider.reset_at)}` : ""}`
-    : " · provider quota not published";
+  const quota =
+    provider?.limit != null && provider.remaining != null
+      ? ` · provider reports ${provider.remaining} / ${provider.limit} remaining${provider.reset_at ? ` · resets in ${timeUntil(provider.reset_at)}` : ""}`
+      : " · provider quota not published";
   return `${requests} requests · ${hits} cache hits${quota} · app counter rolls in ${timeUntil(usage.app_counter_reset_at)}`;
 }
 
@@ -66,9 +73,16 @@ export function SettingsPage() {
   const invalidateScreenings = useAppStore((state) => state.invalidateScreenings);
   const initialBrowser = useMemo(readBrowserSettings, []);
   const [zipCode, setZipCode] = useState(initialBrowser.location?.zipCode ?? "");
-  const [radiusMiles, setRadiusMiles] = useState(String(initialBrowser.location?.radiusMiles ?? ""));
+  const [radiusMiles, setRadiusMiles] = useState(
+    String(initialBrowser.location?.radiusMiles ?? ""),
+  );
   const [previewMinutes, setPreviewMinutes] = useState<Record<string, string>>(() =>
-    Object.fromEntries(Object.entries(initialBrowser.previewMinutes ?? {}).map(([chain, value]) => [chain, String(value)])),
+    Object.fromEntries(
+      Object.entries(initialBrowser.previewMinutes ?? {}).map(([chain, value]) => [
+        chain,
+        String(value),
+      ]),
+    ),
   );
   const [chains, setChains] = useState<string[]>([]);
   const [shared, setShared] = useState<SharedSettings | null>(null);
@@ -85,11 +99,16 @@ export function SettingsPage() {
     writeCookie(PREVIEW_COOKIE, browser.previewMinutes ?? {});
     if (browser.location) writeCookie(LOCATION_COOKIE, browser.location);
     try {
-      const [sharedPayload, screeningPayload] = await Promise.all([fetchSharedSettings(), fetchScreenings(false)]);
+      const [sharedPayload, screeningPayload] = await Promise.all([
+        fetchSharedSettings(),
+        fetchScreenings(false),
+      ]);
       setShared(sharedPayload);
       setHomeAddress(sharedPayload.home_address ?? "");
       setAList(sharedPayload.amc_a_list === true);
-      setChains([...screeningPayload.facets.chains].sort((left, right) => left.localeCompare(right)));
+      setChains(
+        [...screeningPayload.facets.chains].sort((left, right) => left.localeCompare(right)),
+      );
       if (!browser.location) {
         setZipCode(screeningPayload.location.zip_code);
         setRadiusMiles(String(screeningPayload.location.radius_miles));
@@ -103,7 +122,10 @@ export function SettingsPage() {
     void loadSettings();
   }, []);
 
-  async function persistShared(changes: Parameters<typeof saveSharedSettings>[0], success: string): Promise<void> {
+  async function persistShared(
+    changes: Parameters<typeof saveSharedSettings>[0],
+    success: string,
+  ): Promise<void> {
     setStatus("Saving…");
     try {
       const payload = await saveSharedSettings(changes);
@@ -181,63 +203,237 @@ export function SettingsPage() {
           <p className="eyebrow">CONFIGURATION</p>
           <h1 id="settings-heading">Settings</h1>
         </div>
-        <span className="settings-status" role="status">{status}</span>
+        <span className="settings-status" role="status">
+          {status}
+        </span>
       </div>
-      {error ? <div className="status-strip error" role="alert">{error}</div> : null}
+      {error ? (
+        <div className="status-strip error" role="alert">
+          {error}
+        </div>
+      ) : null}
 
       <div className="settings-section">
         <div className="settings-section-heading">
-          <div><h2>Theater search</h2><p>Controls which theaters are returned for this browser.</p></div>
+          <div>
+            <h2>Theater search</h2>
+            <p>Controls which theaters are returned for this browser.</p>
+          </div>
           <span className="scope-badge">This browser</span>
         </div>
         <div className="settings-grid">
-          <label className="field"><span>ZIP code</span><input value={zipCode} inputMode="numeric" maxLength={5} onChange={(event) => setZipCode(event.target.value)} /></label>
-          <label className="field"><span>Radius (miles)</span><input type="number" min={1} max={100} step={1} value={radiusMiles} onChange={(event) => setRadiusMiles(event.target.value)} /></label>
+          <label className="field">
+            <span>ZIP code</span>
+            <input
+              value={zipCode}
+              inputMode="numeric"
+              maxLength={5}
+              onChange={(event) => setZipCode(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Radius (miles)</span>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              step={1}
+              value={radiusMiles}
+              onChange={(event) => setRadiusMiles(event.target.value)}
+            />
+          </label>
         </div>
-        <div className="settings-actions"><button className="primary" type="button" onClick={() => void saveLocation()}>Save theater search</button></div>
+        <div className="settings-actions">
+          <button className="primary" type="button" onClick={() => void saveLocation()}>
+            Save theater search
+          </button>
+        </div>
       </div>
 
       <div className="settings-section">
         <div className="settings-section-heading">
-          <div><h2>Home & travel</h2><p>The server geocodes this address and uses it for backend-owned travel timing.</p></div>
+          <div>
+            <h2>Home & travel</h2>
+            <p>The server geocodes this address and uses it for backend-owned travel timing.</p>
+          </div>
           <span className="scope-badge shared">Shared server</span>
         </div>
-        <label className="field wide"><span>Home address</span><input value={homeAddress} autoComplete="street-address" placeholder="Street address, city, state ZIP" onChange={(event) => setHomeAddress(event.target.value)} /></label>
-        <div className="readonly-row"><span>Matched address</span><strong>{shared?.home_display_name || "Not configured"}</strong></div>
-        <div className="settings-actions"><button className="primary" type="button" onClick={() => void persistShared({ home_address: homeAddress.trim() }, "Home saved")}>Save home</button><button type="button" onClick={() => void persistShared({ home_address: "" }, "Home cleared")}>Clear</button></div>
+        <label className="field wide">
+          <span>Home address</span>
+          <input
+            value={homeAddress}
+            autoComplete="street-address"
+            placeholder="Street address, city, state ZIP"
+            onChange={(event) => setHomeAddress(event.target.value)}
+          />
+        </label>
+        <div className="readonly-row">
+          <span>Matched address</span>
+          <strong>{shared?.home_display_name || "Not configured"}</strong>
+        </div>
+        <div className="settings-actions">
+          <button
+            className="primary"
+            type="button"
+            onClick={() => void persistShared({ home_address: homeAddress.trim() }, "Home saved")}
+          >
+            Save home
+          </button>
+          <button
+            type="button"
+            onClick={() => void persistShared({ home_address: "" }, "Home cleared")}
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       <div className="settings-section">
         <div className="settings-section-heading">
-          <div><h2>Preview time by chain</h2><p>Minutes between listed showtime and actual movie start. Blank keeps derived times unknown.</p></div>
+          <div>
+            <h2>Preview time by chain</h2>
+            <p>
+              Minutes between listed showtime and actual movie start. Blank keeps derived times
+              unknown.
+            </p>
+          </div>
           <span className="scope-badge">This browser</span>
         </div>
         <div className="preview-list">
-          {chains.length === 0 ? <p className="muted">No theater chains returned for this location today.</p> : chains.map((chain) => (
-            <label className="preview-row" key={chain}><span>{chain}</span><input type="number" min={0} max={180} step={1} placeholder="Unknown" aria-label={`Preview minutes for ${chain}`} value={previewMinutes[chain] ?? ""} onChange={(event) => setPreviewMinutes((current) => ({ ...current, [chain]: event.target.value }))} /></label>
-          ))}
+          {chains.length === 0 ? (
+            <p className="muted">No theater chains returned for this location today.</p>
+          ) : (
+            chains.map((chain) => (
+              <label className="preview-row" key={chain}>
+                <span>{chain}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={180}
+                  step={1}
+                  placeholder="Unknown"
+                  aria-label={`Preview minutes for ${chain}`}
+                  value={previewMinutes[chain] ?? ""}
+                  onChange={(event) =>
+                    setPreviewMinutes((current) => ({ ...current, [chain]: event.target.value }))
+                  }
+                />
+              </label>
+            ))
+          )}
         </div>
-        <div className="settings-actions"><button className="primary" type="button" onClick={savePreviews}>Save preview times</button><button type="button" onClick={clearPreviews}>Clear</button></div>
+        <div className="settings-actions">
+          <button className="primary" type="button" onClick={savePreviews}>
+            Save preview times
+          </button>
+          <button type="button" onClick={clearPreviews}>
+            Clear
+          </button>
+        </div>
       </div>
 
       <div className="settings-section">
         <div className="settings-section-heading">
-          <div><h2>Data integrations</h2><p>Saved keys are write-only: the browser can replace or clear them but never read them back.</p></div>
+          <div>
+            <h2>Data integrations</h2>
+            <p>
+              Saved keys are write-only: the browser can replace or clear them but never read them
+              back.
+            </p>
+          </div>
           <span className="scope-badge shared">Shared server</span>
         </div>
         <div className="settings-grid single-column">
-          <label className="field"><span>AMC developer key</span><input type="password" autoComplete="off" value={amcKey} placeholder={shared?.amc_vendor_key_set ? "Saved · enter new key to replace" : "Not configured"} onChange={(event) => setAmcKey(event.target.value)} /></label>
-          <label className="toggle-field"><span>AMC A-List</span><input type="checkbox" checked={aList} onChange={(event) => setAList(event.target.checked)} /></label>
-          <label className="field"><span>OMDb API key</span><input type="password" autoComplete="off" value={omdbKey} placeholder={shared?.omdb_api_key_set ? "Saved · enter new key to replace" : "Not configured"} onChange={(event) => setOmdbKey(event.target.value)} /></label>
+          <label className="field">
+            <span>AMC developer key</span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={amcKey}
+              placeholder={
+                shared?.amc_vendor_key_set ? "Saved · enter new key to replace" : "Not configured"
+              }
+              onChange={(event) => setAmcKey(event.target.value)}
+            />
+          </label>
+          <label className="toggle-field">
+            <span>AMC A-List</span>
+            <input
+              type="checkbox"
+              checked={aList}
+              onChange={(event) => setAList(event.target.checked)}
+            />
+          </label>
+          <label className="field">
+            <span>OMDb API key</span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={omdbKey}
+              placeholder={
+                shared?.omdb_api_key_set ? "Saved · enter new key to replace" : "Not configured"
+              }
+              onChange={(event) => setOmdbKey(event.target.value)}
+            />
+          </label>
         </div>
-        <div className="usage-row"><span>OMDb usage</span><strong>{shared?.omdb_api_key_set ? usageText("OMDb", shared.provider_usage?.omdb) : "Not configured"}</strong></div>
-        <div className="usage-row"><span>AMC usage</span><strong>{shared?.amc_vendor_key_set ? usageText("AMC", shared.provider_usage?.amc) : "Not configured"}</strong></div>
-        <p className="settings-note">OMDb publishes a 1,000-request daily limit but not an exact provider reset time. AMC quota percentages and reset times are shown only when AMC sends them.</p>
+        <div className="usage-row">
+          <span>OMDb usage</span>
+          <strong>
+            {shared?.omdb_api_key_set
+              ? usageText("OMDb", shared.provider_usage?.omdb)
+              : "Not configured"}
+          </strong>
+        </div>
+        <div className="usage-row">
+          <span>AMC usage</span>
+          <strong>
+            {shared?.amc_vendor_key_set
+              ? usageText("AMC", shared.provider_usage?.amc)
+              : "Not configured"}
+          </strong>
+        </div>
+        <p className="settings-note">
+          OMDb publishes a 1,000-request daily limit but not an exact provider reset time. AMC quota
+          percentages and reset times are shown only when AMC sends them.
+        </p>
         <div className="settings-actions wrap">
-          <button className="primary" type="button" onClick={() => void persistShared({ amc_a_list: aList, ...(amcKey.trim() ? { amc_vendor_key: amcKey.trim() } : {}), ...(omdbKey.trim() ? { omdb_api_key: omdbKey.trim() } : {}) }, "Integrations saved")}>Save integrations</button>
-          <button type="button" onClick={() => void loadSettings().then(() => setStatus("Usage refreshed"))}>Refresh usage</button>
-          <button type="button" disabled={!shared?.amc_vendor_key_set} onClick={() => void persistShared({ clear_amc_vendor_key: true }, "AMC key cleared")}>Clear AMC key</button>
-          <button type="button" disabled={!shared?.omdb_api_key_set} onClick={() => void persistShared({ clear_omdb_api_key: true }, "OMDb key cleared")}>Clear OMDb key</button>
+          <button
+            className="primary"
+            type="button"
+            onClick={() =>
+              void persistShared(
+                {
+                  amc_a_list: aList,
+                  ...(amcKey.trim() ? { amc_vendor_key: amcKey.trim() } : {}),
+                  ...(omdbKey.trim() ? { omdb_api_key: omdbKey.trim() } : {}),
+                },
+                "Integrations saved",
+              )
+            }
+          >
+            Save integrations
+          </button>
+          <button
+            type="button"
+            onClick={() => void loadSettings().then(() => setStatus("Usage refreshed"))}
+          >
+            Refresh usage
+          </button>
+          <button
+            type="button"
+            disabled={!shared?.amc_vendor_key_set}
+            onClick={() => void persistShared({ clear_amc_vendor_key: true }, "AMC key cleared")}
+          >
+            Clear AMC key
+          </button>
+          <button
+            type="button"
+            disabled={!shared?.omdb_api_key_set}
+            onClick={() => void persistShared({ clear_omdb_api_key: true }, "OMDb key cleared")}
+          >
+            Clear OMDb key
+          </button>
         </div>
       </div>
     </section>

@@ -38,17 +38,46 @@ export function App() {
     <div className="app-shell">
       <header className="app-header">
         <button className="brand" type="button" onClick={() => navigate("/")}>
-          <span className="brand-mark" aria-hidden="true">▶</span>
-          <span><strong>Showtime</strong><small>Movie decision workstation</small></span>
+          <span className="brand-mark" aria-hidden="true">
+            ▶
+          </span>
+          <span>
+            <strong>Showtime</strong>
+            <small>Movie decision workstation</small>
+          </span>
         </button>
         <nav className="app-nav" aria-label="Primary">
-          <button className={path === "/" ? "current" : ""} type="button" onClick={() => navigate("/")}>Screenings</button>
-          <button className={path === "/movies" ? "current" : ""} type="button" onClick={() => navigate("/movies")}>Movies</button>
-          <button className={path === "/settings" ? "current" : ""} type="button" onClick={() => navigate("/settings")}>Settings</button>
+          <button
+            className={path === "/" ? "current" : ""}
+            type="button"
+            onClick={() => navigate("/")}
+          >
+            Screenings
+          </button>
+          <button
+            className={path === "/movies" ? "current" : ""}
+            type="button"
+            onClick={() => navigate("/movies")}
+          >
+            Movies
+          </button>
+          <button
+            className={path === "/settings" ? "current" : ""}
+            type="button"
+            onClick={() => navigate("/settings")}
+          >
+            Settings
+          </button>
         </nav>
       </header>
       <main className="app-main">
-        {path === "/movies" ? <MoviesPage /> : path === "/settings" ? <SettingsPage /> : <ScreeningsPage />}
+        {path === "/movies" ? (
+          <MoviesPage />
+        ) : path === "/settings" ? (
+          <SettingsPage />
+        ) : (
+          <ScreeningsPage />
+        )}
       </main>
     </div>
   );

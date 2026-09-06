@@ -19,11 +19,15 @@ export function MoviesPage() {
     const unique = new Map<string, Screening>();
     for (const screening of response?.screenings ?? []) {
       const existing = unique.get(screening.movie);
-      if (!existing || (!existing.poster_url && screening.poster_url)) unique.set(screening.movie, screening);
+      if (!existing || (!existing.poster_url && screening.poster_url))
+        unique.set(screening.movie, screening);
     }
     return [...unique.values()].sort((left, right) => {
       if (sort === "title") {
-        return left.movie.localeCompare(right.movie, undefined, { numeric: true, sensitivity: "base" });
+        return left.movie.localeCompare(right.movie, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
       }
       const leftValue = left[sort];
       const rightValue = right[sort];
@@ -56,12 +60,20 @@ export function MoviesPage() {
       </div>
 
       {status === "loading" ? <div className="status-strip">Loading posters…</div> : null}
-      {error ? <div className="status-strip error" role="alert">{error}</div> : null}
+      {error ? (
+        <div className="status-strip error" role="alert">
+          {error}
+        </div>
+      ) : null}
       {response && !response.preferences.omdb_api_key_set ? (
-        <div className="status-strip">Add an OMDb API key in Settings to load posters and ratings.</div>
+        <div className="status-strip">
+          Add an OMDb API key in Settings to load posters and ratings.
+        </div>
       ) : null}
 
-      {status === "ready" && movies.length === 0 ? <p className="empty-state">No movies are playing in the current theater search.</p> : null}
+      {status === "ready" && movies.length === 0 ? (
+        <p className="empty-state">No movies are playing in the current theater search.</p>
+      ) : null}
       <div className="movie-grid" aria-live="polite">
         {movies.map((movie) => {
           const selected = selectedMovies.includes(movie.movie);
@@ -80,7 +92,9 @@ export function MoviesPage() {
                 ) : (
                   <span className="poster-fallback">{movie.movie}</span>
                 )}
-                <span className="poster-check" aria-hidden="true">✓</span>
+                <span className="poster-check" aria-hidden="true">
+                  ✓
+                </span>
               </span>
               <span className="movie-title">{movie.movie}</span>
             </button>

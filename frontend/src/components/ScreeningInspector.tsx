@@ -25,18 +25,25 @@ export function ScreeningInspector({ screening, onClose }: Props) {
           <h2>{screening.movie}</h2>
           <p>{screening.theatre}</p>
         </div>
-        <button className="icon-button" type="button" aria-label="Close inspector" onClick={onClose}>
+        <button
+          className="icon-button"
+          type="button"
+          aria-label="Close inspector"
+          onClick={onClose}
+        >
           ×
         </button>
       </div>
 
       <dl className="inspector-grid">
-        {COLUMNS.filter((column) => column.key !== "movie" && column.key !== "theatre").map((column) => (
-          <div key={column.key}>
-            <dt>{column.label}</dt>
-            <dd>{formatCell(screening, column)}</dd>
-          </div>
-        ))}
+        {COLUMNS.filter((column) => column.key !== "movie" && column.key !== "theatre").map(
+          (column) => (
+            <div key={column.key}>
+              <dt>{column.label}</dt>
+              <dd>{formatCell(screening, column)}</dd>
+            </div>
+          ),
+        )}
       </dl>
 
       {evidence.length > 0 ? (

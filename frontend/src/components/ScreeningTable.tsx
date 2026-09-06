@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { COLUMNS, formatCell, sourceUrl, type Filters, type SortState } from "../screenings";
+import { COLUMNS, type Filters, formatCell, type SortState, sourceUrl } from "../screenings";
 import { useAppStore } from "../store";
 import type { ColumnKey, Screening } from "../types";
 import { ColumnFilter } from "./ColumnFilter";
@@ -37,7 +37,11 @@ export function ScreeningTable({ screenings, allScreenings, filters, sort }: Pro
                 }
               >
                 <div className="column-heading">
-                  <button className="sort-button" type="button" onClick={() => toggleSort(column.key)}>
+                  <button
+                    className="sort-button"
+                    type="button"
+                    onClick={() => toggleSort(column.key)}
+                  >
                     {column.label}
                     {sort.key === column.key ? (
                       <span className="sort-mark" aria-hidden="true">
@@ -76,7 +80,12 @@ export function ScreeningTable({ screenings, allScreenings, filters, sort }: Pro
                     className={`${column.calculated ? "calculated" : ""} ${column.key === "movie" ? "movie-cell" : ""}`}
                   >
                     {url && !unknown ? (
-                      <a href={url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(event) => event.stopPropagation()}
+                      >
                         {text}
                       </a>
                     ) : (

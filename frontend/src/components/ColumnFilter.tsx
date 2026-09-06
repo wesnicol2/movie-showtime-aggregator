@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 
 import {
-  formatMenuValue,
   type ColumnFilter as ColumnFilterState,
   type FilterOperator,
+  formatMenuValue,
   isFilterActive,
   uniqueValues,
 } from "../screenings";
@@ -59,8 +59,10 @@ export function ColumnFilter({ column, filter, screenings, open, onOpenChange, o
   const visibleValues = values.filter((value) =>
     formatMenuValue(value, column).toLocaleLowerCase().includes(normalizedQuery),
   );
-  const rules = column.type === "text" ? TEXT_RULES : column.type === "number" ? NUMBER_RULES : TIME_RULES;
-  const needsOperand = filter.operator !== "" && !["is_unknown", "is_not_unknown"].includes(filter.operator);
+  const rules =
+    column.type === "text" ? TEXT_RULES : column.type === "number" ? NUMBER_RULES : TIME_RULES;
+  const needsOperand =
+    filter.operator !== "" && !["is_unknown", "is_not_unknown"].includes(filter.operator);
 
   function toggleValue(value: string, checked: boolean): void {
     const selected = new Set(filter.selected ?? values);
@@ -84,7 +86,12 @@ export function ColumnFilter({ column, filter, screenings, open, onOpenChange, o
         <div className="filter-menu" role="dialog" aria-label={`${column.label} filter`}>
           <div className="filter-menu-heading">
             <strong>{column.label}</strong>
-            <button type="button" className="icon-button" aria-label="Close filter" onClick={() => onOpenChange(false)}>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Close filter"
+              onClick={() => onOpenChange(false)}
+            >
               ×
             </button>
           </div>
@@ -106,7 +113,9 @@ export function ColumnFilter({ column, filter, screenings, open, onOpenChange, o
             <label className="field compact-field">
               <span>Value</span>
               <input
-                type={column.type === "number" ? "number" : column.type === "time" ? "time" : "text"}
+                type={
+                  column.type === "number" ? "number" : column.type === "time" ? "time" : "text"
+                }
                 value={filter.operand}
                 onChange={(event) => onChange({ operand: event.target.value })}
               />
@@ -116,10 +125,18 @@ export function ColumnFilter({ column, filter, screenings, open, onOpenChange, o
           <div className="value-heading">
             <span>Values</span>
             <span className="inline-actions">
-              <button type="button" className="text-button" onClick={() => onChange({ selected: null })}>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => onChange({ selected: null })}
+              >
                 All
               </button>
-              <button type="button" className="text-button" onClick={() => onChange({ selected: [] })}>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => onChange({ selected: [] })}
+              >
                 None
               </button>
             </span>

@@ -136,8 +136,10 @@ function matchesRule(
   if (boundary === null) return true;
   if (filter.operator === "before") return actual <= boundary;
   if (filter.operator === "after") return actual >= boundary;
-  if (filter.operator === "equals") return Math.floor(actual / 60000) === Math.floor(boundary / 60000);
-  if (filter.operator === "not_equals") return Math.floor(actual / 60000) !== Math.floor(boundary / 60000);
+  if (filter.operator === "equals")
+    return Math.floor(actual / 60000) === Math.floor(boundary / 60000);
+  if (filter.operator === "not_equals")
+    return Math.floor(actual / 60000) !== Math.floor(boundary / 60000);
   return true;
 }
 

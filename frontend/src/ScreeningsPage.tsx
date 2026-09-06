@@ -21,9 +21,13 @@ export function ScreeningsPage() {
   const [selectedView, setSelectedView] = useState("");
 
   const screenings = response?.screenings ?? [];
-  const visible = useMemo(() => filterAndSort(screenings, filters, sort), [filters, screenings, sort]);
+  const visible = useMemo(
+    () => filterAndSort(screenings, filters, sort),
+    [filters, screenings, sort],
+  );
   const activeFilterCount = Object.values(filters).filter(isFilterActive).length;
-  const inspected = screenings.find((screening) => screening.showtime_id === inspectedShowtimeId) ?? null;
+  const inspected =
+    screenings.find((screening) => screening.showtime_id === inspectedShowtimeId) ?? null;
 
   function saveView(): void {
     const rawName = window.prompt("Name this filter view:");
@@ -75,30 +79,61 @@ export function ScreeningsPage() {
                 ))}
             </select>
           </label>
-          <button type="button" onClick={saveView}>Save view</button>
-          <button type="button" disabled={!selectedView} onClick={deleteView}>Delete</button>
+          <button type="button" onClick={saveView}>
+            Save view
+          </button>
+          <button type="button" disabled={!selectedView} onClick={deleteView}>
+            Delete
+          </button>
           {activeFilterCount > 0 ? (
-            <button type="button" onClick={clearAllFilters}>Clear {activeFilterCount}</button>
+            <button type="button" onClick={clearAllFilters}>
+              Clear {activeFilterCount}
+            </button>
           ) : null}
         </div>
       </div>
 
-      {status === "loading" ? <div className="status-strip">Loading today’s screenings…</div> : null}
-      {error ? <div className="status-strip error" role="alert">{error}</div> : null}
+      {status === "loading" ? (
+        <div className="status-strip">Loading today’s screenings…</div>
+      ) : null}
+      {error ? (
+        <div className="status-strip error" role="alert">
+          {error}
+        </div>
+      ) : null}
       {response ? (
         <>
           <div className="result-strip" aria-live="polite">
             <strong>{visible.length}</strong> of {screenings.length} screenings
             <span>·</span>
-            <span>{response.location.radius_miles} mi from {response.location.zip_code}</span>
-            {activeFilterCount > 0 ? <><span>·</span><span>{activeFilterCount} active filters</span></> : null}
+            <span>
+              {response.location.radius_miles} mi from {response.location.zip_code}
+            </span>
+            {activeFilterCount > 0 ? (
+              <>
+                <span>·</span>
+                <span>{activeFilterCount} active filters</span>
+              </>
+            ) : null}
           </div>
           <div className={`screening-layout ${inspected ? "with-inspector" : ""}`}>
             <div className="results-pane">
-              <ScreeningTable screenings={visible} allScreenings={screenings} filters={filters} sort={sort} />
-              {visible.length === 0 ? <p className="empty-state">No screenings match the active column filters.</p> : null}
+              <ScreeningTable
+                screenings={visible}
+                allScreenings={screenings}
+                filters={filters}
+                sort={sort}
+              />
+              {visible.length === 0 ? (
+                <p className="empty-state">No screenings match the active column filters.</p>
+              ) : null}
             </div>
-            {inspected ? <ScreeningInspector screening={inspected} onClose={() => setInspectedShowtimeId(null)} /> : null}
+            {inspected ? (
+              <ScreeningInspector
+                screening={inspected}
+                onClose={() => setInspectedShowtimeId(null)}
+              />
+            ) : null}
           </div>
         </>
       ) : null}
