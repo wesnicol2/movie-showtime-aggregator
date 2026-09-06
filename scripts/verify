@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# This is the local pre-push gate and the CI verification command.
-# If this passes locally with the repo's dev dependencies installed, CI should
-# not discover a new Ruff, syntax, or unit-test failure.
+# Frontend: deterministic formatting/linting, strict typing, and production build.
+npm run check
+npm run typecheck
+npm run build
+
+# Python: exact same Ruff/syntax/test gate used before the frontend was added.
 ruff check .
 ruff format --check .
 
