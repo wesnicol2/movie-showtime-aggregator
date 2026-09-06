@@ -1,3 +1,5 @@
+from urllib.parse import parse_qs, urlparse
+
 from movie_showtime_aggregator.metadata import OmdbClient, _parse_payload
 from movie_showtime_aggregator.provider_cache import ProviderCache
 
@@ -68,5 +70,54 @@ def test_omdb_persistent_cache_avoids_request_after_client_recreation(monkeypatc
     assert first.lookup("Test Movie").imdb_id == "tt1234567"
     assert second.lookup("Test Movie").imdb_id == "tt1234567"
     assert len(calls) == 1
+    query = parse_qs(urlparse(calls[0][0]).query)
+    assert query["t"] == ["Test Movie"]
+    assert "y" not in query
+    assert cache.status("omdb")["requests_today"] == 1
+    assert cache.status("omdb")["cache_hits_today"] == 1
+
+
+def test_year_suffix_is_split_into_title_and_year_and_bypasses_old_negative_cache(
+    monkeypatch,
+    tmp_path,
+):
+    calls = []
+
+    class FakeResponse:
+        def __init__(self):
+            self.headers = {}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def read(self):
+            return b'{"Response":"True","Title":"Toy Story 5","imdbID":"tt1234567","imdbRating":"7.4"}'
+
+    def fake_urlopen(request, timeout):
+        calls.append((request.full_url, timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr("movie_showtime_aggregator.metadata.urllib.request.urlopen", fake_urlopen)
+    cache = ProviderCache(tmp_path / "provider-cache.sqlite3")
+    cache.set_json(
+        "omdb",
+        "title:toy story 5 (2026)",
+        {"Response": "False", "Error": "Movie not found!"},
+        ttl_seconds=3600,
+    )
+
+    first = OmdbClient("key", provider_cache=cache)
+    second = OmdbClient("key", provider_cache=cache)
+
+    assert first.lookup("Toy Story 5 (2026)").imdb_rating == 7.4
+    assert second.lookup("Toy Story 5 (2026)").imdb_rating == 7.4
+    assert len(calls) == 1
+
+    query = parse_qs(urlparse(calls[0][0]).query)
+    assert query["t"] == ["Toy Story 5"]
+    assert query["y"] == ["2026"]
     assert cache.status("omdb")["requests_today"] == 1
     assert cache.status("omdb")["cache_hits_today"] == 1
