@@ -2,6 +2,10 @@
 .github
 .claude
 .venv
+node_modules/
+frontend/dist/
+playwright-report/
+test-results/
 __pycache__/
 *.py[cod]
 *.log

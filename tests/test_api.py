@@ -2,6 +2,7 @@
 
 import io
 import json
+import re
 from datetime import datetime
 
 import pytest
@@ -103,41 +104,34 @@ def test_health_is_ok():
     assert payload == {"status": "ok"}
 
 
-def test_root_serves_table_dashboard():
-    code, body = call("/")
+def test_spa_routes_serve_the_same_react_shell():
+    root_code, root_body = call("/")
+    movies_code, movies_body = call("/movies")
+    settings_code, settings_body = call("/settings")
+
+    assert root_code == movies_code == settings_code == 200
+    assert root_body == movies_body == settings_body
+    assert '<div id="root"></div>' in root_body
+    assert "/assets/" in root_body
+    assert "movie decision workstation" not in root_body.lower()
+
+
+def test_vite_asset_referenced_by_shell_is_served():
+    _, body = call("/")
+    match = re.search(r'src="(/assets/[^"]+\.js)"', body)
+    assert match is not None
+
+    code, asset = call(match.group(1))
     assert code == 200
-    assert '<table id="screening-table">' in body
-    assert '<tr id="screenings-head"></tr>' in body
-    assert 'id="saved-view-select"' in body
-    assert 'id="save-view"' in body
-    assert 'href="/movies"' in body
-    assert 'href="/settings"' in body
-    assert 'id="column-menu"' in body
-    assert 'class="filters"' not in body
+    assert isinstance(asset, str)
+    assert asset
 
 
-def test_movie_selection_page_is_served():
-    code, body = call("/movies")
-    assert code == 200
-    assert 'id="movie-grid"' in body
-    assert 'id="movie-sort"' in body
-    assert 'src="/movies.js"' in body
-
-
-def test_settings_page_is_served():
-    code, body = call("/settings")
-    assert code == 200
-    assert "Theater search" in body
-    assert 'id="location-zip"' in body
-    assert 'id="location-radius"' in body
-    assert 'id="home-address"' in body
-    assert 'id="amc-key"' in body
-    assert 'id="amc-a-list"' in body
-    assert 'id="omdb-key"' in body
-    assert 'id="omdb-usage-progress"' in body
-    assert 'id="amc-usage-progress"' in body
-    assert "Preview time by chain" in body
-    assert 'src="/settings.js"' in body
+def test_legacy_frontend_routes_are_removed():
+    for path in ("/app.js", "/movies.js", "/settings.js", "/styles.css"):
+        code, payload = call(path)
+        assert code == 404
+        assert payload["path"] == path
 
 
 def test_shared_settings_api_never_returns_saved_secret_values():

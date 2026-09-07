@@ -58,6 +58,7 @@ def enrich_movie_metadata(
                 imdb_rating=details.imdb_rating,
                 metacritic_score=details.metacritic_score,
                 rotten_tomatoes_score=details.rotten_tomatoes_score,
+                initial_release_date=details.initial_release_date,
                 letterboxd_url=details.letterboxd_url,
                 imdb_url=details.imdb_url,
                 rotten_tomatoes_url=details.rotten_tomatoes_url,

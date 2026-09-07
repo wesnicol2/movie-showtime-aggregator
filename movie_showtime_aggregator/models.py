@@ -29,6 +29,7 @@ class Screening:
     imdb_rating: float | None = None
     metacritic_score: int | None = None
     rotten_tomatoes_score: int | None = None
+    initial_release_date: str | None = None
     ticket_price: float | None = None
     seats_left_percent: float | None = None
     amc_a_list_eligible: bool | None = None
