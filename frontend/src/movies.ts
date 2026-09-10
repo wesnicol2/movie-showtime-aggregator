@@ -1,4 +1,13 @@
 import type { CheckboxOption } from "./components/CheckboxFilter";
+import {
+  activeFacetCount,
+  type CheckboxSelection,
+  compareText,
+  EMPTY_SCREENING_FACETS,
+  hasActiveFacet,
+  matchesFacets,
+  type ScreeningFacets,
+} from "./screening-facets";
 import type { Screening } from "./types";
 
 export type MovieSort =
@@ -14,16 +23,9 @@ export interface MovieOption {
   screenings: Screening[];
 }
 
-/** `null` means every value is included, so the filter is inactive. */
-export type CheckboxSelection = string[] | null;
-
-export interface MovieFilters {
+export interface MovieFilters extends ScreeningFacets {
   title: string;
   selection: CheckboxSelection;
-  theaters: CheckboxSelection;
-  chains: CheckboxSelection;
-  formats: CheckboxSelection;
-  listedWindows: CheckboxSelection;
   minimumImdb: string;
   minimumRottenTomatoes: string;
   minimumMetacritic: string;
@@ -32,12 +34,9 @@ export interface MovieFilters {
 }
 
 export const EMPTY_MOVIE_FILTERS: MovieFilters = {
+  ...EMPTY_SCREENING_FACETS,
   title: "",
   selection: null,
-  theaters: null,
-  chains: null,
-  formats: null,
-  listedWindows: null,
   minimumImdb: "",
   minimumRottenTomatoes: "",
   minimumMetacritic: "",
@@ -49,14 +48,6 @@ export const SELECTION_OPTIONS: readonly CheckboxOption[] = [
   { value: "selected", label: "Selected" },
   { value: "unselected", label: "Unselected" },
 ];
-
-/** Listed-start buckets. Listed start is a provider fact, so it is never unknown. */
-const LISTED_WINDOWS = [
-  { value: "matinee", label: "Matinee · before 12pm", firstHour: 0, lastHour: 11 },
-  { value: "afternoon", label: "Afternoon · 12–5pm", firstHour: 12, lastHour: 16 },
-  { value: "evening", label: "Evening · 5–9pm", firstHour: 17, lastHour: 20 },
-  { value: "late", label: "Late night · 9pm and later", firstHour: 21, lastHour: 23 },
-] as const;
 
 export function buildMovieOptions(screenings: readonly Screening[]): MovieOption[] {
   const unique = new Map<string, MovieOption>();
@@ -74,37 +65,16 @@ export function buildMovieOptions(screenings: readonly Screening[]): MovieOption
   return [...unique.values()];
 }
 
-export function textOptions(
-  screenings: readonly Screening[],
-  key: "theatre" | "chain" | "format",
-): CheckboxOption[] {
-  return [...new Set(screenings.map((screening) => screening[key]))]
-    .filter((value) => value !== "")
-    .sort(compareText)
-    .map((value) => ({ value, label: value }));
-}
-
-export function listedWindowOptions(screenings: readonly Screening[]): CheckboxOption[] {
-  const present = new Set(screenings.map(listedWindow));
-  return LISTED_WINDOWS.filter((window) => present.has(window.value)).map((window) => ({
-    value: window.value,
-    label: window.label,
-  }));
-}
-
-export function listedWindow(screening: Screening): string | null {
-  const hour = Number(screening.advertised_start.slice(11, 13));
-  if (!Number.isFinite(hour)) return null;
-  const match = LISTED_WINDOWS.find(
-    (window) => hour >= window.firstHour && hour <= window.lastHour,
-  );
-  return match ? match.value : null;
-}
-
 export function activeMovieFilterCount(filters: MovieFilters): number {
-  return Object.values(filters).filter((value) =>
-    value === null ? false : typeof value === "string" ? value !== "" : true,
-  ).length;
+  const text = [
+    filters.title,
+    filters.minimumImdb,
+    filters.minimumRottenTomatoes,
+    filters.minimumMetacritic,
+    filters.releasedFrom,
+    filters.releasedThrough,
+  ].filter((value) => value !== "").length;
+  return text + activeFacetCount(filters) + (filters.selection === null ? 0 : 1);
 }
 
 export function filterMovies(
@@ -130,8 +100,8 @@ function matchesMovieFilters(
   }
 
   if (
-    hasScreeningFilter(filters) &&
-    !movie.screenings.some((screening) => matchesScreeningFilters(screening, filters))
+    hasActiveFacet(filters) &&
+    !movie.screenings.some((screening) => matchesFacets(screening, filters))
   ) {
     return false;
   }
@@ -176,27 +146,6 @@ function matchesMovieFilters(
   return true;
 }
 
-function hasScreeningFilter(filters: MovieFilters): boolean {
-  return (
-    filters.theaters !== null ||
-    filters.chains !== null ||
-    filters.formats !== null ||
-    filters.listedWindows !== null
-  );
-}
-
-/** A movie survives when one of its screenings satisfies every active screening filter. */
-function matchesScreeningFilters(screening: Screening, filters: MovieFilters): boolean {
-  if (filters.theaters !== null && !filters.theaters.includes(screening.theatre)) return false;
-  if (filters.chains !== null && !filters.chains.includes(screening.chain)) return false;
-  if (filters.formats !== null && !filters.formats.includes(screening.format)) return false;
-  if (filters.listedWindows !== null) {
-    const window = listedWindow(screening);
-    if (window === null || !filters.listedWindows.includes(window)) return false;
-  }
-  return true;
-}
-
 function numberFilter(value: string): number | null {
   if (!value.trim()) return null;
   const parsed = Number(value);
@@ -236,10 +185,6 @@ export function compareMovies(
       : Number(leftValue) - Number(rightValue);
   const directed = direction === "asc" ? comparison : -comparison;
   return directed || compareText(left.movie, right.movie);
-}
-
-function compareText(left: string, right: string): number {
-  return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
 }
 
 export function sortDirectionLabel(sort: MovieSort, direction: MovieSortDirection): string {

@@ -50,6 +50,8 @@ Posters, ratings, and initial release date require an OMDb API key configured in
 
 Select titles on `/movies`, apply any desired column filters on the Screening table, then open `/plan`. The planner considers only showings that survive the active filters. An optional transfer buffer can reserve extra time beyond the static drive estimate.
 
+`/plan` also carries its own **showing filters** — checkbox menus for theater, chain, format, and listed showtime window — so candidate showings can be narrowed without returning to the table. They apply on top of the Screening column filters, and the planner context shows both counts (`N active Screening filters`, `N active showing filters`) so it stays clear which layer excluded a showing. **Clear showing filters** resets only the in-page ones.
+
 Mathematically this is a generalized traveling-salesperson problem with time windows and fixed-duration events. Because showings always move forward in time, the backend represents feasible transitions as a directed acyclic graph: an edge exists when the first movie ends early enough to drive to the next theater before its calculated actual start. Dynamic programming counts the complete solution set, and the UI pages through every feasible path without trying to hold an explosive number of combinations in memory.
 
 The planner requires configured preview time and a known runtime for every used showing. Different-theater transitions also require both theater coordinates and an OSRM route; staying at the same theater takes zero travel minutes. Drive estimates are directional and static, not live traffic.
@@ -223,7 +225,7 @@ A deployed Test environment remains the integration gate for real upstream crede
 
 - `/` — spreadsheet-style screening workstation.
 - `/movies` — poster-first Movie Selection page.
-- `/plan` — travel-aware Movie Day itinerary planner for the selected titles and active Screening filters.
+- `/plan` — travel-aware Movie Day itinerary planner for the selected titles, its own showing filters, and the active Screening filters.
 - `/settings` — browser settings plus shared server settings/integration credentials and provider usage/cache status.
 - `/api/settings` — GET public settings/provider-usage state; POST shared settings. Secret values are never returned.
 - `/api/screenings` — normalized/enriched screenings and facets. Direct API consumers can still use server-side `movie`, `theatre`, `format`, `start_after`, `start_before`, `end_by`, `preview=Chain:minutes`, `zip=`, `radius=`, and `date=` parameters; browser cookies take precedence for location/preview settings.

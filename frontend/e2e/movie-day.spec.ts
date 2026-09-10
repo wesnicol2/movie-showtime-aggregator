@@ -134,6 +134,17 @@ async function mockApi(page: Page): Promise<void> {
   });
 }
 
+/** Restrict a checkbox filter to exactly `values`, then close its menu. */
+async function keepOnly(page: Page, label: string, values: string[]): Promise<void> {
+  await page.getByRole("button", { name: `Filter by ${label.toLowerCase()}` }).click();
+  const menu = page.getByRole("dialog", { name: `${label} filter` });
+  await menu.getByRole("button", { name: "None" }).click();
+  for (const value of values) {
+    await menu.getByRole("checkbox", { name: value, exact: true }).check();
+  }
+  await menu.getByRole("button", { name: `Close ${label.toLowerCase()} filter` }).click();
+}
+
 test("selected movies become a travel-aware movie-day itinerary", async ({ page }) => {
   await mockApi(page);
   await page.goto("/plan");
@@ -148,4 +159,43 @@ test("selected movies become a travel-aware movie-day itinerary", async ({ page 
   await expect(page.getByText("OPTION 1")).toBeVisible();
   await expect(page.getByText("15 min drive")).toBeVisible();
   await expect(page.getByText("15 min spare")).toBeVisible();
+});
+
+test("showing filters narrow the showings a plan may use", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/plan");
+  await expect(page.getByText("2 eligible showings")).toBeVisible();
+  await expect(page.getByText("0 active showing filters")).toBeVisible();
+
+  await keepOnly(page, "Theater", ["AMC Center 8"]);
+  await expect(page.getByText("1 eligible showings")).toBeVisible();
+  await expect(page.getByText("1 active showing filters")).toBeVisible();
+
+  // Only the surviving showing may reach the planner.
+  await page.route("**/api/movie-day", async (route) => {
+    const request = route.request().postDataJSON();
+    expect(request.showtime_ids).toEqual(["alpha-1"]);
+    await route.fulfill({
+      json: {
+        date: "2026-09-10",
+        selected_movies: ["Alpha", "Beta"],
+        eligible_showings: 1,
+        unplannable_showings: 0,
+        missing_movies: ["Beta"],
+        total_itineraries: 0,
+        offset: 0,
+        limit: 25,
+        has_more: false,
+        minimum_buffer_minutes: request.minimum_buffer_minutes,
+        routing_available: true,
+        itineraries: [],
+      },
+    });
+  });
+  await page.getByRole("button", { name: "Find combinations" }).click();
+  await expect(page.getByText("No plannable showing remains for Beta")).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear showing filters" }).click();
+  await expect(page.getByText("2 eligible showings")).toBeVisible();
+  await expect(page.getByText("0 active showing filters")).toBeVisible();
 });

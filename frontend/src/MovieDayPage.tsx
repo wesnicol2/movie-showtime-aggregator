@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { createMovieDayPlan } from "./api";
+import { ScreeningFacetBar } from "./components/ScreeningFacetBar";
 import "./movie-day.css";
+import {
+  activeFacetCount,
+  EMPTY_SCREENING_FACETS,
+  matchesFacets,
+  type ScreeningFacets,
+} from "./screening-facets";
 import { filterAndSort, isFilterActive } from "./screenings";
 import { useAppStore } from "./store";
 import type { MovieDayItinerary, MovieDayPlanResponse, Screening } from "./types";
@@ -18,26 +25,28 @@ export function MovieDayPage() {
   const sort = useAppStore((state) => state.sort);
   const selectedMovies = useAppStore((state) => state.selectedMovies);
   const [minimumBuffer, setMinimumBuffer] = useState(0);
+  const [facets, setFacets] = useState<ScreeningFacets>(EMPTY_SCREENING_FACETS);
   const [plan, setPlan] = useState<MovieDayPlanResponse | null>(null);
   const [planSignature, setPlanSignature] = useState("");
   const [planError, setPlanError] = useState<string | null>(null);
   const [planning, setPlanning] = useState(false);
 
+  const allScreenings = useMemo(() => response?.screenings ?? [], [response]);
   const eligibleScreenings = useMemo(() => {
     const selected = new Set(selectedMovies);
-    return filterAndSort(response?.screenings ?? [], filters, sort).filter((screening) =>
-      selected.has(screening.movie),
+    return filterAndSort(allScreenings, filters, sort).filter(
+      (screening) => selected.has(screening.movie) && matchesFacets(screening, facets),
     );
-  }, [filters, response, selectedMovies, sort]);
+  }, [allScreenings, facets, filters, selectedMovies, sort]);
   const screeningById = useMemo(
-    () =>
-      new Map((response?.screenings ?? []).map((screening) => [screening.showtime_id, screening])),
-    [response],
+    () => new Map(allScreenings.map((screening) => [screening.showtime_id, screening])),
+    [allScreenings],
   );
   const activeFilterCount = Object.values(filters).filter(isFilterActive).length;
-  const inputSignature = `${minimumBuffer}|${selectedMovies.join("|")}|${eligibleScreenings
-    .map((screening) => screening.showtime_id)
-    .join("|")}`;
+  const activeShowingFilters = activeFacetCount(facets);
+  const inputSignature = `${minimumBuffer}|${activeShowingFilters}|${selectedMovies.join(
+    "|",
+  )}|${eligibleScreenings.map((screening) => screening.showtime_id).join("|")}`;
 
   useEffect(() => {
     if (plan && planSignature !== inputSignature) setPlan(null);
@@ -101,6 +110,8 @@ export function MovieDayPage() {
         </div>
       </div>
 
+      <ScreeningFacetBar facets={facets} screenings={allScreenings} onChange={setFacets} />
+
       {status === "loading" ? (
         <div className="status-strip">Loading today’s screenings…</div>
       ) : null}
@@ -127,11 +138,12 @@ export function MovieDayPage() {
             <span>{formatDate(response.date)}</span>
             <span>{eligibleScreenings.length} eligible showings</span>
             <span>{activeFilterCount} active Screening filters</span>
+            <span>{activeShowingFilters} active showing filters</span>
           </div>
           <p>
-            The current Screening column filters determine which showings may be used. Actual start,
-            runtime, and static theater-to-theater drive time determine whether each connection
-            fits.
+            The showing filters above and the current Screening column filters together determine
+            which showings may be used. Actual start, runtime, and static theater-to-theater drive
+            time determine whether each connection fits.
           </p>
         </div>
       ) : null}

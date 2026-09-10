@@ -43,60 +43,6 @@
   align-items: end;
 }
 
-.checkbox-filter {
-  position: relative;
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.checkbox-filter > span {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.checkbox-filter-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  width: 100%;
-  min-height: 34px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: normal;
-  text-align: left;
-  text-transform: none;
-}
-
-.checkbox-filter-trigger.active {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.checkbox-filter-summary {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Anchored to its own field so a wide shared `.filter-menu` cannot overflow the page. */
-.movie-filter-bar .checkbox-filter-menu {
-  top: calc(100% + 4px);
-  right: auto;
-  left: 0;
-  width: 100%;
-  min-width: 0;
-  font-size: 12px;
-}
-
 .movie-sort-value {
   min-height: 16px;
   overflow: hidden;
@@ -133,18 +79,5 @@
   .movie-filter-field.title-filter,
   .movie-filter-actions {
     grid-column: auto;
-  }
-}
-
-@media (max-width: 680px) {
-  .movie-filter-bar .checkbox-filter-menu {
-    position: fixed;
-    top: auto;
-    right: 8px;
-    bottom: 8px;
-    left: 8px;
-    width: auto;
-    max-height: 78vh;
-    overflow: auto;
   }
 }

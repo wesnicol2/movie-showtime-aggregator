@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import "./checkbox-filter.css";
+
 export interface CheckboxOption {
   value: string;
   label: string;

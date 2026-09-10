@@ -2,13 +2,11 @@ import { useMemo, useState } from "react";
 
 import {
   activeMovieFilterCount,
-  type CheckboxSelection,
   EMPTY_MOVIE_FILTERS,
-  listedWindowOptions,
   type MovieFilters,
   SELECTION_OPTIONS,
-  textOptions,
 } from "../movies";
+import { type CheckboxSelection, listedWindowOptions, textOptions } from "../screening-facets";
 import type { Screening } from "../types";
 import { CheckboxFilter } from "./CheckboxFilter";
 
