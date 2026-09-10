@@ -69,7 +69,7 @@ Optional enrichment APIs are protected by a persistent SQLite cache and request 
 
 Current cache policy is intentionally conservative about request usage:
 
-- OMDb successful title lookups: 7 days; missing-title responses: 6 hours. The app enforces a hard 1,000-request UTC-day budget before making an upstream call.
+- OMDb records with all three ratings: 7 days; matched records missing any rating, search results, and missing-title responses: 6 hours. Versioned cache keys force the corrected partial-rating policy to take effect immediately after deployment. The app enforces a hard 1,000-request UTC-day budget before making an upstream call.
 - AMC current-location showtime pages: 5 minutes.
 - AMC theatre metadata: 30 days.
 - AMC reserved-seat layouts: 5 minutes because availability is dynamic.
