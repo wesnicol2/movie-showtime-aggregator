@@ -210,7 +210,9 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
             "earliest_start": (
                 earliest_start.isoformat(timespec="minutes") if earliest_start is not None else None
             ),
-            "latest_end": latest_end.isoformat(timespec="minutes") if latest_end is not None else None,
+            "latest_end": latest_end.isoformat(timespec="minutes")
+            if latest_end is not None
+            else None,
             "minimum_buffer_minutes": minimum_buffer_minutes,
             "routing_available": routing_available,
         }
