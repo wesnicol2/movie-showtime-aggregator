@@ -49,7 +49,7 @@ Keep component boundaries clear. Avoid monolithic page files and avoid using mod
 
 ## Product surfaces
 
-The product has three intentional user-facing surfaces.
+The product has four intentional user-facing surfaces.
 
 ### Screening table
 
@@ -68,7 +68,27 @@ New data should normally become another ordinary typed column rather than a spec
 
 `/movies` is a poster-first, dark Now Playing grid inspired by the supplied AMC mobile layout. The poster tile itself is the checkbox; it should not become a detail-heavy card grid. The page may expose compact local filters and sorting controls, but posters remain the visual focus. When sorting by a field, show that field's value directly under each title so the ordering is auditable. Initial release date is one supported sort/filter dimension and must come from backend metadata rather than frontend inference.
 
+Discrete dimensions on this page are multi-value checkbox filters (selection state, theater, chain, format, listed showtime window) sharing the table's All/None value-menu vocabulary; open-ended ones stay typed inputs. The screening-derived facets come from `screening-facets.ts`, shared with Movie Day so both pages bucket listed time identically. `null` means every value is included, so an untouched filter is inactive and an emptied one legitimately matches nothing. Theater, chain, format, and listed time constrain screenings rather than movies: a movie survives when one of its screenings satisfies every active screening filter, so combining them answers "can I actually watch this here, in this format, at this time of day."
+
+Listed showtime windows bucket the provider's listed start, never the calculated actual start, so they stay defined when preview minutes are unconfigured. New movie-page dimensions should normally become another checkbox filter over base screening facts rather than a bespoke control.
+
 The selected movie titles live in browser local storage and are also the source of truth for the table's Movie exact-value filter. Changes from either surface should stay synchronized. This is browser convenience state, not an account/profile system.
+
+### Movie Day
+
+`/plan` consumes the browser's selected movie pool and the already-loaded screenings that survive the current table column filters. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
+
+Movie Day keeps its planning inputs together in one compact control grid. The searchable **Movies** checkbox menu edits the same browser-persistent selection used by `/movies` and the table. Theater, chain, format, and listed-time controls are checkbox-only showing facets from `screening-facets.ts`; they narrow candidate showings in addition to the table's richer column filters rather than replacing them. The grid also owns exact **Watch** count, Start, End, sort objective, transfer buffer, and the planning action. Do not split these back into disconnected header controls, a separate showing-filter strip, and passive selected-movie chips.
+
+The larger mathematical problem is a cardinality-constrained time-window routing problem, closely related to selective TSP/orienteering with fixed-duration appointments. Showings have a stronger forward-time structure than a generic TSP: represent them as nodes in a directed acyclic graph and add an edge only when a movie can end, travel to the next theater, include the requested transfer buffer, and reach the next calculated actual start.
+
+**Watch is exact cardinality.** With `N` selected candidates and target `K`, every itinerary contains exactly one showing from exactly `K` distinct selected movies. When `K < N`, different feasible paths may omit different movies; do not pre-drop a fixed subset before solving. Keep the selected-pool cap at 10 unless the graph construction and combinatorial state growth are deliberately redesigned and benchmarked.
+
+Start and End are planner constraints over canonical calculated timing: a used showing's actual start cannot precede Start, and its calculated end cannot exceed End. The UI may interpret an End clock time at or before a supplied Start as the following date, but the API accepts complete local datetimes and the backend compares those complete datetimes. Do not regress this to clock-only comparisons.
+
+Dynamic programming counts exact feasible completions from `(showing, visited-movie-mask)` states and prunes paths that cannot reach the requested cardinality. Result ordering is a separate backend responsibility: best-first traversal uses monotone partial lower bounds so **Minimum time** globally orders complete itineraries by first actual start through final calculated end, while **Minimum driving** globally orders by theater-to-theater drive minutes with elapsed time as the next tie-breaker. Pagination must reflect that global order; never sort only the browser's current page.
+
+Same-theater transitions take zero minutes. Different-theater transitions use directional OSRM drive time and require coordinates/routes. Unknown preview or runtime makes that showing unplannable; missing cross-theater routing makes that transition infeasible. When Watch is smaller than the selected pool, missing/unplannable movies are not fatal unless fewer than `K` distinct movies remain. Each returned itinerary identifies which selected movies it omitted.
 
 ### Settings
 
@@ -143,6 +163,8 @@ Do not scrape AMC checkout pages as a fallback for price or seat availability. N
 
 `routing.py` uses OpenStreetMap Nominatim to geocode the saved home address and public OSRM for static driving durations. Geocode once when Settings saves the address; persist the resulting coordinates. Route estimates are cached in-process by home/destination coordinates.
 
+Movie Day routing uses OSRM's table service for a directional all-theater matrix and caches individual directed legs in-process. Preserve the one-call matrix behavior for the normal case rather than issuing one route request for each possible itinerary transition.
+
 These are rough static drive estimates, not live traffic. Source links for Leave home / Back home should open the underlying OpenStreetMap/OSRM route.
 
 ## Cell-level provenance
@@ -188,6 +210,7 @@ See `CONTRIBUTING.md` for the full promotion contract.
 - Preview/trailer time is user knowledge, not a provider fact. It belongs in Settings and remains unknown until configured.
 - Preview configuration briefly lived inside the Chain filter menu. It was intentionally moved out.
 - The first UI used standalone filter panels. Product direction changed to an Excel-style table where headers own sorting/filtering.
+- Movie Day originally required every selected movie and enumerated in graph order. It intentionally became a cardinality-constrained optimizer so a user can ask for `K` of `N` movies and rank the complete solution set by minimum elapsed time or minimum theater-to-theater driving.
 - Time filtering once compared clock values and broke next-day rows. Always compare full datetimes.
 - Ratings/posters are enrichment, not a dependency of screening retrieval.
 - AMC price/A-List/seats should use the official AMC API and fail to Unknown rather than rely on checkout scraping.
