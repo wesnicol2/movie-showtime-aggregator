@@ -38,13 +38,19 @@ Known external values are source links:
 
 Open `/movies` or use **Movies** in the application navigation. The page is a dark, poster-first grid inspired by a theater-app Now Playing screen. The poster itself is the selection control; selecting or deselecting a movie immediately updates the browser-persistent Movie filter used by the screening table.
 
-Movie Selection has local filters for title, selected/unselected status, minimum IMDb/Rotten Tomatoes/Metacritic ratings, and initial release date. It can sort in either direction by title, initial release date, IMDb, Rotten Tomatoes, or Metacritic. The active sort field and value are shown under every title so the current ordering is visible without opening a detail view.
+Movie Selection has local filters for title, minimum IMDb/Rotten Tomatoes/Metacritic ratings, and initial release date, plus multi-value checkbox filters for selection state, theater, chain, format, and listed showtime window (matinee, afternoon, evening, late night). Each checkbox filter opens the same **All** / **None** / per-value checkbox menu the screening table uses, and reads `All` until you narrow it.
+
+Theater, chain, format, and listed-time checkboxes describe screenings rather than movies, so a movie stays visible while at least one of its screenings matches every active screening filter — selecting `AMC Center 8` and a late-night window keeps only movies that actually play late at that theater. Listed showtime windows come from the provider's listed start time, not the calculated actual start, so they never depend on configured preview minutes.
+
+Movie Selection can sort in either direction by title, initial release date, IMDb, Rotten Tomatoes, or Metacritic. The active sort field and value are shown under every title so the current ordering is visible without opening a detail view.
 
 Posters, ratings, and initial release date require an OMDb API key configured in Settings. The backend normalizes OMDb's `Released` value for the release-date sort/filter; unavailable values remain `Unknown`. The page and the core showtime table still work when that metadata is unavailable.
 
 ## Movie Day planner
 
 Select titles on `/movies`, apply any desired column filters on the Screening table, then open `/plan`. The planner considers only showings that survive the active filters. An optional transfer buffer can reserve extra time beyond the static drive estimate.
+
+`/plan` also carries its own **showing filters** — checkbox menus for theater, chain, format, and listed showtime window — so candidate showings can be narrowed without returning to the table. They apply on top of the Screening column filters, and the planner context shows both counts (`N active Screening filters`, `N active showing filters`) so it stays clear which layer excluded a showing. **Clear showing filters** resets only the in-page ones.
 
 Mathematically this is a generalized traveling-salesperson problem with time windows and fixed-duration events. Because showings always move forward in time, the backend represents feasible transitions as a directed acyclic graph: an edge exists when the first movie ends early enough to drive to the next theater before its calculated actual start. Dynamic programming counts the complete solution set, and the UI pages through every feasible path without trying to hold an explosive number of combinations in memory.
 
@@ -219,7 +225,7 @@ A deployed Test environment remains the integration gate for real upstream crede
 
 - `/` — spreadsheet-style screening workstation.
 - `/movies` — poster-first Movie Selection page.
-- `/plan` — travel-aware Movie Day itinerary planner for the selected titles and active Screening filters.
+- `/plan` — travel-aware Movie Day itinerary planner for the selected titles, its own showing filters, and the active Screening filters.
 - `/settings` — browser settings plus shared server settings/integration credentials and provider usage/cache status.
 - `/api/settings` — GET public settings/provider-usage state; POST shared settings. Secret values are never returned.
 - `/api/screenings` — normalized/enriched screenings and facets. Direct API consumers can still use server-side `movie`, `theatre`, `format`, `start_after`, `start_before`, `end_by`, `preview=Chain:minutes`, `zip=`, `radius=`, and `date=` parameters; browser cookies take precedence for location/preview settings.

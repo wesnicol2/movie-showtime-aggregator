@@ -68,11 +68,17 @@ New data should normally become another ordinary typed column rather than a spec
 
 `/movies` is a poster-first, dark Now Playing grid inspired by the supplied AMC mobile layout. The poster tile itself is the checkbox; it should not become a detail-heavy card grid. The page may expose compact local filters and sorting controls, but posters remain the visual focus. When sorting by a field, show that field's value directly under each title so the ordering is auditable. Initial release date is one supported sort/filter dimension and must come from backend metadata rather than frontend inference.
 
+Discrete dimensions on this page are multi-value checkbox filters (selection state, theater, chain, format, listed showtime window) sharing the table's All/None value-menu vocabulary; open-ended ones stay typed inputs. The screening-derived facets come from `screening-facets.ts`, shared with Movie Day so both pages bucket listed time identically. `null` means every value is included, so an untouched filter is inactive and an emptied one legitimately matches nothing. Theater, chain, format, and listed time constrain screenings rather than movies: a movie survives when one of its screenings satisfies every active screening filter, so combining them answers "can I actually watch this here, in this format, at this time of day."
+
+Listed showtime windows bucket the provider's listed start, never the calculated actual start, so they stay defined when preview minutes are unconfigured. New movie-page dimensions should normally become another checkbox filter over base screening facts rather than a bespoke control.
+
 The selected movie titles live in browser local storage and are also the source of truth for the table's Movie exact-value filter. Changes from either surface should stay synchronized. This is browser convenience state, not an account/profile system.
 
 ### Movie Day
 
-`/plan` consumes the browser's selected movie titles and the already-loaded screenings that survive the current table column filters. It does not own a second screening-filter system. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
+`/plan` consumes the browser's selected movie titles and the already-loaded screenings that survive the current table column filters. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
+
+The page also owns a compact bar of exact-value showing filters (theater, chain, format, listed showtime window) because narrowing candidate showings otherwise means leaving the planner for the table. These deliberately do **not** reimplement the table's rule system: they are checkbox-only facets from `screening-facets.ts`, rendered by the same `CheckboxFilter` component the Movies page uses, and they narrow *in addition to* the column filters rather than replacing them. Both counts stay visible so it is obvious which layer excluded a showing. Anything richer than exact values belongs in the table's column menus, not here.
 
 The larger mathematical problem is a generalized traveling-salesperson problem with time windows and fixed-duration events. Use its stronger time-order structure: represent showings as nodes in a directed acyclic graph and add an edge only when a movie can end, travel to the next theater, include the requested transfer buffer, and reach the next calculated actual start. Dynamic programming should count paths and skip whole subtrees for pagination; do not materialize the Cartesian product of showings in the browser or return only an unexplained arbitrary subset.
 
