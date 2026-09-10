@@ -2,7 +2,11 @@ import json
 from typing import ClassVar
 from urllib.parse import parse_qs, urlparse
 
-from movie_showtime_aggregator.metadata import OmdbClient, _parse_payload
+from movie_showtime_aggregator.metadata import (
+    OMDB_PARTIAL_CACHE_TTL_SECONDS,
+    OmdbClient,
+    _parse_payload,
+)
 from movie_showtime_aggregator.provider_cache import ProviderCache
 
 
@@ -76,6 +80,55 @@ def test_omdb_persistent_cache_avoids_request_after_client_recreation(monkeypatc
     assert "y" not in query
     assert cache.status("omdb")["requests_today"] == 1
     assert cache.status("omdb")["cache_hits_today"] == 1
+
+
+def test_partial_rating_payload_refreshes_after_short_ttl(monkeypatch, tmp_path):
+    calls = []
+    now = [1_800_000_000.0]
+
+    class FakeResponse:
+        headers: ClassVar[dict[str, str]] = {}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def read(self):
+            rating = "N/A" if len(calls) == 1 else "8.1"
+            return json.dumps(
+                {
+                    "Response": "True",
+                    "Title": "Test Movie",
+                    "imdbID": "tt1234567",
+                    "imdbRating": rating,
+                    "Metascore": "N/A",
+                    "Ratings": [],
+                }
+            ).encode()
+
+    def fake_urlopen(request, timeout):
+        calls.append((request.full_url, timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr("movie_showtime_aggregator.metadata.urllib.request.urlopen", fake_urlopen)
+    cache = ProviderCache(tmp_path / "provider-cache.sqlite3", clock=lambda: now[0])
+
+    first = OmdbClient("key", provider_cache=cache)
+    assert first.lookup("Test Movie", source_id="246821").imdb_rating is None
+    assert (
+        OmdbClient("key", provider_cache=cache).lookup("Test Movie", source_id="246821").imdb_rating
+        is None
+    )
+    assert len(calls) == 1
+
+    now[0] += OMDB_PARTIAL_CACHE_TTL_SECONDS + 1
+    refreshed = OmdbClient("key", provider_cache=cache).lookup("Test Movie", source_id="246821")
+
+    assert refreshed.imdb_rating == 8.1
+    assert len(calls) == 2
+    assert parse_qs(urlparse(calls[1][0]).query)["i"] == ["tt1234567"]
 
 
 def test_year_suffix_is_split_into_title_and_year_and_bypasses_old_negative_cache(
@@ -250,6 +303,55 @@ def test_wrong_old_same_title_is_rejected_then_search_selects_nearby_year(monkey
 
     assert resolved.imdb_id == "tt36361934"
     assert not any(query.get("i") == ["tt0088933"] for query in calls)
+
+
+def test_close_runtime_difference_does_not_reject_confident_nearby_year_match(
+    monkeypatch,
+    tmp_path,
+):
+    calls = []
+
+    class FakeResponse:
+        headers: ClassVar[dict[str, str]] = {}
+
+        def __init__(self, payload):
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def read(self):
+            return json.dumps(self.payload).encode()
+
+    def fake_urlopen(request, timeout):
+        query = parse_qs(urlparse(request.full_url).query)
+        calls.append(query)
+        if query.get("y") == ["2026"]:
+            payload = {"Response": "False", "Error": "Movie not found!"}
+        else:
+            payload = {
+                "Response": "True",
+                "Title": "Cocoon: One Summer of Girlhood",
+                "Year": "2025",
+                "Runtime": "63 min",
+                "imdbID": "tt36361934",
+            }
+        return FakeResponse(payload)
+
+    monkeypatch.setattr("movie_showtime_aggregator.metadata.urllib.request.urlopen", fake_urlopen)
+    client = OmdbClient("key", provider_cache=ProviderCache(tmp_path / "provider-cache.sqlite3"))
+
+    resolved = client.lookup(
+        "cocoon - One Summer of Girlhood (2026)",
+        source_id="246275",
+        runtime_minutes=85,
+    )
+
+    assert resolved.imdb_id == "tt36361934"
+    assert len(calls) == 2
 
 
 def test_release_qualifier_can_resolve_original_movie_across_large_year_gap(monkeypatch, tmp_path):

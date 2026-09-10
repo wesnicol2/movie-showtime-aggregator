@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import replace
 from datetime import date
@@ -9,6 +10,8 @@ from .location import GeoPoint
 from .metadata import MetadataError, MovieMetadata, OmdbClient
 from .models import Screening, apply_travel_minutes
 from .routing import OsrmRouter, RoutingError
+
+LOGGER = logging.getLogger(__name__)
 
 
 def enrich_movie_metadata(
@@ -40,7 +43,14 @@ def enrich_movie_metadata(
             identity = futures[future]
             try:
                 metadata[identity] = future.result()
-            except (MetadataError, ValueError):
+            except (MetadataError, ValueError) as exc:
+                LOGGER.warning(
+                    "OMDb enrichment failed for source_id=%s title=%r runtime=%s: %s",
+                    identity[0],
+                    identity[1],
+                    identity[2],
+                    exc,
+                )
                 continue
 
     enriched: list[Screening] = []
