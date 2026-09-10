@@ -93,6 +93,8 @@ export interface ScreeningsResponse {
   screenings: Screening[];
 }
 
+export type MovieDaySort = "elapsed" | "driving";
+
 export interface MovieDayLeg {
   from_showtime_id: string;
   to_showtime_id: string;
@@ -105,6 +107,8 @@ export interface MovieDayLeg {
 
 export interface MovieDayItinerary {
   showtime_ids: string[];
+  movies: string[];
+  dropped_movies: string[];
   starts_at: string;
   ends_at: string;
   elapsed_minutes: number;
@@ -117,6 +121,11 @@ export interface MovieDayItinerary {
 export interface MovieDayPlanResponse {
   date: string;
   selected_movies: string[];
+  target_movie_count: number;
+  plannable_movie_count: number;
+  sort_by: MovieDaySort;
+  earliest_start: string | null;
+  latest_end: string | null;
   eligible_showings: number;
   unplannable_showings: number;
   missing_movies: string[];
@@ -133,6 +142,10 @@ export interface MovieDayPlanRequest {
   date: string;
   movies: string[];
   showtime_ids: string[];
+  target_movie_count: number;
+  sort_by: MovieDaySort;
+  earliest_start?: string | null;
+  latest_end?: string | null;
   minimum_buffer_minutes: number;
   offset?: number;
   limit?: number;

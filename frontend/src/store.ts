@@ -91,6 +91,7 @@ interface AppState {
   updateFilter: (key: ColumnKey, patch: Partial<ColumnFilter>) => void;
   clearAllFilters: () => void;
   toggleMovie: (movie: string) => void;
+  setMovieSelection: (movies: string[]) => void;
   syncMovieSelection: () => void;
   setInspectedShowtimeId: (showtimeId: string | null) => void;
   applySavedView: (view: SavedView) => void;
@@ -138,6 +139,22 @@ export const useAppStore = create<AppState>((set) => ({
       const selectedMovies = state.selectedMovies.includes(movie)
         ? state.selectedMovies.filter((value) => value !== movie)
         : [...state.selectedMovies, movie].sort();
+      persistMovieSelection(selectedMovies);
+      return {
+        selectedMovies,
+        filters: {
+          ...state.filters,
+          movie: {
+            ...state.filters.movie,
+            selected: selectedMovies.length > 0 ? selectedMovies : null,
+          },
+        },
+      };
+    }),
+
+  setMovieSelection: (movies: string[]) =>
+    set((state) => {
+      const selectedMovies = [...new Set(movies)].sort();
       persistMovieSelection(selectedMovies);
       return {
         selectedMovies,

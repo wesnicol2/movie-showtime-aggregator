@@ -76,13 +76,19 @@ The selected movie titles live in browser local storage and are also the source 
 
 ### Movie Day
 
-`/plan` consumes the browser's selected movie titles and the already-loaded screenings that survive the current table column filters. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
+`/plan` consumes the browser's selected movie pool and the already-loaded screenings that survive the current table column filters. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
 
-The page also owns a compact bar of exact-value showing filters (theater, chain, format, listed showtime window) because narrowing candidate showings otherwise means leaving the planner for the table. These deliberately do **not** reimplement the table's rule system: they are checkbox-only facets from `screening-facets.ts`, rendered by the same `CheckboxFilter` component the Movies page uses, and they narrow *in addition to* the column filters rather than replacing them. Both counts stay visible so it is obvious which layer excluded a showing. Anything richer than exact values belongs in the table's column menus, not here.
+Movie Day keeps its planning inputs together in one compact control grid. The searchable **Movies** checkbox menu edits the same browser-persistent selection used by `/movies` and the table. Theater, chain, format, and listed-time controls are checkbox-only showing facets from `screening-facets.ts`; they narrow candidate showings in addition to the table's richer column filters rather than replacing them. The grid also owns exact **Watch** count, Start, End, sort objective, transfer buffer, and the planning action. Do not split these back into disconnected header controls, a separate showing-filter strip, and passive selected-movie chips.
 
-The larger mathematical problem is a generalized traveling-salesperson problem with time windows and fixed-duration events. Use its stronger time-order structure: represent showings as nodes in a directed acyclic graph and add an edge only when a movie can end, travel to the next theater, include the requested transfer buffer, and reach the next calculated actual start. Dynamic programming should count paths and skip whole subtrees for pagination; do not materialize the Cartesian product of showings in the browser or return only an unexplained arbitrary subset.
+The larger mathematical problem is a cardinality-constrained time-window routing problem, closely related to selective TSP/orienteering with fixed-duration appointments. Showings have a stronger forward-time structure than a generic TSP: represent them as nodes in a directed acyclic graph and add an edge only when a movie can end, travel to the next theater, include the requested transfer buffer, and reach the next calculated actual start.
 
-Every itinerary contains exactly one showing of every selected movie. Same-theater transitions take zero minutes. Different-theater transitions use directional OSRM drive time and require coordinates/routes. Unknown preview or runtime makes that showing unplannable; missing cross-theater routing makes that transition infeasible. Keep those exclusions visible instead of assuming values.
+**Watch is exact cardinality.** With `N` selected candidates and target `K`, every itinerary contains exactly one showing from exactly `K` distinct selected movies. When `K < N`, different feasible paths may omit different movies; do not pre-drop a fixed subset before solving. Keep the selected-pool cap at 10 unless the graph construction and combinatorial state growth are deliberately redesigned and benchmarked.
+
+Start and End are planner constraints over canonical calculated timing: a used showing's actual start cannot precede Start, and its calculated end cannot exceed End. The UI may interpret an End clock time at or before a supplied Start as the following date, but the API accepts complete local datetimes and the backend compares those complete datetimes. Do not regress this to clock-only comparisons.
+
+Dynamic programming counts exact feasible completions from `(showing, visited-movie-mask)` states and prunes paths that cannot reach the requested cardinality. Result ordering is a separate backend responsibility: best-first traversal uses monotone partial lower bounds so **Minimum time** globally orders complete itineraries by first actual start through final calculated end, while **Minimum driving** globally orders by theater-to-theater drive minutes with elapsed time as the next tie-breaker. Pagination must reflect that global order; never sort only the browser's current page.
+
+Same-theater transitions take zero minutes. Different-theater transitions use directional OSRM drive time and require coordinates/routes. Unknown preview or runtime makes that showing unplannable; missing cross-theater routing makes that transition infeasible. When Watch is smaller than the selected pool, missing/unplannable movies are not fatal unless fewer than `K` distinct movies remain. Each returned itinerary identifies which selected movies it omitted.
 
 ### Settings
 
@@ -202,6 +208,7 @@ See `CONTRIBUTING.md` for the full promotion contract.
 - Preview/trailer time is user knowledge, not a provider fact. It belongs in Settings and remains unknown until configured.
 - Preview configuration briefly lived inside the Chain filter menu. It was intentionally moved out.
 - The first UI used standalone filter panels. Product direction changed to an Excel-style table where headers own sorting/filtering.
+- Movie Day originally required every selected movie and enumerated in graph order. It intentionally became a cardinality-constrained optimizer so a user can ask for `K` of `N` movies and rank the complete solution set by minimum elapsed time or minimum theater-to-theater driving.
 - Time filtering once compared clock values and broke next-day rows. Always compare full datetimes.
 - Ratings/posters are enrichment, not a dependency of screening retrieval.
 - AMC price/A-List/seats should use the official AMC API and fail to Unknown rather than rely on checkout scraping.

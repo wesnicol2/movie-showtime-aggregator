@@ -37,7 +37,7 @@ def screening(
     )
 
 
-def test_planner_enumerates_each_feasible_time_order_with_directed_travel():
+def test_planner_globally_sorts_feasible_itineraries_by_minimum_elapsed_time():
     screenings = [
         screening("a-morning", "Alpha", 9, 0, 120),
         screening("a-night", "Alpha", 20, 0, 120),
@@ -51,17 +51,18 @@ def test_planner_enumerates_each_feasible_time_order_with_directed_travel():
 
     assert plan.total_itineraries == 5
     assert [itinerary.showtime_ids for itinerary in plan.itineraries] == [
-        ("b-early", "a-morning"),
-        ("b-early", "a-night"),
         ("a-morning", "b-midday"),
-        ("a-morning", "b-night"),
+        ("b-early", "a-morning"),
         ("b-midday", "a-night"),
+        ("a-morning", "b-night"),
+        ("b-early", "a-night"),
     ]
-    midday = plan.itineraries[2]
-    assert midday.travel_minutes == 15
-    assert midday.legs[0].gap_minutes == 20
-    assert midday.waiting_minutes == 5
-    assert "openstreetmap.org/directions" in midday.legs[0].route_source_url
+    shortest = plan.itineraries[0]
+    assert shortest.elapsed_minutes == 240
+    assert shortest.travel_minutes == 15
+    assert shortest.legs[0].gap_minutes == 20
+    assert shortest.waiting_minutes == 5
+    assert "openstreetmap.org/directions" in shortest.legs[0].route_source_url
 
 
 def test_three_movie_day_combines_morning_and_night_showings():
@@ -76,15 +77,11 @@ def test_three_movie_day_combines_morning_and_night_showings():
     plan = plan_movie_day(screenings, ["Alpha", "Beta", "Gamma"], {})
 
     assert plan.total_itineraries == 4
-    assert [itinerary.showtime_ids for itinerary in plan.itineraries] == [
-        ("a-morning", "b-morning", "c-night"),
-        ("a-morning", "b-night", "c-night"),
-        ("b-morning", "a-night", "c-night"),
-        ("a-night", "b-night", "c-night"),
-    ]
+    assert all(len(itinerary.movies) == 3 for itinerary in plan.itineraries)
+    assert plan.itineraries[0].showtime_ids == ("a-night", "b-night", "c-night")
 
 
-def test_planner_paginates_without_losing_the_exact_combination_count():
+def test_planner_paginates_in_global_rank_order_without_losing_exact_count():
     screenings = [
         screening("a-1", "Alpha", 9, 0, 60),
         screening("a-2", "Alpha", 12, 0, 60),
@@ -95,8 +92,73 @@ def test_planner_paginates_without_losing_the_exact_combination_count():
     plan = plan_movie_day(screenings, ["Alpha", "Beta"], {}, offset=1, limit=1)
 
     assert plan.total_itineraries == 4
-    assert [itinerary.showtime_ids for itinerary in plan.itineraries] == [("a-1", "b-2")]
+    assert [itinerary.showtime_ids for itinerary in plan.itineraries] == [("a-2", "b-2")]
     assert plan.to_dict()["has_more"] is True
+
+
+def test_minimum_driving_sort_can_prefer_a_longer_same_theater_day():
+    screenings = [
+        screening("a", "Alpha", 9, 0, 60),
+        screening("b-fast", "Beta", 10, 30, 60, theatre="Theater B", point=POINT_B),
+        screening("b-local", "Beta", 12, 0, 60),
+    ]
+    travel = {(POINT_A, POINT_B): 15, (POINT_B, POINT_A): 18}
+
+    plan = plan_movie_day(screenings, ["Alpha", "Beta"], travel, sort_by="driving")
+
+    assert [itinerary.showtime_ids for itinerary in plan.itineraries] == [
+        ("a", "b-local"),
+        ("a", "b-fast"),
+    ]
+    assert plan.itineraries[0].travel_minutes == 0
+    assert plan.itineraries[0].elapsed_minutes > plan.itineraries[1].elapsed_minutes
+
+
+def test_target_movie_count_allows_each_itinerary_to_drop_different_movies():
+    screenings = [
+        screening("a", "Alpha", 9, 0, 60),
+        screening("b", "Beta", 10, 10, 60),
+        screening("c", "Gamma", 18, 0, 60),
+    ]
+
+    plan = plan_movie_day(
+        screenings,
+        ["Alpha", "Beta", "Gamma"],
+        {},
+        target_movie_count=2,
+        sort_by="elapsed",
+    )
+
+    assert plan.target_movie_count == 2
+    assert plan.total_itineraries == 3
+    assert plan.itineraries[0].movies == ("Alpha", "Beta")
+    assert plan.itineraries[0].dropped_movies == ("Gamma",)
+    assert {itinerary.dropped_movies for itinerary in plan.itineraries} == {
+        ("Alpha",),
+        ("Beta",),
+        ("Gamma",),
+    }
+
+
+def test_start_and_end_bounds_apply_to_actual_start_and_calculated_end():
+    screenings = [
+        screening("early", "Alpha", 8, 30, 60),
+        screening("middle", "Beta", 10, 0, 60),
+        screening("late", "Gamma", 16, 30, 90),
+    ]
+
+    plan = plan_movie_day(
+        screenings,
+        ["Alpha", "Beta", "Gamma"],
+        {},
+        target_movie_count=1,
+        earliest_start=datetime(2026, 9, 10, 9, 0),
+        latest_end=datetime(2026, 9, 10, 17, 0),
+    )
+
+    assert plan.total_itineraries == 1
+    assert plan.itineraries[0].movies == ("Beta",)
+    assert plan.missing_movies == ("Alpha", "Gamma")
 
 
 def test_same_theater_needs_no_coordinates_or_route_lookup():
@@ -111,12 +173,16 @@ def test_same_theater_needs_no_coordinates_or_route_lookup():
     assert plan.itineraries[0].travel_minutes == 0
 
 
-def test_unknown_preview_or_runtime_explains_why_a_movie_cannot_be_planned():
+def test_unknown_preview_or_runtime_only_blocks_required_cardinality():
     alpha = screening("a", "Alpha", 9, 0, 60)
     beta = replace(screening("b", "Beta", 11, 0, 60), actual_start=None, estimated_end=None)
 
-    plan = plan_movie_day([alpha, beta], ["Alpha", "Beta"], {})
+    all_required = plan_movie_day([alpha, beta], ["Alpha", "Beta"], {})
+    flexible = plan_movie_day([alpha, beta], ["Alpha", "Beta"], {}, target_movie_count=1)
 
-    assert plan.total_itineraries == 0
-    assert plan.missing_movies == ("Beta",)
-    assert plan.unplannable_showings == 1
+    assert all_required.total_itineraries == 0
+    assert all_required.missing_movies == ("Beta",)
+    assert all_required.unplannable_showings == 1
+    assert flexible.total_itineraries == 1
+    assert flexible.itineraries[0].movies == ("Alpha",)
+    assert flexible.itineraries[0].dropped_movies == ("Beta",)
