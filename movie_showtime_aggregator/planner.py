@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import heapq
 from dataclasses import dataclass
 from datetime import datetime
 from functools import cache
@@ -7,6 +8,10 @@ from functools import cache
 from .location import GeoPoint
 from .models import Screening
 from .routing import route_source_url
+
+SORT_ELAPSED = "elapsed"
+SORT_DRIVING = "driving"
+SORT_MODES = {SORT_ELAPSED, SORT_DRIVING}
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +39,8 @@ class MovieDayLeg:
 @dataclass(frozen=True, slots=True)
 class MovieDayItinerary:
     showtime_ids: tuple[str, ...]
+    movies: tuple[str, ...]
+    dropped_movies: tuple[str, ...]
     starts_at: datetime
     ends_at: datetime
     elapsed_minutes: int
@@ -45,6 +52,8 @@ class MovieDayItinerary:
     def to_dict(self) -> dict[str, object]:
         return {
             "showtime_ids": list(self.showtime_ids),
+            "movies": list(self.movies),
+            "dropped_movies": list(self.dropped_movies),
             "starts_at": self.starts_at.isoformat(timespec="minutes"),
             "ends_at": self.ends_at.isoformat(timespec="minutes"),
             "elapsed_minutes": self.elapsed_minutes,
@@ -58,6 +67,9 @@ class MovieDayItinerary:
 @dataclass(frozen=True, slots=True)
 class MovieDayPlan:
     selected_movies: tuple[str, ...]
+    target_movie_count: int
+    plannable_movie_count: int
+    sort_by: str
     eligible_showings: int
     unplannable_showings: int
     missing_movies: tuple[str, ...]
@@ -69,6 +81,9 @@ class MovieDayPlan:
     def to_dict(self) -> dict[str, object]:
         return {
             "selected_movies": list(self.selected_movies),
+            "target_movie_count": self.target_movie_count,
+            "plannable_movie_count": self.plannable_movie_count,
+            "sort_by": self.sort_by,
             "eligible_showings": self.eligible_showings,
             "unplannable_showings": self.unplannable_showings,
             "missing_movies": list(self.missing_movies),
@@ -98,6 +113,10 @@ def plan_movie_day(
     selected_movies: list[str],
     travel_minutes: dict[tuple[GeoPoint, GeoPoint], int | None],
     *,
+    target_movie_count: int | None = None,
+    earliest_start: datetime | None = None,
+    latest_end: datetime | None = None,
+    sort_by: str = SORT_ELAPSED,
     minimum_buffer_minutes: int = 0,
     offset: int = 0,
     limit: int = 50,
@@ -107,6 +126,13 @@ def plan_movie_day(
         raise ValueError("select at least one movie")
     if len(movies) > 10:
         raise ValueError("movie-day planning supports at most 10 selected movies")
+    target = len(movies) if target_movie_count is None else target_movie_count
+    if isinstance(target, bool) or not isinstance(target, int) or not 1 <= target <= len(movies):
+        raise ValueError("target_movie_count must be between 1 and the number of selected movies")
+    if sort_by not in SORT_MODES:
+        raise ValueError("sort_by must be 'elapsed' or 'driving'")
+    if earliest_start is not None and latest_end is not None and latest_end < earliest_start:
+        raise ValueError("latest_end must not be before earliest_start")
     if not 0 <= minimum_buffer_minutes <= 180:
         raise ValueError("minimum_buffer_minutes must be between 0 and 180")
     if offset < 0:
@@ -116,10 +142,16 @@ def plan_movie_day(
 
     selected = set(movies)
     relevant = [screening for screening in screenings if screening.movie in selected]
-    candidates = [
+    timed = [
         screening
         for screening in relevant
         if screening.actual_start is not None and screening.estimated_end is not None
+    ]
+    candidates = [
+        screening
+        for screening in timed
+        if (earliest_start is None or screening.actual_start >= earliest_start)
+        and (latest_end is None or screening.estimated_end <= latest_end)
     ]
     candidates.sort(
         key=lambda screening: (
@@ -132,11 +164,15 @@ def plan_movie_day(
     )
     present = {screening.movie for screening in candidates}
     missing_movies = tuple(movie for movie in movies if movie not in present)
-    if missing_movies:
+
+    if len(present) < target:
         return MovieDayPlan(
             selected_movies=movies,
+            target_movie_count=target,
+            plannable_movie_count=len(present),
+            sort_by=sort_by,
             eligible_showings=len(candidates),
-            unplannable_showings=len(relevant) - len(candidates),
+            unplannable_showings=len(relevant) - len(timed),
             missing_movies=missing_movies,
             total_itineraries=0,
             offset=offset,
@@ -145,26 +181,27 @@ def plan_movie_day(
         )
 
     movie_bits = {movie: 1 << index for index, movie in enumerate(movies)}
-    full_mask = (1 << len(movies)) - 1
     edges: list[list[tuple[int, int]]] = [[] for _ in candidates]
     for source_index, source in enumerate(candidates):
         source_end = source.estimated_end
         if source_end is None:
             continue
         for target_index in range(source_index + 1, len(candidates)):
-            target = candidates[target_index]
-            if source.movie == target.movie or target.actual_start is None:
+            target_screening = candidates[target_index]
+            if source.movie == target_screening.movie or target_screening.actual_start is None:
                 continue
-            drive_minutes = _transition_minutes(source, target, travel_minutes)
+            drive_minutes = _transition_minutes(source, target_screening, travel_minutes)
             if drive_minutes is None:
                 continue
-            available_minutes = int((target.actual_start - source_end).total_seconds() // 60)
+            available_minutes = int(
+                (target_screening.actual_start - source_end).total_seconds() // 60
+            )
             if available_minutes >= drive_minutes + minimum_buffer_minutes:
                 edges[source_index].append((target_index, drive_minutes))
 
     @cache
     def completion_count(index: int, visited_mask: int) -> int:
-        if visited_mask == full_mask:
+        if visited_mask.bit_count() == target:
             return 1
         total = 0
         for target_index, _ in edges[index]:
@@ -179,53 +216,123 @@ def plan_movie_day(
         for index, screening in enumerate(candidates)
     ]
     total_itineraries = sum(count for _, _, count in starts)
-    itineraries: list[MovieDayItinerary] = []
-    remaining_offset = offset
-
-    def collect(index: int, visited_mask: int, path: list[tuple[int, int]]) -> None:
-        nonlocal remaining_offset
-        if len(itineraries) >= limit:
-            return
-        if visited_mask == full_mask:
-            if remaining_offset:
-                remaining_offset -= 1
-            else:
-                itineraries.append(_make_itinerary(candidates, path))
-            return
-        for target_index, drive_minutes in edges[index]:
-            bit = movie_bits[candidates[target_index].movie]
-            if visited_mask & bit:
-                continue
-            branch_count = completion_count(target_index, visited_mask | bit)
-            if remaining_offset >= branch_count:
-                remaining_offset -= branch_count
-                continue
-            collect(
-                target_index,
-                visited_mask | bit,
-                [*path, (target_index, drive_minutes)],
-            )
-            if len(itineraries) >= limit:
-                return
-
-    for index, visited_mask, count in starts:
-        if len(itineraries) >= limit:
-            break
-        if remaining_offset >= count:
-            remaining_offset -= count
-            continue
-        collect(index, visited_mask, [(index, 0)])
+    itineraries = _ranked_itineraries(
+        candidates,
+        movies,
+        movie_bits,
+        edges,
+        completion_count,
+        starts,
+        target=target,
+        sort_by=sort_by,
+        offset=offset,
+        limit=limit,
+    )
 
     return MovieDayPlan(
         selected_movies=movies,
+        target_movie_count=target,
+        plannable_movie_count=len(present),
+        sort_by=sort_by,
         eligible_showings=len(candidates),
-        unplannable_showings=len(relevant) - len(candidates),
+        unplannable_showings=len(relevant) - len(timed),
         missing_movies=missing_movies,
         total_itineraries=total_itineraries,
         offset=offset,
         limit=limit,
         itineraries=tuple(itineraries),
     )
+
+
+def _ranked_itineraries(
+    candidates: list[Screening],
+    movies: tuple[str, ...],
+    movie_bits: dict[str, int],
+    edges: list[list[tuple[int, int]]],
+    completion_count,
+    starts: list[tuple[int, int, int]],
+    *,
+    target: int,
+    sort_by: str,
+    offset: int,
+    limit: int,
+) -> list[MovieDayItinerary]:
+    heap: list[
+        tuple[
+            tuple[object, ...],
+            int,
+            int,
+            int,
+            tuple[tuple[int, int], ...],
+        ]
+    ] = []
+
+    for index, visited_mask, count in starts:
+        if count == 0:
+            continue
+        path = ((index, 0),)
+        heapq.heappush(
+            heap,
+            (
+                _path_priority(candidates, path, 0, sort_by),
+                index,
+                visited_mask,
+                0,
+                path,
+            ),
+        )
+
+    itineraries: list[MovieDayItinerary] = []
+    skipped = 0
+    while heap and len(itineraries) < limit:
+        _, index, visited_mask, drive_total, path = heapq.heappop(heap)
+        if visited_mask.bit_count() == target:
+            if skipped < offset:
+                skipped += 1
+            else:
+                itineraries.append(_make_itinerary(candidates, movies, list(path)))
+            continue
+
+        for target_index, drive_minutes in edges[index]:
+            bit = movie_bits[candidates[target_index].movie]
+            if visited_mask & bit:
+                continue
+            next_mask = visited_mask | bit
+            if completion_count(target_index, next_mask) == 0:
+                continue
+            next_path = (*path, (target_index, drive_minutes))
+            next_drive = drive_total + drive_minutes
+            heapq.heappush(
+                heap,
+                (
+                    _path_priority(candidates, next_path, next_drive, sort_by),
+                    target_index,
+                    next_mask,
+                    next_drive,
+                    next_path,
+                ),
+            )
+
+    return itineraries
+
+
+def _path_priority(
+    candidates: list[Screening],
+    path: tuple[tuple[int, int], ...],
+    drive_minutes: int,
+    sort_by: str,
+) -> tuple[object, ...]:
+    first = candidates[path[0][0]]
+    current = candidates[path[-1][0]]
+    starts_at = first.actual_start
+    ends_at = current.estimated_end
+    if starts_at is None or ends_at is None:
+        raise ValueError("ranked path contains unknown timing")
+    elapsed_minutes = int((ends_at - starts_at).total_seconds() // 60)
+    showtime_ids = tuple(candidates[index].showtime_id for index, _ in path)
+    if sort_by == SORT_DRIVING:
+        return (drive_minutes, elapsed_minutes, starts_at, showtime_ids)
+    return (elapsed_minutes, drive_minutes, starts_at, showtime_ids)
 
 
 def _transition_minutes(
@@ -251,6 +358,7 @@ def _transition_minutes(
 
 def _make_itinerary(
     candidates: list[Screening],
+    selected_movies: tuple[str, ...],
     path: list[tuple[int, int]],
 ) -> MovieDayItinerary:
     selected = [candidates[index] for index, _ in path]
@@ -284,8 +392,12 @@ def _make_itinerary(
     elapsed_minutes = int((ends_at - starts_at).total_seconds() // 60)
     movie_minutes = sum(screening.runtime_minutes or 0 for screening in selected)
     total_travel = sum(leg.drive_minutes for leg in legs)
+    included_movies = tuple(screening.movie for screening in selected)
+    included = set(included_movies)
     return MovieDayItinerary(
         showtime_ids=tuple(screening.showtime_id for screening in selected),
+        movies=included_movies,
+        dropped_movies=tuple(movie for movie in selected_movies if movie not in included),
         starts_at=starts_at,
         ends_at=ends_at,
         elapsed_minutes=elapsed_minutes,

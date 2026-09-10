@@ -5,7 +5,7 @@ import json
 import mimetypes
 import threading
 from collections.abc import Callable, Iterable
-from datetime import date
+from datetime import date, datetime
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs, unquote
@@ -147,6 +147,17 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
         show_date = date.fromisoformat(str(raw_date)) if raw_date else date.today()
         movies = _required_string_list(payload, "movies")
         showtime_ids = set(_required_string_list(payload, "showtime_ids", allow_empty=True))
+        target_movie_count = _bounded_integer(
+            payload.get("target_movie_count", len(movies)),
+            "target_movie_count",
+            minimum=1,
+            maximum=len(movies),
+        )
+        sort_by = str(payload.get("sort_by", "elapsed") or "").strip()
+        earliest_start = _optional_datetime(payload.get("earliest_start"), "earliest_start")
+        latest_end = _optional_datetime(payload.get("latest_end"), "latest_end")
+        if earliest_start is not None and latest_end is not None and latest_end < earliest_start:
+            raise ValueError("latest_end must not be before earliest_start")
         minimum_buffer_minutes = _bounded_integer(
             payload.get("minimum_buffer_minutes", 0),
             "minimum_buffer_minutes",
@@ -180,6 +191,10 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
             candidates,
             movies,
             travel,
+            target_movie_count=target_movie_count,
+            earliest_start=earliest_start,
+            latest_end=latest_end,
+            sort_by=sort_by,
             minimum_buffer_minutes=minimum_buffer_minutes,
             offset=offset,
             limit=limit,
@@ -192,6 +207,10 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
     response.update(
         {
             "date": show_date.isoformat(),
+            "earliest_start": (
+                earliest_start.isoformat(timespec="minutes") if earliest_start is not None else None
+            ),
+            "latest_end": latest_end.isoformat(timespec="minutes") if latest_end is not None else None,
             "minimum_buffer_minutes": minimum_buffer_minutes,
             "routing_available": routing_available,
         }
@@ -316,6 +335,20 @@ def _required_string_list(
     if not values and not allow_empty:
         raise ValueError(f"{field} must contain at least one value")
     return values
+
+
+def _optional_datetime(value: object, field: str) -> datetime | None:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be an ISO local datetime")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"{field} must be an ISO local datetime") from exc
+    if parsed.tzinfo is not None:
+        raise ValueError(f"{field} must not include a timezone offset")
+    return parsed
 
 
 def _bounded_integer(
