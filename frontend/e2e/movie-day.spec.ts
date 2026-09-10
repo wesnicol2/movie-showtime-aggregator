@@ -210,7 +210,9 @@ test("showing filters narrow the showings a plan may use", async ({ page }) => {
   await expect(page.getByText("0 active showing filters")).toBeVisible();
 });
 
-test("planner edits its movie pool and sends exact count, time bounds, and sort", async ({ page }) => {
+test("planner edits its movie pool and sends exact count, time bounds, and sort", async ({
+  page,
+}) => {
   await mockApi(page);
   await page.goto("/plan");
 

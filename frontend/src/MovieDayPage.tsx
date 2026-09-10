@@ -11,12 +11,7 @@ import {
 } from "./screening-facets";
 import { filterAndSort, isFilterActive } from "./screenings";
 import { useAppStore } from "./store";
-import type {
-  MovieDayItinerary,
-  MovieDayPlanResponse,
-  MovieDaySort,
-  Screening,
-} from "./types";
+import type { MovieDayItinerary, MovieDayPlanResponse, MovieDaySort, Screening } from "./types";
 import { useScreenings } from "./useScreenings";
 
 const PAGE_SIZE = 25;
@@ -156,9 +151,9 @@ export function MovieDayPage() {
             {bounds.endNextDay ? <span>End time is next day</span> : null}
           </div>
           <p>
-            Movie, showing, and time controls narrow the candidate pool. The solver may omit selected
-            movies when Watch is below the selected count, then ranks complete itineraries by the
-            chosen objective.
+            Movie, showing, and time controls narrow the candidate pool. The solver may omit
+            selected movies when Watch is below the selected count, then ranks complete itineraries
+            by the chosen objective.
           </p>
         </div>
       ) : null}
@@ -171,7 +166,9 @@ export function MovieDayPage() {
             <span>·</span>
             <span>{plan.eligible_showings} timed showings considered</span>
             <span>·</span>
-            <span>{plan.sort_by === "elapsed" ? "minimum time first" : "minimum driving first"}</span>
+            <span>
+              {plan.sort_by === "elapsed" ? "minimum time first" : "minimum driving first"}
+            </span>
             {plan.unplannable_showings ? (
               <>
                 <span>·</span>

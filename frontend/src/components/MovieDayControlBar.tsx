@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-
-import { type CheckboxOption, CheckboxFilter } from "./CheckboxFilter";
 import {
   activeFacetCount,
   EMPTY_SCREENING_FACETS,
@@ -9,6 +7,7 @@ import {
   textOptions,
 } from "../screening-facets";
 import type { MovieDaySort, Screening } from "../types";
+import { CheckboxFilter, type CheckboxOption } from "./CheckboxFilter";
 
 type OpenControl = "movies" | keyof ScreeningFacets;
 
@@ -158,9 +157,7 @@ export function MovieDayControlBar({
             max="180"
             value={minimumBuffer}
             onChange={(event) =>
-              onMinimumBufferChange(
-                Math.max(0, Math.min(180, Number(event.target.value) || 0)),
-              )
+              onMinimumBufferChange(Math.max(0, Math.min(180, Number(event.target.value) || 0)))
             }
           />
           min
