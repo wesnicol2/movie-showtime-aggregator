@@ -168,3 +168,8 @@ cython_debug/
 
 # Ad-hoc/throwaway debug scripts and notes (see CONTRIBUTING.md) -- never commit these
 scratch/
+
+# Frontend toolchain output (npm ci restores dependencies; Vite/Playwright regenerate the rest)
+node_modules/
+test-results/
+playwright-report/
