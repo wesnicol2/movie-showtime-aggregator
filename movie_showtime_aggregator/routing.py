@@ -92,6 +92,7 @@ class OsrmRouter:
     def __init__(self, *, timeout_seconds: int = 10) -> None:
         self.timeout_seconds = timeout_seconds
         self._cache: dict[tuple[GeoPoint, GeoPoint], tuple[int | None, int | None]] = {}
+        self._matrix_cache: dict[tuple[GeoPoint, GeoPoint], int | None] = {}
         self._lock = threading.Lock()
 
     def travel_minutes(
@@ -121,6 +122,30 @@ class OsrmRouter:
 
         return results
 
+    def travel_matrix(
+        self,
+        points: list[GeoPoint],
+    ) -> dict[tuple[GeoPoint, GeoPoint], int | None]:
+        unique_points = list(dict.fromkeys(points))
+        if len(unique_points) > 100:
+            raise RoutingError("movie-day routing supports at most 100 theaters")
+        if not unique_points:
+            return {}
+        if len(unique_points) == 1:
+            point = unique_points[0]
+            return {(point, point): 0}
+
+        keys = [(origin, destination) for origin in unique_points for destination in unique_points]
+        with self._lock:
+            if all(key in self._matrix_cache for key in keys):
+                return {key: self._matrix_cache[key] for key in keys}
+
+        payload = self._fetch_table(unique_points)
+        fetched = _parse_all_pairs_duration_matrix(payload, unique_points)
+        with self._lock:
+            self._matrix_cache.update(fetched)
+            return {key: self._matrix_cache[key] for key in keys}
+
     def _fetch_matrix(
         self,
         home: GeoPoint,
@@ -130,13 +155,14 @@ class OsrmRouter:
             return {}
 
         points = [home, *destinations]
+        payload = self._fetch_table(points)
+        return _parse_duration_matrix(payload, destinations)
+
+    def _fetch_table(self, points: list[GeoPoint]) -> object:
         coordinates = ";".join(f"{point.longitude:.6f},{point.latitude:.6f}" for point in points)
         request = urllib.request.Request(
             f"{OSRM_BASE_URL}/table/v1/driving/{coordinates}?annotations=duration",
-            headers={
-                "Accept": "application/json",
-                "User-Agent": USER_AGENT,
-            },
+            headers={"Accept": "application/json", "User-Agent": USER_AGENT},
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
@@ -151,7 +177,7 @@ class OsrmRouter:
         ) as exc:
             raise RoutingError(f"routing failed: {exc}") from exc
 
-        return _parse_duration_matrix(payload, destinations)
+        return payload
 
 
 def _parse_geocode_payload(payload: object) -> GeocodedAddress:
@@ -197,6 +223,26 @@ def _parse_duration_matrix(
     return result
 
 
+def _parse_all_pairs_duration_matrix(
+    payload: object,
+    points: list[GeoPoint],
+) -> dict[tuple[GeoPoint, GeoPoint], int | None]:
+    if not isinstance(payload, dict) or payload.get("code") != "Ok":
+        raise RoutingError("routing returned an unexpected response")
+    durations = payload.get("durations")
+    expected_size = len(points)
+    if not isinstance(durations, list) or len(durations) != expected_size:
+        raise RoutingError("routing returned an unexpected duration matrix")
+    if any(not isinstance(row, list) or len(row) != expected_size for row in durations):
+        raise RoutingError("routing returned an unexpected duration matrix")
+
+    return {
+        (origin, destination): _duration_minutes(durations[origin_index][destination_index])
+        for origin_index, origin in enumerate(points)
+        for destination_index, destination in enumerate(points)
+    }
+
+
 def _duration_minutes(value: object) -> int | None:
     if value is None:
         return None
@@ -207,3 +253,11 @@ def _duration_minutes(value: object) -> int | None:
     if seconds < 0 or not math.isfinite(seconds):
         return None
     return math.ceil(seconds / 60)
+
+
+def route_source_url(origin: GeoPoint, destination: GeoPoint) -> str:
+    return (
+        "https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route="
+        f"{origin.latitude:.6f}%2C{origin.longitude:.6f}%3B"
+        f"{destination.latitude:.6f}%2C{destination.longitude:.6f}"
+    )

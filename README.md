@@ -1,9 +1,10 @@
 # movie-showtime-aggregator
 
-A React-based movie-going decision workstation built around two tightly synchronized views:
+A React-based movie-going decision workstation built around three tightly synchronized views:
 
 - an Excel-style screening table where every displayed column can be sorted or filtered from its header;
 - a poster-first **Movie Selection** page where the whole poster tile acts as the checkbox for the table's Movie filter.
+- a **Movie Day** planner that finds every feasible way to attend one showing of each selected movie.
 
 The app discovers theaters around a configured ZIP code and radius, applies user-known preview times, and can optionally enrich screenings with movie ratings/posters, rough home travel times, and official AMC pricing/seating data. The Python backend remains authoritative for screening data, provider semantics, calculations, and enrichment; the React frontend consumes typed API contracts and performs only already-loaded interaction such as table sorting/filtering.
 
@@ -40,6 +41,14 @@ Open `/movies` or use **Movies** in the application navigation. The page is a da
 Movie Selection has local filters for title, selected/unselected status, minimum IMDb/Rotten Tomatoes/Metacritic ratings, and initial release date. It can sort in either direction by title, initial release date, IMDb, Rotten Tomatoes, or Metacritic. The active sort field and value are shown under every title so the current ordering is visible without opening a detail view.
 
 Posters, ratings, and initial release date require an OMDb API key configured in Settings. The backend normalizes OMDb's `Released` value for the release-date sort/filter; unavailable values remain `Unknown`. The page and the core showtime table still work when that metadata is unavailable.
+
+## Movie Day planner
+
+Select titles on `/movies`, apply any desired column filters on the Screening table, then open `/plan`. The planner considers only showings that survive the active filters. An optional transfer buffer can reserve extra time beyond the static drive estimate.
+
+Mathematically this is a generalized traveling-salesperson problem with time windows and fixed-duration events. Because showings always move forward in time, the backend represents feasible transitions as a directed acyclic graph: an edge exists when the first movie ends early enough to drive to the next theater before its calculated actual start. Dynamic programming counts the complete solution set, and the UI pages through every feasible path without trying to hold an explosive number of combinations in memory.
+
+The planner requires configured preview time and a known runtime for every used showing. Different-theater transitions also require both theater coordinates and an OSRM route; staying at the same theater takes zero travel minutes. Drive estimates are directional and static, not live traffic.
 
 ## Settings
 
@@ -210,9 +219,11 @@ A deployed Test environment remains the integration gate for real upstream crede
 
 - `/` — spreadsheet-style screening workstation.
 - `/movies` — poster-first Movie Selection page.
+- `/plan` — travel-aware Movie Day itinerary planner for the selected titles and active Screening filters.
 - `/settings` — browser settings plus shared server settings/integration credentials and provider usage/cache status.
 - `/api/settings` — GET public settings/provider-usage state; POST shared settings. Secret values are never returned.
 - `/api/screenings` — normalized/enriched screenings and facets. Direct API consumers can still use server-side `movie`, `theatre`, `format`, `start_after`, `start_before`, `end_by`, `preview=Chain:minutes`, `zip=`, `radius=`, and `date=` parameters; browser cookies take precedence for location/preview settings.
+- `/api/movie-day` — POST selected movie titles, eligible showtime IDs, date, and optional transfer buffer/pagination to count and return feasible itineraries.
 - `/health` — `{"status": "ok"}`.
 
 ## Project structure
@@ -228,6 +239,7 @@ A deployed Test environment remains the integration gate for real upstream crede
 - `movie_showtime_aggregator/enrichment.py` — fail-soft enrichment orchestration.
 - `movie_showtime_aggregator/storage.py` — shared persistent user settings and secrets.
 - `movie_showtime_aggregator/models.py` — normalized screening and derived fields.
+- `movie_showtime_aggregator/planner.py` — time-window graph construction, exact path counting, and itinerary pagination.
 - `movie_showtime_aggregator/service.py` — Fandango caching, radius discovery, facets, filters.
 - `tests/` — Python unit/API tests, including the SPA-serving contract.
 - `scripts/` — deterministic local fix/verification commands used by agents and CI.
