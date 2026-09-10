@@ -93,6 +93,51 @@ export interface ScreeningsResponse {
   screenings: Screening[];
 }
 
+export interface MovieDayLeg {
+  from_showtime_id: string;
+  to_showtime_id: string;
+  from_theatre: string;
+  to_theatre: string;
+  drive_minutes: number;
+  gap_minutes: number;
+  route_source_url: string;
+}
+
+export interface MovieDayItinerary {
+  showtime_ids: string[];
+  starts_at: string;
+  ends_at: string;
+  elapsed_minutes: number;
+  movie_minutes: number;
+  travel_minutes: number;
+  waiting_minutes: number;
+  legs: MovieDayLeg[];
+}
+
+export interface MovieDayPlanResponse {
+  date: string;
+  selected_movies: string[];
+  eligible_showings: number;
+  unplannable_showings: number;
+  missing_movies: string[];
+  total_itineraries: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+  minimum_buffer_minutes: number;
+  routing_available: boolean;
+  itineraries: MovieDayItinerary[];
+}
+
+export interface MovieDayPlanRequest {
+  date: string;
+  movies: string[];
+  showtime_ids: string[];
+  minimum_buffer_minutes: number;
+  offset?: number;
+  limit?: number;
+}
+
 export interface ProviderRateLimit {
   limit?: number | null;
   remaining?: number | null;

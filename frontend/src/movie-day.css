@@ -1,0 +1,189 @@
+.movie-day-workspace {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.movie-day-bar {
+  align-items: center;
+}
+.buffer-control {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.buffer-control > span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: none;
+}
+.buffer-control input {
+  width: 74px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+.primary-action {
+  border-color: #426ca8;
+  background: var(--accent-soft);
+  color: #dbe9ff;
+}
+.planner-context {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.planner-context p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.context-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.movie-chips,
+.planner-facts,
+.itinerary-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.movie-chips span,
+.planner-facts span,
+.itinerary-summary span {
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-raised);
+  font-size: 11px;
+}
+.planner-facts span,
+.itinerary-summary span {
+  color: var(--muted);
+}
+.planner-results {
+  margin-top: 18px;
+}
+.itinerary-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+.itinerary-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+}
+.itinerary-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #10151c;
+}
+.itinerary-card > header > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+.option-number {
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+.itinerary-card ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.showing-line {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+}
+.showing-line time {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.showing-line div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.showing-line div span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.showing-line a {
+  color: var(--accent);
+  font-size: 11px;
+}
+.transfer-line {
+  display: flex;
+  gap: 12px;
+  margin-left: 53px;
+  padding: 5px 14px 5px 41px;
+  border-left: 1px dashed var(--line-strong);
+  color: var(--muted);
+  font-size: 10px;
+}
+.planner-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 18px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.planner-pagination button {
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+@media (max-width: 700px) {
+  .movie-day-bar,
+  .itinerary-card > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .workspace-actions {
+    justify-content: flex-start;
+  }
+  .showing-line {
+    grid-template-columns: 68px minmax(0, 1fr);
+  }
+  .showing-line a {
+    grid-column: 2;
+  }
+  .transfer-line {
+    margin-left: 47px;
+    padding-left: 35px;
+  }
+}

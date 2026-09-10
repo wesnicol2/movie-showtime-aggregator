@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
-
+import { MovieDayPage } from "./MovieDayPage";
 import { MoviesPage } from "./MoviesPage";
 import { ScreeningsPage } from "./ScreeningsPage";
 import { SettingsPage } from "./SettingsPage";
 import { useAppStore } from "./store";
 
-function normalizePath(path: string): "/" | "/movies" | "/settings" {
+type AppPath = "/" | "/movies" | "/plan" | "/settings";
+
+function normalizePath(path: string): AppPath {
   if (path === "/movies") return "/movies";
+  if (path === "/plan") return "/plan";
   if (path === "/settings") return "/settings";
   return "/";
 }
@@ -28,7 +31,7 @@ export function App() {
     };
   }, [syncMovieSelection]);
 
-  function navigate(nextPath: "/" | "/movies" | "/settings"): void {
+  function navigate(nextPath: AppPath): void {
     if (nextPath === path) return;
     window.history.pushState({}, "", nextPath);
     setPath(nextPath);
@@ -62,6 +65,13 @@ export function App() {
             Movies
           </button>
           <button
+            className={path === "/plan" ? "current" : ""}
+            type="button"
+            onClick={() => navigate("/plan")}
+          >
+            Movie Day
+          </button>
+          <button
             className={path === "/settings" ? "current" : ""}
             type="button"
             onClick={() => navigate("/settings")}
@@ -73,6 +83,8 @@ export function App() {
       <main className="app-main">
         {path === "/movies" ? (
           <MoviesPage />
+        ) : path === "/plan" ? (
+          <MovieDayPage />
         ) : path === "/settings" ? (
           <SettingsPage />
         ) : (

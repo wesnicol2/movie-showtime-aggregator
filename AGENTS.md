@@ -49,7 +49,7 @@ Keep component boundaries clear. Avoid monolithic page files and avoid using mod
 
 ## Product surfaces
 
-The product has three intentional user-facing surfaces.
+The product has four intentional user-facing surfaces.
 
 ### Screening table
 
@@ -69,6 +69,14 @@ New data should normally become another ordinary typed column rather than a spec
 `/movies` is a poster-first, dark Now Playing grid inspired by the supplied AMC mobile layout. The poster tile itself is the checkbox; it should not become a detail-heavy card grid. The page may expose compact local filters and sorting controls, but posters remain the visual focus. When sorting by a field, show that field's value directly under each title so the ordering is auditable. Initial release date is one supported sort/filter dimension and must come from backend metadata rather than frontend inference.
 
 The selected movie titles live in browser local storage and are also the source of truth for the table's Movie exact-value filter. Changes from either surface should stay synchronized. This is browser convenience state, not an account/profile system.
+
+### Movie Day
+
+`/plan` consumes the browser's selected movie titles and the already-loaded screenings that survive the current table column filters. It does not own a second screening-filter system. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
+
+The larger mathematical problem is a generalized traveling-salesperson problem with time windows and fixed-duration events. Use its stronger time-order structure: represent showings as nodes in a directed acyclic graph and add an edge only when a movie can end, travel to the next theater, include the requested transfer buffer, and reach the next calculated actual start. Dynamic programming should count paths and skip whole subtrees for pagination; do not materialize the Cartesian product of showings in the browser or return only an unexplained arbitrary subset.
+
+Every itinerary contains exactly one showing of every selected movie. Same-theater transitions take zero minutes. Different-theater transitions use directional OSRM drive time and require coordinates/routes. Unknown preview or runtime makes that showing unplannable; missing cross-theater routing makes that transition infeasible. Keep those exclusions visible instead of assuming values.
 
 ### Settings
 
@@ -140,6 +148,8 @@ Do not scrape AMC checkout pages as a fallback for price or seat availability. N
 ### Home geocoding and routing
 
 `routing.py` uses OpenStreetMap Nominatim to geocode the saved home address and public OSRM for static driving durations. Geocode once when Settings saves the address; persist the resulting coordinates. Route estimates are cached in-process by home/destination coordinates.
+
+Movie Day routing uses OSRM's table service for a directional all-theater matrix and caches individual directed legs in-process. Preserve the one-call matrix behavior for the normal case rather than issuing one route request for each possible itinerary transition.
 
 These are rough static drive estimates, not live traffic. Source links for Leave home / Back home should open the underlying OpenStreetMap/OSRM route.
 
