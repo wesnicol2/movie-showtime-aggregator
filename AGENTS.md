@@ -68,6 +68,10 @@ New data should normally become another ordinary typed column rather than a spec
 
 `/movies` is a poster-first, dark Now Playing grid inspired by the supplied AMC mobile layout. The poster tile itself is the checkbox; it should not become a detail-heavy card grid. The page may expose compact local filters and sorting controls, but posters remain the visual focus. When sorting by a field, show that field's value directly under each title so the ordering is auditable. Initial release date is one supported sort/filter dimension and must come from backend metadata rather than frontend inference.
 
+Discrete dimensions on this page are multi-value checkbox filters (selection state, theater, chain, format, listed showtime window) sharing the table's All/None value-menu vocabulary; open-ended ones stay typed inputs. `null` means every value is included, so an untouched filter is inactive and an emptied one legitimately matches nothing. Theater, chain, format, and listed time constrain screenings rather than movies: a movie survives when one of its screenings satisfies every active screening filter, so combining them answers "can I actually watch this here, in this format, at this time of day."
+
+Listed showtime windows bucket the provider's listed start, never the calculated actual start, so they stay defined when preview minutes are unconfigured. New movie-page dimensions should normally become another checkbox filter over base screening facts rather than a bespoke control.
+
 The selected movie titles live in browser local storage and are also the source of truth for the table's Movie exact-value filter. Changes from either surface should stay synchronized. This is browser convenience state, not an account/profile system.
 
 ### Settings
