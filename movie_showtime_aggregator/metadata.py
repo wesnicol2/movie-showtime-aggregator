@@ -16,8 +16,10 @@ from .provider_cache import ProviderCache
 OMDB_BASE_URL = "https://www.omdbapi.com/"
 OMDB_DAILY_LIMIT = 1000
 OMDB_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
+OMDB_PARTIAL_CACHE_TTL_SECONDS = 6 * 60 * 60
 OMDB_NEGATIVE_CACHE_TTL_SECONDS = 6 * 60 * 60
 IDENTITY_MAPPING_TTL_SECONDS = 10 * 365 * 24 * 60 * 60
+RUNTIME_TOLERANCE_MINUTES = 25
 USER_AGENT = "movie-showtime-aggregator/1.0"
 YEAR_SUFFIX_RE = re.compile(r"\s*\((\d{4})\)\s*$")
 RELEASE_QUALIFIER_RE = re.compile(
@@ -162,9 +164,9 @@ class OmdbClient:
         if self.provider_cache is not None:
             self.provider_cache.set_json(
                 "omdb",
-                f"imdb:v1:{metadata.imdb_id}",
+                f"imdb:v2:{metadata.imdb_id}",
                 payload,
-                ttl_seconds=OMDB_CACHE_TTL_SECONDS,
+                ttl_seconds=_omdb_cache_ttl(payload),
             )
             if source_id:
                 self.provider_cache.set_json(
@@ -184,9 +186,9 @@ class OmdbClient:
         return _imdb_id(payload.get("imdb_id"))
 
     def _request_title(self, title: str, year: str | None) -> object:
-        cache_key = title.casefold()
+        cache_key = f"v3:{title.casefold()}"
         if year is not None:
-            cache_key = f"year-v2:{cache_key}:{year}"
+            cache_key = f"year-v3:{title.casefold()}:{year}"
         params = {
             "apikey": self.api_key,
             "t": title,
@@ -205,7 +207,7 @@ class OmdbClient:
             "type": "movie",
             "r": "json",
         }
-        return self._request_json(f"search:v1:{title.casefold()}", params)
+        return self._request_json(f"search:v2:{title.casefold()}", params)
 
     def _request_imdb(self, imdb_id: str) -> object:
         params = {
@@ -215,7 +217,7 @@ class OmdbClient:
             "plot": "short",
             "r": "json",
         }
-        return self._request_json(f"imdb:v1:{imdb_id}", params)
+        return self._request_json(f"imdb:v2:{imdb_id}", params)
 
     def _request_json(self, cache_key: str, params: dict[str, str]) -> object:
         if self.provider_cache is not None:
@@ -250,11 +252,7 @@ class OmdbClient:
         except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
             raise MetadataError(f"OMDb request failed: {exc}") from exc
 
-        ttl = (
-            OMDB_CACHE_TTL_SECONDS
-            if _payload_is_match(payload)
-            else OMDB_NEGATIVE_CACHE_TTL_SECONDS
-        )
+        ttl = _omdb_cache_ttl(payload)
         if self.provider_cache is not None:
             self.provider_cache.set_json("omdb", cache_key, payload, ttl_seconds=ttl)
         else:
@@ -282,6 +280,23 @@ def _payload_is_match(payload: object) -> bool:
     return isinstance(payload, dict) and str(payload.get("Response") or "").casefold() == "true"
 
 
+def _omdb_cache_ttl(payload: object) -> int:
+    if not _payload_is_match(payload):
+        return OMDB_NEGATIVE_CACHE_TTL_SECONDS
+    if not isinstance(payload, dict) or isinstance(payload.get("Search"), list):
+        return OMDB_PARTIAL_CACHE_TTL_SECONDS
+
+    metadata = _parse_payload(payload, str(payload.get("Title") or ""))
+    ratings = (
+        metadata.imdb_rating,
+        metadata.rotten_tomatoes_score,
+        metadata.metacritic_score,
+    )
+    if all(rating is not None for rating in ratings):
+        return OMDB_CACHE_TTL_SECONDS
+    return OMDB_PARTIAL_CACHE_TTL_SECONDS
+
+
 def _acceptable_payload(
     payload: object,
     expected_title: str,
@@ -300,7 +315,7 @@ def _acceptable_payload(
     if (
         runtime_minutes is not None
         and resolved_runtime is not None
-        and abs(runtime_minutes - resolved_runtime) > 20
+        and abs(runtime_minutes - resolved_runtime) > RUNTIME_TOLERANCE_MINUTES
     ):
         return False
     return bool(_imdb_id(payload.get("imdbID")))

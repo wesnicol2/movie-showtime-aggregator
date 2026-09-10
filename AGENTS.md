@@ -115,6 +115,8 @@ Enrichment is deliberately optional and must not make showtime retrieval brittle
 
 `metadata.py` supplies poster URL, IMDb ID/rating, Metacritic score, Rotten Tomatoes percentage, and normalized initial release date. `enrichment.py` queries unique titles concurrently and caches through `OmdbClient`. OMDb's `Released` value is normalized to an ISO date for frontend sort/filter use; missing or invalid values stay unknown.
 
+Cache complete three-rating OMDb records for seven days, but cache matched records missing any rating, search responses, and misses for only six hours. Current theatrical records often acquire ratings shortly after their first lookup; treating a partial success as complete preserves stale `Unknown` values. Keep the Fandango-to-IMDb identity mapping long-lived so refreshing a partial record normally costs one OMDb ID lookup rather than repeating title resolution. Provider failures must be logged with the movie identity while remaining fail-soft for the screening response.
+
 The IMDb ID is also the stable bridge for source links:
 
 - IMDb → exact IMDb title page;
