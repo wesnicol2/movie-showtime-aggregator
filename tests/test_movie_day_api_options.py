@@ -1,5 +1,6 @@
 import io
 import json
+from dataclasses import replace
 from datetime import datetime, timedelta
 
 import movie_showtime_aggregator.api as api
@@ -85,6 +86,7 @@ def test_movie_day_api_threads_cardinality_time_bounds_and_sort(monkeypatch):
     assert code == 200
     assert payload["target_movie_count"] == 2
     assert payload["sort_by"] == "driving"
+    assert payload["runtime_overrides"] == {}
     assert payload["earliest_start"] == "2026-09-10T09:00"
     assert payload["latest_end"] == "2026-09-10T17:00"
     assert payload["plannable_movie_count"] == 2
@@ -127,6 +129,52 @@ def test_movie_day_api_threads_rank_order_pins_and_want_sort(monkeypatch):
     assert payload["itineraries"][0]["movies"] == ["Beta", "Gamma"]
     assert payload["itineraries"][0]["want_score"] == 4
     assert all("Beta" in itinerary["movies"] for itinerary in payload["itineraries"])
+
+
+def test_movie_day_api_runtime_override_recalculates_end_and_unlocks_runtime(monkeypatch):
+    unknown_runtime = replace(
+        screening("alpha", "Alpha", 9),
+        runtime_minutes=None,
+        estimated_end=None,
+    )
+    monkeypatch.setattr(api, "_SERVICE", StubService([unknown_runtime]))
+    monkeypatch.setattr(api, "_ROUTER", NoTravelRouter())
+
+    code, payload = call_movie_day(
+        {
+            "date": "2026-09-10",
+            "movies": ["Alpha"],
+            "runtime_overrides": {"Alpha": 95},
+            "showtime_ids": ["alpha"],
+            "target_movie_count": 1,
+            "sort_by": "elapsed",
+        }
+    )
+
+    assert code == 200
+    assert payload["runtime_overrides"] == {"Alpha": 95}
+    assert payload["plannable_movie_count"] == 1
+    assert payload["unplannable_showings"] == 0
+    assert payload["itineraries"][0]["ends_at"] == "2026-09-10T10:35"
+    assert payload["itineraries"][0]["movie_minutes"] == 95
+    assert payload["itineraries"][0]["waiting_minutes"] == 0
+
+
+def test_movie_day_api_rejects_invalid_runtime_override(monkeypatch):
+    monkeypatch.setattr(api, "_SERVICE", StubService([screening("alpha", "Alpha", 9)]))
+    monkeypatch.setattr(api, "_ROUTER", NoTravelRouter())
+
+    code, payload = call_movie_day(
+        {
+            "date": "2026-09-10",
+            "movies": ["Alpha"],
+            "runtime_overrides": {"Alpha": 0},
+            "showtime_ids": ["alpha"],
+        }
+    )
+
+    assert code == 400
+    assert "runtime_overrides" in payload["error"]
 
 
 def test_movie_day_api_rejects_unknown_sort(monkeypatch):

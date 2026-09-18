@@ -21,6 +21,7 @@ const MOVIE_DAY_PREFERENCES_KEY = "movie-showtime-aggregator.movie-day-preferenc
 interface MovieDayPreferences {
   ranking: string[];
   pinned: string[];
+  runtimeOverrides: Record<string, number>;
 }
 
 export function MovieDayPage() {
@@ -53,7 +54,25 @@ export function MovieDayPage() {
     const selected = new Set(selectedMovies);
     return moviePreferences.pinned.filter((movie) => selected.has(movie));
   }, [moviePreferences.pinned, selectedMovies]);
+  const runtimeOverrides = useMemo(() => {
+    const overrides: Record<string, number> = {};
+    for (const movie of selectedMovies) {
+      const runtime = moviePreferences.runtimeOverrides[movie];
+      if (runtime !== undefined) overrides[movie] = runtime;
+    }
+    return overrides;
+  }, [moviePreferences.runtimeOverrides, selectedMovies]);
   const allScreenings = useMemo(() => response?.screenings ?? [], [response]);
+  const defaultRuntimeByMovie = useMemo(() => {
+    const runtimes: Record<string, number | null> = {};
+    for (const movie of rankedMovies) {
+      const screening = allScreenings.find(
+        (candidate) => candidate.movie === movie && candidate.runtime_minutes !== null,
+      );
+      runtimes[movie] = screening?.runtime_minutes ?? null;
+    }
+    return runtimes;
+  }, [allScreenings, rankedMovies]);
   const eligibleScreenings = useMemo(() => {
     const selected = new Set(selectedMovies);
     return filterAndSort(allScreenings, filters, sort).filter(
@@ -70,6 +89,9 @@ export function MovieDayPage() {
   const bounds = response
     ? dayBounds(response.date, earliestTime, latestTime)
     : { earliestStart: null, latestEnd: null, endNextDay: false };
+  const runtimeSignature = rankedMovies
+    .map((movie) => `${movie}:${runtimeOverrides[movie] ?? ""}`)
+    .join("|");
   const inputSignature = [
     minimumBuffer,
     activeShowingFilters,
@@ -79,6 +101,7 @@ export function MovieDayPage() {
     sortBy,
     rankedMovies.join("|"),
     pinnedMovies.join("|"),
+    runtimeSignature,
     eligibleScreenings.map((screening) => screening.showtime_id).join("|"),
   ].join("::");
 
@@ -89,7 +112,7 @@ export function MovieDayPage() {
       const pinned = current.pinned.filter((movie) => selected.has(movie));
       return arraysEqual(current.ranking, ranking) && arraysEqual(current.pinned, pinned)
         ? current
-        : { ranking, pinned };
+        : { ...current, ranking, pinned };
     });
   }, [selectedMovies]);
 
@@ -139,6 +162,17 @@ export function MovieDayPage() {
     });
   }
 
+  function setRuntimeOverride(movie: string, minutes: number | null): void {
+    if (!selectedMovies.includes(movie)) return;
+    if (minutes !== null && (!Number.isInteger(minutes) || minutes < 1 || minutes > 600)) return;
+    setMoviePreferences((current) => {
+      const next = { ...current.runtimeOverrides };
+      if (minutes === null) delete next[movie];
+      else next[movie] = minutes;
+      return { ...current, runtimeOverrides: next };
+    });
+  }
+
   async function generate(offset = 0): Promise<void> {
     if (!response || rankedMovies.length === 0 || targetCount === 0) return;
     setPlanning(true);
@@ -148,6 +182,7 @@ export function MovieDayPage() {
         date: response.date,
         movies: rankedMovies,
         required_movies: pinnedMovies,
+        runtime_overrides: runtimeOverrides,
         showtime_ids: eligibleScreenings.map((screening) => screening.showtime_id),
         target_movie_count: targetCount,
         sort_by: sortBy,
@@ -201,8 +236,11 @@ export function MovieDayPage() {
       <MoviePriorityEditor
         movies={rankedMovies}
         pinnedMovies={pinnedMovies}
+        defaultRuntimeByMovie={defaultRuntimeByMovie}
+        runtimeOverrides={runtimeOverrides}
         onMove={moveMovie}
         onTogglePinned={togglePinned}
+        onRuntimeOverrideChange={setRuntimeOverride}
       />
 
       {status === "loading" ? (
@@ -220,6 +258,7 @@ export function MovieDayPage() {
             <span>{selectedMovies.length} selected movies</span>
             <span>{targetCount || 0} to watch</span>
             <span>{pinnedMovies.length} pinned</span>
+            <span>{Object.keys(runtimeOverrides).length} runtime overrides</span>
             <span>{eligibleScreenings.length} candidate showings</span>
             <span>{activeFilterCount} active Screening filters</span>
             <span>{activeShowingFilters} active showing filters</span>
@@ -227,8 +266,9 @@ export function MovieDayPage() {
           </div>
           <p>
             Rank selected movies from most to least wanted. With N selected movies, #1 is worth N
-            points, #2 is worth N−1, and so on; pinned movies are mandatory. The solver may omit
-            only unpinned movies when Watch is below the selected count, then globally ranks
+            points, #2 is worth N−1, and so on; pinned movies are mandatory. Manual runtimes replace
+            fetched runtimes when calculating end times and itinerary feasibility. The solver may
+            omit only unpinned movies when Watch is below the selected count, then globally ranks
             complete itineraries by the chosen objective.
           </p>
         </div>
@@ -293,6 +333,7 @@ export function MovieDayPage() {
                 itinerary={itinerary}
                 number={plan.offset + index + 1}
                 screeningById={screeningById}
+                runtimeOverrides={runtimeOverrides}
               />
             ))}
           </div>
@@ -329,10 +370,12 @@ function ItineraryCard({
   itinerary,
   number,
   screeningById,
+  runtimeOverrides,
 }: {
   itinerary: MovieDayItinerary;
   number: number;
   screeningById: Map<string, Screening>;
+  runtimeOverrides: Readonly<Record<string, number>>;
 }) {
   const screenings = itinerary.showtime_ids
     .map((showtimeId) => screeningById.get(showtimeId))
@@ -360,6 +403,8 @@ function ItineraryCard({
       <ol>
         {screenings.map((screening, index) => {
           const leg = index > 0 ? itinerary.legs[index - 1] : undefined;
+          const runtimeOverride = runtimeOverrides[screening.movie];
+          const runtime = runtimeOverride ?? screening.runtime_minutes;
           return (
             <li key={screening.showtime_id}>
               {leg ? (
@@ -379,7 +424,9 @@ function ItineraryCard({
                 <div>
                   <strong>{screening.movie}</strong>
                   <span>
-                    {screening.theatre} · {screening.format} · {screening.runtime_minutes} min
+                    {screening.theatre} · {screening.format} ·{" "}
+                    {runtime === null ? "runtime unknown" : `${runtime} min`}
+                    {runtimeOverride !== undefined ? " · manual" : ""}
                   </span>
                 </div>
                 <a href={screening.purchase_url} target="_blank" rel="noreferrer">
@@ -398,20 +445,29 @@ function readMovieDayPreferences(): MovieDayPreferences {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(MOVIE_DAY_PREFERENCES_KEY) ?? "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { ranking: [], pinned: [] };
+      return { ranking: [], pinned: [], runtimeOverrides: {} };
     }
-    const value = parsed as { ranking?: unknown; pinned?: unknown };
+    const value = parsed as {
+      ranking?: unknown;
+      pinned?: unknown;
+      runtimeOverrides?: unknown;
+    };
     return {
       ranking: stringArray(value.ranking),
       pinned: stringArray(value.pinned),
+      runtimeOverrides: runtimeOverrideRecord(value.runtimeOverrides),
     };
   } catch {
-    return { ranking: [], pinned: [] };
+    return { ranking: [], pinned: [], runtimeOverrides: {} };
   }
 }
 
 function persistMovieDayPreferences(preferences: MovieDayPreferences): void {
-  if (preferences.ranking.length === 0 && preferences.pinned.length === 0) {
+  if (
+    preferences.ranking.length === 0 &&
+    preferences.pinned.length === 0 &&
+    Object.keys(preferences.runtimeOverrides).length === 0
+  ) {
     localStorage.removeItem(MOVIE_DAY_PREFERENCES_KEY);
     return;
   }
@@ -438,6 +494,23 @@ function stringArray(value: unknown): string[] {
         ),
       ]
     : [];
+}
+
+function runtimeOverrideRecord(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const overrides: Record<string, number> = {};
+  for (const [movie, runtime] of Object.entries(value)) {
+    if (
+      movie.length > 0 &&
+      typeof runtime === "number" &&
+      Number.isInteger(runtime) &&
+      runtime >= 1 &&
+      runtime <= 600
+    ) {
+      overrides[movie] = runtime;
+    }
+  }
+  return overrides;
 }
 
 function arraysEqual(left: readonly string[], right: readonly string[]): boolean {

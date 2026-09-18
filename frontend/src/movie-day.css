@@ -104,7 +104,8 @@
 
 .movie-priority-pinned-count,
 .movie-priority-help,
-.movie-priority-title span {
+.movie-priority-title span,
+.movie-runtime-editor small {
   color: var(--muted);
   font-size: 11px;
 }
@@ -124,7 +125,7 @@
 
 .movie-priority-list li {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto auto;
+  grid-template-columns: 38px minmax(0, 1fr) 132px auto auto;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -151,6 +152,52 @@
 .movie-priority-title span {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.movie-runtime-editor {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.movie-runtime-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.movie-runtime-input input {
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.movie-runtime-editor small {
+  overflow: hidden;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-overflow: ellipsis;
+  text-transform: none;
   white-space: nowrap;
 }
 
@@ -336,6 +383,15 @@
 
   .movie-priority-list li {
     grid-template-columns: 34px minmax(0, 1fr) auto;
+  }
+
+  .movie-runtime-editor {
+    grid-column: 2;
+  }
+
+  .movie-pin {
+    grid-column: 3;
+    grid-row: 1 / span 2;
   }
 
   .movie-priority-moves {

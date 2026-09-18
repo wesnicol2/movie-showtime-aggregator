@@ -123,6 +123,7 @@ export interface MovieDayPlanResponse {
   date: string;
   selected_movies: string[];
   required_movies: string[];
+  runtime_overrides: Record<string, number>;
   target_movie_count: number;
   plannable_movie_count: number;
   sort_by: MovieDaySort;
@@ -145,6 +146,7 @@ export interface MovieDayPlanRequest {
   date: string;
   movies: string[];
   required_movies: string[];
+  runtime_overrides: Record<string, number>;
   showtime_ids: string[];
   target_movie_count: number;
   sort_by: MovieDaySort;

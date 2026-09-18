@@ -5,7 +5,8 @@ import json
 import mimetypes
 import threading
 from collections.abc import Callable, Iterable
-from datetime import date, datetime
+from dataclasses import replace
+from datetime import date, datetime, timedelta
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs, unquote
@@ -17,6 +18,7 @@ from .enrichment import enrich_amc_details, enrich_movie_metadata, enrich_travel
 from .fandango import FandangoClient, FandangoError
 from .location import GeoPoint, LocationError, ZipLocator
 from .metadata import OMDB_DAILY_LIMIT, OmdbClient
+from .models import Screening
 from .planner import plan_movie_day, theatre_points
 from .provider_cache import ProviderCache
 from .routing import AddressGeocoder, GeocodingError, OsrmRouter, RoutingError
@@ -147,6 +149,7 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
         show_date = date.fromisoformat(str(raw_date)) if raw_date else date.today()
         movies = _required_string_list(payload, "movies")
         required_movies = _optional_string_list(payload, "required_movies")
+        runtime_overrides = _runtime_overrides(payload, movies)
         showtime_ids = set(_required_string_list(payload, "showtime_ids", allow_empty=True))
         target_movie_count = _bounded_integer(
             payload.get("target_movie_count", len(movies)),
@@ -178,7 +181,7 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
             radius_miles=radius_miles,
         )
         candidates = [
-            screening
+            _apply_runtime_override(screening, runtime_overrides.get(screening.movie))
             for screening in canonical
             if screening.showtime_id in showtime_ids and screening.movie in movies
         ]
@@ -209,6 +212,7 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
     response.update(
         {
             "date": show_date.isoformat(),
+            "runtime_overrides": runtime_overrides,
             "earliest_start": (
                 earliest_start.isoformat(timespec="minutes") if earliest_start is not None else None
             ),
@@ -345,6 +349,43 @@ def _optional_string_list(payload: dict[str, object], field: str) -> list[str]:
     if field not in payload:
         return []
     return _required_string_list(payload, field, allow_empty=True)
+
+
+def _runtime_overrides(payload: dict[str, object], movies: list[str]) -> dict[str, int]:
+    raw = payload.get("runtime_overrides", {})
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError("runtime_overrides must be an object keyed by movie title")
+
+    selected = set(movies)
+    overrides: dict[str, int] = {}
+    for movie, value in raw.items():
+        if not isinstance(movie, str) or movie.strip() not in selected:
+            raise ValueError("runtime_overrides keys must be selected movies")
+        normalized_movie = movie.strip()
+        overrides[normalized_movie] = _bounded_integer(
+            value,
+            f"runtime_overrides[{normalized_movie}]",
+            minimum=1,
+            maximum=600,
+        )
+    return overrides
+
+
+def _apply_runtime_override(screening: Screening, runtime_minutes: int | None) -> Screening:
+    if runtime_minutes is None:
+        return screening
+    estimated_end = (
+        screening.actual_start + timedelta(minutes=runtime_minutes)
+        if screening.actual_start is not None
+        else None
+    )
+    return replace(
+        screening,
+        runtime_minutes=runtime_minutes,
+        estimated_end=estimated_end,
+    )
 
 
 def _optional_datetime(value: object, field: str) -> datetime | None:
