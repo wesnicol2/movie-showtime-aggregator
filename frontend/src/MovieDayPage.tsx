@@ -38,9 +38,8 @@ export function MovieDayPage() {
   const [earliestTime, setEarliestTime] = useState("");
   const [latestTime, setLatestTime] = useState("");
   const [sortBy, setSortBy] = useState<MovieDaySort>("elapsed");
-  const [moviePreferences, setMoviePreferences] = useState<MovieDayPreferences>(
-    readMovieDayPreferences,
-  );
+  const [moviePreferences, setMoviePreferences] =
+    useState<MovieDayPreferences>(readMovieDayPreferences);
   const [plan, setPlan] = useState<MovieDayPlanResponse | null>(null);
   const [planSignature, setPlanSignature] = useState("");
   const [planError, setPlanError] = useState<string | null>(null);

@@ -5,12 +5,7 @@ interface Props {
   onTogglePinned: (movie: string) => void;
 }
 
-export function MoviePriorityEditor({
-  movies,
-  pinnedMovies,
-  onMove,
-  onTogglePinned,
-}: Props) {
+export function MoviePriorityEditor({ movies, pinnedMovies, onMove, onTogglePinned }: Props) {
   if (movies.length === 0) return null;
   const pinned = new Set(pinnedMovies);
 
@@ -21,7 +16,7 @@ export function MoviePriorityEditor({
           <p className="eyebrow">MOVIE PRIORITY</p>
           <h2 id="movie-priority-heading">Rank what you want to see</h2>
         </div>
-        <span>{pinnedMovies.length} pinned</span>
+        <span className="movie-priority-pinned-count">{pinnedMovies.length} pinned</span>
       </header>
       <p className="movie-priority-help">
         Higher-ranked movies are worth more want points. Pin a movie to require it in every
