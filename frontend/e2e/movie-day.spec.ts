@@ -92,11 +92,13 @@ async function mockApi(page: Page): Promise<void> {
   await page.route("**/api/movie-day", async (route) => {
     const request = route.request().postDataJSON();
     expect(request.movies).toEqual(["Alpha", "Beta"]);
+    expect(request.required_movies).toEqual([]);
     expect(request.showtime_ids).toEqual(["alpha-1", "beta-1"]);
     await route.fulfill({
       json: {
         date: "2026-09-10",
         selected_movies: ["Alpha", "Beta"],
+        required_movies: [],
         target_movie_count: request.target_movie_count,
         plannable_movie_count: 2,
         sort_by: request.sort_by,
@@ -105,6 +107,7 @@ async function mockApi(page: Page): Promise<void> {
         eligible_showings: 2,
         unplannable_showings: 0,
         missing_movies: [],
+        missing_required_movies: [],
         total_itineraries: 1,
         offset: 0,
         limit: 25,
@@ -116,6 +119,7 @@ async function mockApi(page: Page): Promise<void> {
             showtime_ids: ["alpha-1", "beta-1"],
             movies: ["Alpha", "Beta"],
             dropped_movies: [],
+            want_score: 3,
             starts_at: "2026-09-10T09:00:00",
             ends_at: "2026-09-10T13:10:00",
             elapsed_minutes: 250,
@@ -163,6 +167,7 @@ test("selected movies become a travel-aware movie-day itinerary", async ({ page 
 
   await expect(page.getByText("1 feasible 2-movie itineraries")).toBeVisible();
   await expect(page.getByText("OPTION 1")).toBeVisible();
+  await expect(page.getByText("Want score 3")).toBeVisible();
   await expect(page.getByText("15 min drive")).toBeVisible();
   await expect(page.getByText("15 min spare")).toBeVisible();
 });
@@ -184,6 +189,7 @@ test("showing filters narrow the showings a plan may use", async ({ page }) => {
       json: {
         date: "2026-09-10",
         selected_movies: ["Alpha", "Beta"],
+        required_movies: [],
         target_movie_count: 2,
         plannable_movie_count: 1,
         sort_by: "elapsed",
@@ -192,6 +198,7 @@ test("showing filters narrow the showings a plan may use", async ({ page }) => {
         eligible_showings: 1,
         unplannable_showings: 0,
         missing_movies: ["Beta"],
+        missing_required_movies: [],
         total_itineraries: 0,
         offset: 0,
         limit: 25,
@@ -232,6 +239,7 @@ test("planner edits its movie pool and sends exact count, time bounds, and sort"
   await page.route("**/api/movie-day", async (route) => {
     const request = route.request().postDataJSON();
     expect(request.movies).toEqual(["Alpha", "Beta"]);
+    expect(request.required_movies).toEqual([]);
     expect(request.target_movie_count).toBe(1);
     expect(request.sort_by).toBe("driving");
     expect(request.earliest_start).toBe("2026-09-10T09:00:00");
@@ -240,6 +248,7 @@ test("planner edits its movie pool and sends exact count, time bounds, and sort"
       json: {
         date: "2026-09-10",
         selected_movies: ["Alpha", "Beta"],
+        required_movies: [],
         target_movie_count: 1,
         plannable_movie_count: 2,
         sort_by: "driving",
@@ -248,6 +257,7 @@ test("planner edits its movie pool and sends exact count, time bounds, and sort"
         eligible_showings: 2,
         unplannable_showings: 0,
         missing_movies: [],
+        missing_required_movies: [],
         total_itineraries: 2,
         offset: 0,
         limit: 25,
@@ -259,6 +269,7 @@ test("planner edits its movie pool and sends exact count, time bounds, and sort"
             showtime_ids: ["alpha-1"],
             movies: ["Alpha"],
             dropped_movies: ["Beta"],
+            want_score: 2,
             starts_at: "2026-09-10T09:00:00",
             ends_at: "2026-09-10T11:00:00",
             elapsed_minutes: 120,
@@ -275,4 +286,68 @@ test("planner edits its movie pool and sends exact count, time bounds, and sort"
   await page.getByRole("button", { name: "Find combinations" }).click();
   await expect(page.getByText("Skipped: Beta")).toBeVisible();
   await expect(page.getByText("minimum driving first")).toBeVisible();
+});
+
+test("movie priorities and pins are sent as hard planner constraints", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/plan");
+
+  await page.getByRole("button", { name: "Move Beta up" }).click();
+  await page.getByRole("button", { name: "Pin Beta" }).click();
+  await expect(page.getByRole("button", { name: "Unpin Beta" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.getByLabel("Number of movies").selectOption("1");
+  await page.getByLabel("Sort itineraries").selectOption("want");
+
+  await page.route("**/api/movie-day", async (route) => {
+    const request = route.request().postDataJSON();
+    expect(request.movies).toEqual(["Beta", "Alpha"]);
+    expect(request.required_movies).toEqual(["Beta"]);
+    expect(request.target_movie_count).toBe(1);
+    expect(request.sort_by).toBe("want");
+    await route.fulfill({
+      json: {
+        date: "2026-09-10",
+        selected_movies: ["Beta", "Alpha"],
+        required_movies: ["Beta"],
+        target_movie_count: 1,
+        plannable_movie_count: 2,
+        sort_by: "want",
+        earliest_start: null,
+        latest_end: null,
+        eligible_showings: 2,
+        unplannable_showings: 0,
+        missing_movies: [],
+        missing_required_movies: [],
+        total_itineraries: 1,
+        offset: 0,
+        limit: 25,
+        has_more: false,
+        minimum_buffer_minutes: 0,
+        routing_available: true,
+        itineraries: [
+          {
+            showtime_ids: ["beta-1"],
+            movies: ["Beta"],
+            dropped_movies: ["Alpha"],
+            want_score: 2,
+            starts_at: "2026-09-10T11:30:00",
+            ends_at: "2026-09-10T13:10:00",
+            elapsed_minutes: 100,
+            movie_minutes: 100,
+            travel_minutes: 0,
+            waiting_minutes: 0,
+            legs: [],
+          },
+        ],
+      },
+    });
+  });
+
+  await page.getByRole("button", { name: "Find combinations" }).click();
+  await expect(page.getByText("highest want score first")).toBeVisible();
+  await expect(page.getByText("Want score 2")).toBeVisible();
+  await expect(page.getByText("Skipped: Alpha")).toBeVisible();
 });

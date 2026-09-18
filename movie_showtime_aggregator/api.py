@@ -146,6 +146,7 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
         raw_date = payload.get("date")
         show_date = date.fromisoformat(str(raw_date)) if raw_date else date.today()
         movies = _required_string_list(payload, "movies")
+        required_movies = _optional_string_list(payload, "required_movies")
         showtime_ids = set(_required_string_list(payload, "showtime_ids", allow_empty=True))
         target_movie_count = _bounded_integer(
             payload.get("target_movie_count", len(movies)),
@@ -192,6 +193,7 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
             movies,
             travel,
             target_movie_count=target_movie_count,
+            required_movies=required_movies,
             earliest_start=earliest_start,
             latest_end=latest_end,
             sort_by=sort_by,
@@ -337,6 +339,12 @@ def _required_string_list(
     if not values and not allow_empty:
         raise ValueError(f"{field} must contain at least one value")
     return values
+
+
+def _optional_string_list(payload: dict[str, object], field: str) -> list[str]:
+    if field not in payload:
+        return []
+    return _required_string_list(payload, field, allow_empty=True)
 
 
 def _optional_datetime(value: object, field: str) -> datetime | None:

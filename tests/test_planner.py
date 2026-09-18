@@ -186,3 +186,66 @@ def test_unknown_preview_or_runtime_only_blocks_required_cardinality():
     assert flexible.total_itineraries == 1
     assert flexible.itineraries[0].movies == ("Alpha",)
     assert flexible.itineraries[0].dropped_movies == ("Beta",)
+
+
+def test_want_sort_prefers_itineraries_with_higher_ranked_movies():
+    screenings = [
+        screening("a", "Alpha", 9, 0, 60),
+        screening("b", "Beta", 10, 10, 60),
+        screening("c", "Gamma", 11, 20, 60),
+    ]
+
+    plan = plan_movie_day(
+        screenings,
+        ["Alpha", "Beta", "Gamma"],
+        {},
+        target_movie_count=2,
+        sort_by="want",
+    )
+
+    assert [itinerary.movies for itinerary in plan.itineraries] == [
+        ("Alpha", "Beta"),
+        ("Alpha", "Gamma"),
+        ("Beta", "Gamma"),
+    ]
+    assert [itinerary.want_score for itinerary in plan.itineraries] == [5, 4, 3]
+
+
+def test_pinned_movies_are_required_before_global_ranking():
+    screenings = [
+        screening("a", "Alpha", 9, 0, 60),
+        screening("b", "Beta", 10, 10, 60),
+        screening("c", "Gamma", 11, 20, 60),
+    ]
+
+    plan = plan_movie_day(
+        screenings,
+        ["Alpha", "Beta", "Gamma"],
+        {},
+        target_movie_count=2,
+        required_movies=["Gamma"],
+        sort_by="want",
+    )
+
+    assert plan.required_movies == ("Gamma",)
+    assert plan.total_itineraries == 2
+    assert [itinerary.movies for itinerary in plan.itineraries] == [
+        ("Alpha", "Gamma"),
+        ("Beta", "Gamma"),
+    ]
+    assert all("Gamma" in itinerary.movies for itinerary in plan.itineraries)
+
+
+def test_missing_pinned_movie_is_reported_as_hard_constraint():
+    screenings = [screening("a", "Alpha", 9, 0, 60)]
+
+    plan = plan_movie_day(
+        screenings,
+        ["Alpha", "Beta"],
+        {},
+        target_movie_count=1,
+        required_movies=["Beta"],
+    )
+
+    assert plan.total_itineraries == 0
+    assert plan.missing_required_movies == ("Beta",)

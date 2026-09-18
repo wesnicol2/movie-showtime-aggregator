@@ -16,6 +16,7 @@ interface Props {
   screenings: readonly Screening[];
   selectedMovies: readonly string[];
   targetMovieCount: number | null;
+  minimumTargetMovieCount: number;
   earliestTime: string;
   latestTime: string;
   sortBy: MovieDaySort;
@@ -37,6 +38,7 @@ export function MovieDayControlBar({
   screenings,
   selectedMovies,
   targetMovieCount,
+  minimumTargetMovieCount,
   earliestTime,
   latestTime,
   sortBy,
@@ -68,6 +70,7 @@ export function MovieDayControlBar({
       ? null
       : [...selectedMovies];
   const selectedCount = selectedMovies.length;
+  const minimumWatchCount = Math.max(1, minimumTargetMovieCount);
 
   function facetProps(key: keyof ScreeningFacets) {
     return {
@@ -105,13 +108,13 @@ export function MovieDayControlBar({
           }
         >
           <option value="all">All selected ({selectedCount})</option>
-          {Array.from({ length: Math.max(0, selectedCount - 1) }, (_, index) => index + 1).map(
-            (count) => (
+          {Array.from({ length: Math.max(0, selectedCount - 1) }, (_, index) => index + 1)
+            .filter((count) => count >= minimumWatchCount)
+            .map((count) => (
               <option key={count} value={count}>
                 {count} movie{count === 1 ? "" : "s"}
               </option>
-            ),
-          )}
+            ))}
         </select>
       </label>
 
@@ -144,6 +147,7 @@ export function MovieDayControlBar({
         >
           <option value="elapsed">Minimum time</option>
           <option value="driving">Minimum driving</option>
+          <option value="want">Highest want score</option>
         </select>
       </label>
 

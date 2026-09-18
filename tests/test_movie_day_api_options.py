@@ -93,6 +93,42 @@ def test_movie_day_api_threads_cardinality_time_bounds_and_sort(monkeypatch):
     assert payload["itineraries"][0]["dropped_movies"] == ["Gamma"]
 
 
+def test_movie_day_api_threads_rank_order_pins_and_want_sort(monkeypatch):
+    monkeypatch.setattr(
+        api,
+        "_SERVICE",
+        StubService(
+            [
+                screening("alpha", "Alpha", 9),
+                screening("beta", "Beta", 11),
+                screening("gamma", "Gamma", 18),
+            ]
+        ),
+    )
+    monkeypatch.setattr(api, "_ROUTER", NoTravelRouter())
+
+    code, payload = call_movie_day(
+        {
+            "date": "2026-09-10",
+            "movies": ["Gamma", "Alpha", "Beta"],
+            "required_movies": ["Beta"],
+            "showtime_ids": ["alpha", "beta", "gamma"],
+            "target_movie_count": 2,
+            "sort_by": "want",
+            "minimum_buffer_minutes": 0,
+        }
+    )
+
+    assert code == 200
+    assert payload["selected_movies"] == ["Gamma", "Alpha", "Beta"]
+    assert payload["required_movies"] == ["Beta"]
+    assert payload["sort_by"] == "want"
+    assert payload["total_itineraries"] == 2
+    assert payload["itineraries"][0]["movies"] == ["Beta", "Gamma"]
+    assert payload["itineraries"][0]["want_score"] == 4
+    assert all("Beta" in itinerary["movies"] for itinerary in payload["itineraries"])
+
+
 def test_movie_day_api_rejects_unknown_sort(monkeypatch):
     monkeypatch.setattr(api, "_SERVICE", StubService([screening("alpha", "Alpha", 9)]))
     monkeypatch.setattr(api, "_ROUTER", NoTravelRouter())
