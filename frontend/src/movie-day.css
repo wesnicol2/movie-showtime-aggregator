@@ -80,6 +80,151 @@
   color: #dbe9ff;
 }
 
+.movie-priority-panel {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.movie-priority-panel > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.movie-priority-panel h2 {
+  margin: 2px 0 0;
+  font-size: 15px;
+}
+
+.movie-priority-pinned-count,
+.movie-priority-help,
+.movie-priority-title span,
+.movie-runtime-editor small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.movie-priority-help {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.movie-priority-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.movie-priority-list li {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 132px auto auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-raised);
+}
+
+.movie-priority-rank {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.movie-priority-title {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.movie-priority-title strong,
+.movie-priority-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.movie-runtime-editor {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.movie-runtime-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.movie-runtime-input input {
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.movie-runtime-editor small {
+  overflow: hidden;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.movie-pin,
+.movie-priority-moves button {
+  min-height: 30px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+}
+
+.movie-pin.is-pinned {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.movie-priority-moves {
+  display: flex;
+  gap: 4px;
+}
+
+.movie-priority-moves button {
+  min-width: 30px;
+  padding-inline: 6px;
+}
+
 .planner-context {
   display: grid;
   gap: 10px;
@@ -236,6 +381,24 @@
     grid-column: 1 / -1;
   }
 
+  .movie-priority-list li {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+  }
+
+  .movie-runtime-editor {
+    grid-column: 2;
+  }
+
+  .movie-pin {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
+  .movie-priority-moves {
+    grid-column: 2 / -1;
+    justify-content: flex-end;
+  }
+
   .itinerary-card > header {
     align-items: stretch;
     flex-direction: column;
@@ -263,5 +426,10 @@
 
   .movie-day-control-actions {
     grid-column: 1;
+  }
+
+  .movie-priority-panel > header {
+    align-items: start;
+    flex-direction: column;
   }
 }
