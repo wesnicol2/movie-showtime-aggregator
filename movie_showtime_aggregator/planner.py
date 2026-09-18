@@ -327,9 +327,7 @@ def _ranked_itineraries(
             if skipped < offset:
                 skipped += 1
             else:
-                itineraries.append(
-                    _make_itinerary(candidates, movies, movie_scores, list(path))
-                )
+                itineraries.append(_make_itinerary(candidates, movies, movie_scores, list(path)))
             continue
 
         for target_index, drive_minutes in edges[index]:
