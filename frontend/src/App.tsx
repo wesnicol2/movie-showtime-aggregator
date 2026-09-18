@@ -16,10 +16,15 @@ function normalizePath(path: string): AppPath {
 
 export function App() {
   const [path, setPath] = useState(() => normalizePath(window.location.pathname));
+  const [movieDayMounted, setMovieDayMounted] = useState(() => path === "/plan");
   const syncMovieSelection = useAppStore((state) => state.syncMovieSelection);
 
   useEffect(() => {
-    const onPopState = () => setPath(normalizePath(window.location.pathname));
+    const onPopState = () => {
+      const nextPath = normalizePath(window.location.pathname);
+      setPath(nextPath);
+      if (nextPath === "/plan") setMovieDayMounted(true);
+    };
     const onStorage = (event: StorageEvent) => {
       if (event.key === "movie-showtime-aggregator.selected-movies.v1") syncMovieSelection();
     };
@@ -32,6 +37,7 @@ export function App() {
   }, [syncMovieSelection]);
 
   function navigate(nextPath: AppPath): void {
+    if (nextPath === "/plan") setMovieDayMounted(true);
     if (nextPath === path) return;
     window.history.pushState({}, "", nextPath);
     setPath(nextPath);
@@ -81,10 +87,13 @@ export function App() {
         </nav>
       </header>
       <main className="app-main">
-        {path === "/movies" ? (
+        {movieDayMounted ? (
+          <div hidden={path !== "/plan"}>
+            <MovieDayPage />
+          </div>
+        ) : null}
+        {path === "/plan" ? null : path === "/movies" ? (
           <MoviesPage />
-        ) : path === "/plan" ? (
-          <MovieDayPage />
         ) : path === "/settings" ? (
           <SettingsPage />
         ) : (
