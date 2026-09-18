@@ -52,13 +52,15 @@ Open `/plan` to define the day from one compact control surface. **Movies** is a
 
 **Watch** can require every selected movie or an exact smaller count. If five movies are selected and Watch is set to three, the backend evaluates feasible three-movie paths across the whole five-movie pool; different results may omit different titles. The planner currently accepts up to 10 selected movie candidates so the exact combinatorial search stays bounded.
 
+The **Movie Priority** list ranks the selected pool from most wanted to least wanted. With N selected movies, rank #1 is worth N want points, rank #2 is worth N-1, down to one point for the last-ranked movie; an itinerary's want score is the sum of the movies it contains. Rankings and pins are browser-persistent Movie Day preferences. **Pin** marks a movie as mandatory, so every returned itinerary contains it; Watch cannot be set below the number of pinned movies. If a pinned movie has no eligible showing under the current filters/time bounds, the planner reports that conflict rather than silently dropping it.
+
 **Start** constrains the first used showing's calculated actual start, and **End** constrains every used showing's calculated end so the final movie finishes by that time. When both are supplied and End is at or before Start, End is interpreted as the following calendar day. Missing preview/runtime still makes a showing unplannable rather than inventing timing.
 
-Results can be globally ranked by **Minimum time** (first actual start through final calculated end) or **Minimum driving** (theater-to-theater drive minutes, with elapsed time as the next tie-breaker). Ranking happens in the backend across the complete feasible solution set, not by re-sorting one 25-result browser page.
+Results can be globally ranked by **Minimum time** (first actual start through final calculated end), **Minimum driving** (theater-to-theater drive minutes, with elapsed time as the next tie-breaker), or **Highest want score** (rank-weight sum, with elapsed time and driving as tie-breakers). Ranking happens in the backend across the complete feasible solution set, not by re-sorting one 25-result browser page.
 
-Mathematically this is a cardinality-constrained time-window routing problem, closely related to selective TSP/orienteering with fixed-duration appointments. Showtimes give the graph a strong forward-time structure: screenings are nodes in a directed acyclic graph, and an edge exists only when the first movie can end, travel to the next theater, include the requested transfer buffer, and reach the next calculated actual start. Dynamic programming counts exact feasible completions; best-first traversal then emits globally ranked complete paths without materializing the full Cartesian product.
+Mathematically this is a cardinality-constrained time-window routing problem, closely related to selective TSP/orienteering with fixed-duration appointments. Showtimes give the graph a strong forward-time structure: screenings are nodes in a directed acyclic graph, and an edge exists only when the first movie can end, travel to the next theater, include the requested transfer buffer, and reach the next calculated actual start. Dynamic programming counts exact feasible completions, including mandatory pinned-movie coverage; best-first traversal then emits globally ranked complete paths without materializing the full Cartesian product.
 
-Different-theater transitions require both theater coordinates and an OSRM route; staying at the same theater takes zero travel minutes. Drive estimates are directional and static, not live traffic. Each result identifies any selected movies it skipped when Watch is smaller than the selected pool.
+Different-theater transitions require both theater coordinates and an OSRM route; staying at the same theater takes zero travel minutes. Drive estimates are directional and static, not live traffic. Each result displays its want score and identifies any unpinned selected movies it skipped when Watch is smaller than the selected pool.
 
 ## Settings
 
@@ -229,11 +231,11 @@ A deployed Test environment remains the integration gate for real upstream crede
 
 - `/` — spreadsheet-style screening workstation.
 - `/movies` — poster-first Movie Selection page.
-- `/plan` — Movie Day optimizer with editable movie pool, exact watch count, time bounds, showing filters, and global itinerary sorting.
+- `/plan` — Movie Day optimizer with editable/ranked movie pool, pins, exact watch count, time bounds, showing filters, and global itinerary sorting.
 - `/settings` — browser settings plus shared server settings/integration credentials and provider usage/cache status.
 - `/api/settings` — GET public settings/provider-usage state; POST shared settings. Secret values are never returned.
 - `/api/screenings` — normalized/enriched screenings and facets. Direct API consumers can still use server-side `movie`, `theatre`, `format`, `start_after`, `start_before`, `end_by`, `preview=Chain:minutes`, `zip=`, `radius=`, and `date=` parameters; browser cookies take precedence for location/preview settings.
-- `/api/movie-day` — POST selected movie pool, eligible showtime IDs, exact target movie count, optional start/end bounds, sort objective, transfer buffer, and pagination to count and return feasible itineraries.
+- `/api/movie-day` — POST the ranked movie pool, required/pinned movies, eligible showtime IDs, exact target movie count, optional start/end bounds, sort objective, transfer buffer, and pagination to count and return feasible itineraries.
 - `/health` — `{"status": "ok"}`.
 
 ## Project structure
