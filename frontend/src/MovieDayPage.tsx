@@ -120,7 +120,9 @@ export function MovieDayPage() {
       const destination = index + direction;
       if (index < 0 || destination < 0 || destination >= ranking.length) return current;
       const next = [...ranking];
-      [next[index], next[destination]] = [next[destination], next[index]];
+      const currentMovie = next[index]!;
+      next[index] = next[destination]!;
+      next[destination] = currentMovie;
       return { ...current, ranking: next };
     });
   }
