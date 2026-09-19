@@ -3,7 +3,8 @@
 import io
 import json
 import re
-from datetime import datetime
+from dataclasses import replace
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -108,9 +109,10 @@ def test_spa_routes_serve_the_same_react_shell():
     root_code, root_body = call("/")
     movies_code, movies_body = call("/movies")
     settings_code, settings_body = call("/settings")
+    plan_code, plan_body = call("/plan")
 
-    assert root_code == movies_code == settings_code == 200
-    assert root_body == movies_body == settings_body
+    assert root_code == movies_code == settings_code == plan_code == 200
+    assert root_body == movies_body == settings_body == plan_body
     assert '<div id="root"></div>' in root_body
     assert "/assets/" in root_body
     assert "movie decision workstation" not in root_body.lower()
@@ -235,6 +237,93 @@ def test_api_can_skip_optional_enrichment(monkeypatch):
     assert payload["enrichment_enabled"] is False
     assert payload["count"] == 1
     assert payload["facets"]["chains"] == ["AMC"]
+
+
+def test_movie_day_api_revalidates_showtimes_and_returns_feasible_paths(monkeypatch):
+    alpha = replace(
+        sample_screening(movie="Alpha"),
+        showtime_id="alpha",
+        theatre_latitude=33.45,
+        theatre_longitude=-112.07,
+    )
+    beta_start = datetime(2026, 9, 4, 20, 45)
+    beta = replace(
+        sample_screening(movie="Beta", chain="Harkins"),
+        showtime_id="beta",
+        advertised_start=beta_start - timedelta(minutes=20),
+        actual_start=beta_start,
+        estimated_end=beta_start + timedelta(minutes=100),
+        runtime_minutes=100,
+        theatre_latitude=33.50,
+        theatre_longitude=-112.10,
+    )
+    monkeypatch.setattr(api, "_SERVICE", StubService([alpha, beta]))
+
+    class FakeRouter:
+        def travel_matrix(self, points):
+            assert len(points) == 2
+            return {(points[0], points[1]): 15, (points[1], points[0]): 18}
+
+    monkeypatch.setattr(api, "_ROUTER", FakeRouter())
+
+    code, payload = call(
+        "/api/movie-day",
+        method="POST",
+        cookie="movie_preview_minutes=%7B%22AMC%22%3A25%2C%22Harkins%22%3A20%7D",
+        json_body={
+            "date": "2026-09-04",
+            "movies": ["Alpha", "Beta"],
+            "showtime_ids": ["alpha", "beta", "not-canonical"],
+            "minimum_buffer_minutes": 5,
+        },
+    )
+
+    assert code == 200
+    assert payload["total_itineraries"] == 1
+    assert payload["itineraries"][0]["showtime_ids"] == ["alpha", "beta"]
+    assert payload["itineraries"][0]["travel_minutes"] == 15
+    assert payload["minimum_buffer_minutes"] == 5
+    assert payload["routing_available"] is True
+
+
+def test_movie_day_api_falls_back_to_same_theater_paths_when_routing_fails(monkeypatch):
+    from movie_showtime_aggregator.routing import RoutingError
+
+    alpha = replace(sample_screening(movie="Alpha"), showtime_id="alpha")
+    beta = replace(
+        sample_screening(movie="Beta"),
+        showtime_id="beta",
+        actual_start=datetime(2026, 9, 4, 20, 30),
+        estimated_end=datetime(2026, 9, 4, 22, 30),
+    )
+    monkeypatch.setattr(api, "_SERVICE", StubService([alpha, beta]))
+
+    class FailedRouter:
+        def travel_matrix(self, points):
+            raise RoutingError("offline")
+
+    monkeypatch.setattr(api, "_ROUTER", FailedRouter())
+
+    code, payload = call(
+        "/api/movie-day",
+        method="POST",
+        json_body={"movies": ["Alpha", "Beta"], "showtime_ids": ["alpha", "beta"]},
+    )
+
+    assert code == 200
+    assert payload["routing_available"] is False
+    assert payload["total_itineraries"] == 1
+
+
+def test_movie_day_api_rejects_an_empty_movie_selection():
+    code, payload = call(
+        "/api/movie-day",
+        method="POST",
+        json_body={"movies": [], "showtime_ids": []},
+    )
+
+    assert code == 400
+    assert "movies must contain at least one value" in payload["error"]
 
 
 def test_invalid_enrichment_flag_is_400(monkeypatch):

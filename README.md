@@ -1,9 +1,10 @@
 # movie-showtime-aggregator
 
-A React-based movie-going decision workstation built around two tightly synchronized views:
+A React-based movie-going decision workstation built around three tightly synchronized views:
 
 - an Excel-style screening table where every displayed column can be sorted or filtered from its header;
 - a poster-first **Movie Selection** page where the whole poster tile acts as the checkbox for the table's Movie filter.
+- a **Movie Day** planner that optimizes feasible itineraries from a selected pool of movies, time bounds, and theater/showing constraints.
 
 The app discovers theaters around a configured ZIP code and radius, applies user-known preview times, and can optionally enrich screenings with movie ratings/posters, rough home travel times, and official AMC pricing/seating data. The Python backend remains authoritative for screening data, provider semantics, calculations, and enrichment; the React frontend consumes typed API contracts and performs only already-loaded interaction such as table sorting/filtering.
 
@@ -37,9 +38,29 @@ Known external values are source links:
 
 Open `/movies` or use **Movies** in the application navigation. The page is a dark, poster-first grid inspired by a theater-app Now Playing screen. The poster itself is the selection control; selecting or deselecting a movie immediately updates the browser-persistent Movie filter used by the screening table.
 
-Movie Selection has local filters for title, selected/unselected status, minimum IMDb/Rotten Tomatoes/Metacritic ratings, and initial release date. It can sort in either direction by title, initial release date, IMDb, Rotten Tomatoes, or Metacritic. The active sort field and value are shown under every title so the current ordering is visible without opening a detail view.
+Movie Selection has local filters for title, minimum IMDb/Rotten Tomatoes/Metacritic ratings, and initial release date, plus multi-value checkbox filters for selection state, theater, chain, format, and listed showtime window (matinee, afternoon, evening, late night). Each checkbox filter opens the same **All** / **None** / per-value checkbox menu the screening table uses, and reads `All` until you narrow it.
+
+Theater, chain, format, and listed-time checkboxes describe screenings rather than movies, so a movie stays visible while at least one of its screenings matches every active screening filter — selecting `AMC Center 8` and a late-night window keeps only movies that actually play late at that theater. Listed showtime windows come from the provider's listed start time, not the calculated actual start, so they never depend on configured preview minutes.
+
+Movie Selection can sort in either direction by title, initial release date, IMDb, Rotten Tomatoes, or Metacritic. The active sort field and value are shown under every title so the current ordering is visible without opening a detail view.
 
 Posters, ratings, and initial release date require an OMDb API key configured in Settings. The backend normalizes OMDb's `Released` value for the release-date sort/filter; unavailable values remain `Unknown`. The page and the core showtime table still work when that metadata is unavailable.
+
+## Movie Day planner
+
+Open `/plan` to define the day from one compact control surface. **Movies** is a searchable checkbox pool synchronized with `/movies` and the screening table, so titles can be added or removed without leaving the planner. Theater, chain, format, and listed-time checkbox filters continue to narrow candidate showings on top of any active Screening column filters. An optional transfer buffer reserves extra time beyond the static drive estimate.
+
+**Watch** can require every selected movie or an exact smaller count. If five movies are selected and Watch is set to three, the backend evaluates feasible three-movie paths across the whole five-movie pool; different results may omit different titles. The planner currently accepts up to 10 selected movie candidates so the exact combinatorial search stays bounded.
+
+The **Movie Priority** list ranks the selected pool from most wanted to least wanted. With N selected movies, rank #1 is worth N want points, rank #2 is worth N-1, down to one point for the last-ranked movie; an itinerary's want score is the sum of the movies it contains. Rankings and pins are browser-persistent Movie Day preferences. **Pin** marks a movie as mandatory, so every returned itinerary contains it; Watch cannot be set below the number of pinned movies. If a pinned movie has no eligible showing under the current filters/time bounds, the planner reports that conflict rather than silently dropping it.
+
+**Start** constrains the first used showing's calculated actual start, and **End** constrains every used showing's calculated end so the final movie finishes by that time. When both are supplied and End is at or before Start, End is interpreted as the following calendar day. Missing preview/runtime still makes a showing unplannable rather than inventing timing.
+
+Results can be globally ranked by **Minimum time** (full door-to-door elapsed time from leaving home for the first theater through arriving home after the final movie), **Minimum driving** (outbound home-to-first-theater drive + theater-to-theater drives + final-theater-to-home drive, with door-to-door elapsed time as the next tie-breaker), or **Highest want score** (rank-weight sum, with door-to-door elapsed time and total driving as tie-breakers). Ranking happens in the backend across the complete feasible solution set, not by re-sorting one 25-result browser page.
+
+Mathematically this is a cardinality-constrained time-window routing problem, closely related to selective TSP/orienteering with fixed-duration appointments. Showtimes give the graph a strong forward-time structure: screenings are nodes in a directed acyclic graph, and an edge exists only when the first movie can end, travel to the next theater, include the requested transfer buffer, and reach the next calculated actual start. Dynamic programming counts exact feasible completions, including mandatory pinned-movie coverage; best-first traversal then emits globally ranked complete paths without materializing the full Cartesian product.
+
+Different-theater transitions require both theater coordinates and an OSRM route; staying at the same theater takes zero travel minutes. Drive estimates are directional and static, not live traffic. Each result displays its want score and identifies any unpinned selected movies it skipped when Watch is smaller than the selected pool.
 
 ## Settings
 
@@ -96,7 +117,7 @@ leave home = actual start - estimated drive-to minutes
 back home  = estimated end + estimated drive-home minutes
 ```
 
-Travel columns remain unknown when the chain preview time, runtime, theater coordinates, home address, or route estimate needed for the calculation is unavailable. After-midnight values use full datetimes and are displayed with `(+1d)` when appropriate.
+Travel columns remain unknown when the chain preview time, runtime, theater coordinates, home address, or route estimate needed for the calculation is unavailable. After-midnight values use full datetimes and are displayed with `(+1d)` when applicable.
 
 ## Seats and ticket prices
 
@@ -210,9 +231,11 @@ A deployed Test environment remains the integration gate for real upstream crede
 
 - `/` — spreadsheet-style screening workstation.
 - `/movies` — poster-first Movie Selection page.
+- `/plan` — Movie Day optimizer with editable/ranked movie pool, pins, exact watch count, time bounds, showing filters, and global itinerary sorting.
 - `/settings` — browser settings plus shared server settings/integration credentials and provider usage/cache status.
 - `/api/settings` — GET public settings/provider-usage state; POST shared settings. Secret values are never returned.
 - `/api/screenings` — normalized/enriched screenings and facets. Direct API consumers can still use server-side `movie`, `theatre`, `format`, `start_after`, `start_before`, `end_by`, `preview=Chain:minutes`, `zip=`, `radius=`, and `date=` parameters; browser cookies take precedence for location/preview settings.
+- `/api/movie-day` — POST the ranked movie pool, required/pinned movies, eligible showtime IDs, exact target movie count, optional start/end bounds, sort objective, transfer buffer, and pagination to count and return feasible itineraries.
 - `/health` — `{"status": "ok"}`.
 
 ## Project structure
@@ -228,6 +251,7 @@ A deployed Test environment remains the integration gate for real upstream crede
 - `movie_showtime_aggregator/enrichment.py` — fail-soft enrichment orchestration.
 - `movie_showtime_aggregator/storage.py` — shared persistent user settings and secrets.
 - `movie_showtime_aggregator/models.py` — normalized screening and derived fields.
+- `movie_showtime_aggregator/planner.py` — cardinality-constrained time-window graph construction, exact path counting, and globally ranked itinerary pagination.
 - `movie_showtime_aggregator/service.py` — Fandango caching, radius discovery, facets, filters.
 - `tests/` — Python unit/API tests, including the SPA-serving contract.
 - `scripts/` — deterministic local fix/verification commands used by agents and CI.

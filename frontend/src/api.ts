@@ -1,4 +1,10 @@
-import type { ScreeningsResponse, SharedSettings, SharedSettingsChanges } from "./types";
+import type {
+  MovieDayPlanRequest,
+  MovieDayPlanResponse,
+  ScreeningsResponse,
+  SharedSettings,
+  SharedSettingsChanges,
+} from "./types";
 
 function browserDate(): string {
   const now = new Date();
@@ -27,6 +33,14 @@ export function fetchScreenings(enrich = true): Promise<ScreeningsResponse> {
 
 export function fetchSharedSettings(): Promise<SharedSettings> {
   return requestJson<SharedSettings>("/api/settings");
+}
+
+export function createMovieDayPlan(request: MovieDayPlanRequest): Promise<MovieDayPlanResponse> {
+  return requestJson<MovieDayPlanResponse>("/api/movie-day", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
 }
 
 export function saveSharedSettings(changes: SharedSettingsChanges): Promise<SharedSettings> {

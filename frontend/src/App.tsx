@@ -1,22 +1,30 @@
 import { useEffect, useState } from "react";
-
+import { MovieDayPage } from "./MovieDayPage";
 import { MoviesPage } from "./MoviesPage";
 import { ScreeningsPage } from "./ScreeningsPage";
 import { SettingsPage } from "./SettingsPage";
 import { useAppStore } from "./store";
 
-function normalizePath(path: string): "/" | "/movies" | "/settings" {
+type AppPath = "/" | "/movies" | "/plan" | "/settings";
+
+function normalizePath(path: string): AppPath {
   if (path === "/movies") return "/movies";
+  if (path === "/plan") return "/plan";
   if (path === "/settings") return "/settings";
   return "/";
 }
 
 export function App() {
   const [path, setPath] = useState(() => normalizePath(window.location.pathname));
+  const [movieDayMounted, setMovieDayMounted] = useState(() => path === "/plan");
   const syncMovieSelection = useAppStore((state) => state.syncMovieSelection);
 
   useEffect(() => {
-    const onPopState = () => setPath(normalizePath(window.location.pathname));
+    const onPopState = () => {
+      const nextPath = normalizePath(window.location.pathname);
+      setPath(nextPath);
+      if (nextPath === "/plan") setMovieDayMounted(true);
+    };
     const onStorage = (event: StorageEvent) => {
       if (event.key === "movie-showtime-aggregator.selected-movies.v1") syncMovieSelection();
     };
@@ -28,7 +36,8 @@ export function App() {
     };
   }, [syncMovieSelection]);
 
-  function navigate(nextPath: "/" | "/movies" | "/settings"): void {
+  function navigate(nextPath: AppPath): void {
+    if (nextPath === "/plan") setMovieDayMounted(true);
     if (nextPath === path) return;
     window.history.pushState({}, "", nextPath);
     setPath(nextPath);
@@ -62,6 +71,13 @@ export function App() {
             Movies
           </button>
           <button
+            className={path === "/plan" ? "current" : ""}
+            type="button"
+            onClick={() => navigate("/plan")}
+          >
+            Movie Day
+          </button>
+          <button
             className={path === "/settings" ? "current" : ""}
             type="button"
             onClick={() => navigate("/settings")}
@@ -71,7 +87,12 @@ export function App() {
         </nav>
       </header>
       <main className="app-main">
-        {path === "/movies" ? (
+        {movieDayMounted ? (
+          <div hidden={path !== "/plan"}>
+            <MovieDayPage />
+          </div>
+        ) : null}
+        {path === "/plan" ? null : path === "/movies" ? (
           <MoviesPage />
         ) : path === "/settings" ? (
           <SettingsPage />

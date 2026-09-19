@@ -9,7 +9,7 @@ from .amc import AMCClient, AMCError, AMCShowtime, match_showtime
 from .location import GeoPoint
 from .metadata import MetadataError, MovieMetadata, OmdbClient
 from .models import Screening, apply_travel_minutes
-from .routing import OsrmRouter, RoutingError
+from .routing import OsrmRouter, RoutingError, route_source_url
 
 LOGGER = logging.getLogger(__name__)
 
@@ -107,7 +107,7 @@ def enrich_travel_times(
             enriched.append(screening)
             continue
         drive_to, drive_home = durations
-        route_url = _route_url(home, point)
+        route_url = route_source_url(home, point)
         enriched.append(
             replace(
                 apply_travel_minutes(screening, drive_to, drive_home),
@@ -193,11 +193,3 @@ def _theatre_point(screening: Screening) -> GeoPoint | None:
     if screening.theatre_latitude is None or screening.theatre_longitude is None:
         return None
     return GeoPoint(screening.theatre_latitude, screening.theatre_longitude)
-
-
-def _route_url(home: GeoPoint, destination: GeoPoint) -> str:
-    return (
-        "https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route="
-        f"{home.latitude:.6f}%2C{home.longitude:.6f}%3B"
-        f"{destination.latitude:.6f}%2C{destination.longitude:.6f}"
-    )
