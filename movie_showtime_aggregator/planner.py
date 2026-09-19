@@ -468,14 +468,10 @@ def _make_itinerary(
     outbound_minutes = selected[0].drive_to_minutes or 0
     return_home_minutes = selected[-1].drive_home_minutes or 0
     elapsed_minutes = (
-        int((ends_at - starts_at).total_seconds() // 60)
-        + outbound_minutes
-        + return_home_minutes
+        int((ends_at - starts_at).total_seconds() // 60) + outbound_minutes + return_home_minutes
     )
     movie_minutes = sum(screening.runtime_minutes or 0 for screening in selected)
-    total_travel = (
-        outbound_minutes + sum(leg.drive_minutes for leg in legs) + return_home_minutes
-    )
+    total_travel = outbound_minutes + sum(leg.drive_minutes for leg in legs) + return_home_minutes
     included_movies = tuple(screening.movie for screening in selected)
     included = set(included_movies)
     return MovieDayItinerary(
