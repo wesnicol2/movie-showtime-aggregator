@@ -17,6 +17,7 @@ def screening(
     *,
     theatre: str = "Theater A",
     point: GeoPoint = POINT_A,
+    drive_to_minutes: int = 0,
     drive_home_minutes: int = 0,
 ) -> Screening:
     actual_start = datetime(2026, 9, 19, hour, minute)
@@ -34,13 +35,22 @@ def screening(
         purchase_url="https://example.test/tickets",
         theatre_latitude=point.latitude,
         theatre_longitude=point.longitude,
+        drive_to_minutes=drive_to_minutes,
         drive_home_minutes=drive_home_minutes,
     )
 
 
-def test_movie_day_totals_include_drive_home_from_final_theater():
+def test_movie_day_totals_include_drives_from_and_back_home():
     screenings = [
-        screening("a", "Alpha", 9, 0, 60, drive_home_minutes=40),
+        screening(
+            "a",
+            "Alpha",
+            9,
+            0,
+            60,
+            drive_to_minutes=15,
+            drive_home_minutes=40,
+        ),
         screening(
             "b",
             "Beta",
@@ -49,6 +59,7 @@ def test_movie_day_totals_include_drive_home_from_final_theater():
             60,
             theatre="Theater B",
             point=POINT_B,
+            drive_to_minutes=30,
             drive_home_minutes=25,
         ),
     ]
@@ -58,27 +69,43 @@ def test_movie_day_totals_include_drive_home_from_final_theater():
 
     itinerary = plan.itineraries[0]
     assert itinerary.showtime_ids == ("a", "b")
-    assert itinerary.elapsed_minutes == 175
-    assert itinerary.travel_minutes == 35
+    assert itinerary.elapsed_minutes == 190
+    assert itinerary.travel_minutes == 50
     assert itinerary.waiting_minutes == 20
 
 
-def test_return_home_drive_participates_in_global_sorting():
+def test_outbound_and_return_drives_participate_in_global_sorting():
     screenings = [
-        screening("early-far", "Alpha", 9, 0, 60, drive_home_minutes=40),
-        screening("later-near", "Alpha", 10, 0, 60, drive_home_minutes=5),
+        screening(
+            "early-long-outbound",
+            "Alpha",
+            9,
+            0,
+            60,
+            drive_to_minutes=45,
+            drive_home_minutes=0,
+        ),
+        screening(
+            "later-short-trip",
+            "Alpha",
+            10,
+            0,
+            60,
+            drive_to_minutes=5,
+            drive_home_minutes=10,
+        ),
     ]
 
     elapsed = plan_movie_day(screenings, ["Alpha"], {}, sort_by="elapsed")
     driving = plan_movie_day(screenings, ["Alpha"], {}, sort_by="driving")
 
     assert [item.showtime_ids for item in elapsed.itineraries] == [
-        ("later-near",),
-        ("early-far",),
+        ("later-short-trip",),
+        ("early-long-outbound",),
     ]
     assert [item.showtime_ids for item in driving.itineraries] == [
-        ("later-near",),
-        ("early-far",),
+        ("later-short-trip",),
+        ("early-long-outbound",),
     ]
-    assert elapsed.itineraries[0].elapsed_minutes == 65
-    assert elapsed.itineraries[0].travel_minutes == 5
+    assert elapsed.itineraries[0].elapsed_minutes == 75
+    assert elapsed.itineraries[0].travel_minutes == 15
