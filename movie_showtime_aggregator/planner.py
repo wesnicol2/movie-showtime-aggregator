@@ -380,9 +380,13 @@ def _path_priority(
     if starts_at is None or ends_at is None:
         raise ValueError("ranked path contains unknown timing")
     elapsed_minutes = int((ends_at - starts_at).total_seconds() // 60)
+    is_complete = visited_mask.bit_count() == target
+    return_home_minutes = (current.drive_home_minutes or 0) if is_complete else 0
+    total_elapsed_minutes = elapsed_minutes + return_home_minutes
+    total_drive_minutes = drive_minutes + return_home_minutes
     showtime_ids = tuple(candidates[index].showtime_id for index, _ in path)
     if sort_by == SORT_DRIVING:
-        return (drive_minutes, elapsed_minutes, starts_at, showtime_ids)
+        return (total_drive_minutes, total_elapsed_minutes, starts_at, showtime_ids)
     if sort_by == SORT_WANT:
         current_score = sum(movie_scores[candidates[index].movie] for index, _ in path)
         remaining_slots = target - visited_mask.bit_count()
@@ -395,8 +399,14 @@ def _path_priority(
             reverse=True,
         )
         score_upper_bound = current_score + sum(remaining_scores[:remaining_slots])
-        return (-score_upper_bound, elapsed_minutes, drive_minutes, starts_at, showtime_ids)
-    return (elapsed_minutes, drive_minutes, starts_at, showtime_ids)
+        return (
+            -score_upper_bound,
+            total_elapsed_minutes,
+            total_drive_minutes,
+            starts_at,
+            showtime_ids,
+        )
+    return (total_elapsed_minutes, total_drive_minutes, starts_at, showtime_ids)
 
 
 def _transition_minutes(
@@ -454,9 +464,10 @@ def _make_itinerary(
             )
         )
 
-    elapsed_minutes = int((ends_at - starts_at).total_seconds() // 60)
+    return_home_minutes = selected[-1].drive_home_minutes or 0
+    elapsed_minutes = int((ends_at - starts_at).total_seconds() // 60) + return_home_minutes
     movie_minutes = sum(screening.runtime_minutes or 0 for screening in selected)
-    total_travel = sum(leg.drive_minutes for leg in legs)
+    total_travel = sum(leg.drive_minutes for leg in legs) + return_home_minutes
     included_movies = tuple(screening.movie for screening in selected)
     included = set(included_movies)
     return MovieDayItinerary(
