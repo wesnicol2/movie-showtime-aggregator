@@ -5,7 +5,8 @@ import json
 import mimetypes
 import threading
 from collections.abc import Callable, Iterable
-from datetime import date
+from dataclasses import replace
+from datetime import date, datetime, timedelta
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs, unquote
@@ -17,8 +18,10 @@ from .enrichment import enrich_amc_details, enrich_movie_metadata, enrich_travel
 from .fandango import FandangoClient, FandangoError
 from .location import GeoPoint, LocationError, ZipLocator
 from .metadata import OMDB_DAILY_LIMIT, OmdbClient
+from .models import Screening
+from .planner import plan_movie_day, theatre_points
 from .provider_cache import ProviderCache
-from .routing import AddressGeocoder, GeocodingError, OsrmRouter
+from .routing import AddressGeocoder, GeocodingError, OsrmRouter, RoutingError
 from .service import ScreeningFilters, ScreeningService, facets, filter_screenings
 from .storage import PersistentSettings, SettingsStore
 
@@ -26,7 +29,7 @@ JSON_HEADERS = [("Content-Type", "application/json; charset=utf-8")]
 STATIC_DIR = Path(__file__).with_name("static")
 SOURCE_STATIC_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 STATIC_ROOTS = (STATIC_DIR, SOURCE_STATIC_DIR)
-SPA_ROUTES = {"/", "/movies", "/settings"}
+SPA_ROUTES = {"/", "/movies", "/plan", "/settings"}
 PREVIEW_COOKIE = "movie_preview_minutes"
 LOCATION_COOKIE = "movie_location"
 
@@ -54,6 +57,11 @@ def application(environ: dict, start_response: Callable) -> Iterable[bytes]:
         if method not in {"GET", "HEAD", "POST"}:
             return _json_response(start_response, 405, {"error": "method not allowed"}, method)
         return _settings_response(environ, start_response, method)
+
+    if path == "/api/movie-day":
+        if method != "POST":
+            return _json_response(start_response, 405, {"error": "method not allowed"}, method)
+        return _movie_day_response(environ, start_response, method)
 
     if method not in {"GET", "HEAD"}:
         return _json_response(start_response, 405, {"error": "method not allowed"}, method)
@@ -130,6 +138,92 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         "screenings": [screening.to_dict() for screening in visible],
     }
     return _json_response(start_response, 200, payload, method)
+
+
+def _movie_day_response(environ: dict, start_response: Callable, method: str) -> Iterable[bytes]:
+    try:
+        payload = _read_json_body(environ)
+        if not isinstance(payload, dict):
+            raise ValueError("movie-day payload must be an object")
+        raw_date = payload.get("date")
+        show_date = date.fromisoformat(str(raw_date)) if raw_date else date.today()
+        movies = _required_string_list(payload, "movies")
+        required_movies = _optional_string_list(payload, "required_movies")
+        runtime_overrides = _runtime_overrides(payload, movies)
+        showtime_ids = set(_required_string_list(payload, "showtime_ids", allow_empty=True))
+        target_movie_count = _bounded_integer(
+            payload.get("target_movie_count", len(movies)),
+            "target_movie_count",
+            minimum=1,
+            maximum=len(movies),
+        )
+        sort_by = str(payload.get("sort_by", "elapsed") or "").strip()
+        earliest_start = _optional_datetime(payload.get("earliest_start"), "earliest_start")
+        latest_end = _optional_datetime(payload.get("latest_end"), "latest_end")
+        if earliest_start is not None and latest_end is not None and latest_end < earliest_start:
+            raise ValueError("latest_end must not be before earliest_start")
+        minimum_buffer_minutes = _bounded_integer(
+            payload.get("minimum_buffer_minutes", 0),
+            "minimum_buffer_minutes",
+            minimum=0,
+            maximum=180,
+        )
+        offset = _bounded_integer(payload.get("offset", 0), "offset", minimum=0)
+        limit = _bounded_integer(payload.get("limit", 50), "limit", minimum=1, maximum=100)
+
+        query: dict[str, list[str]] = {}
+        preview_minutes_by_chain = _preview_minutes_from_request(environ, query)
+        zip_code, radius_miles = _location_from_request(environ, query)
+        canonical = _SERVICE.get_screenings(
+            show_date,
+            preview_minutes_by_chain,
+            zip_code=zip_code,
+            radius_miles=radius_miles,
+        )
+        candidates = [
+            _apply_runtime_override(screening, runtime_overrides.get(screening.movie))
+            for screening in canonical
+            if screening.showtime_id in showtime_ids and screening.movie in movies
+        ]
+        try:
+            travel = _ROUTER.travel_matrix(theatre_points(candidates))
+            routing_available = True
+        except RoutingError:
+            travel = {}
+            routing_available = False
+        plan = plan_movie_day(
+            candidates,
+            movies,
+            travel,
+            target_movie_count=target_movie_count,
+            required_movies=required_movies,
+            earliest_start=earliest_start,
+            latest_end=latest_end,
+            sort_by=sort_by,
+            minimum_buffer_minutes=minimum_buffer_minutes,
+            offset=offset,
+            limit=limit,
+        )
+    except (ValueError, FandangoError, LocationError) as exc:
+        status = 503 if isinstance(exc, (FandangoError, LocationError)) else 400
+        return _json_response(start_response, status, {"error": str(exc)}, method)
+
+    response = plan.to_dict()
+    response.update(
+        {
+            "date": show_date.isoformat(),
+            "runtime_overrides": runtime_overrides,
+            "earliest_start": (
+                earliest_start.isoformat(timespec="minutes") if earliest_start is not None else None
+            ),
+            "latest_end": latest_end.isoformat(timespec="minutes")
+            if latest_end is not None
+            else None,
+            "minimum_buffer_minutes": minimum_buffer_minutes,
+            "routing_available": routing_available,
+        }
+    )
+    return _json_response(start_response, 200, response, method)
 
 
 def _settings_response(environ: dict, start_response: Callable, method: str) -> Iterable[bytes]:
@@ -234,6 +328,94 @@ def _read_json_body(environ: dict) -> object:
         return json.loads(stream.read(length))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError("request body must be valid JSON") from exc
+
+
+def _required_string_list(
+    payload: dict[str, object],
+    field: str,
+    *,
+    allow_empty: bool = False,
+) -> list[str]:
+    raw = payload.get(field)
+    if not isinstance(raw, list) or any(not isinstance(value, str) for value in raw):
+        raise ValueError(f"{field} must be a list of strings")
+    values = list(dict.fromkeys(value.strip() for value in raw if value.strip()))
+    if not values and not allow_empty:
+        raise ValueError(f"{field} must contain at least one value")
+    return values
+
+
+def _optional_string_list(payload: dict[str, object], field: str) -> list[str]:
+    if field not in payload:
+        return []
+    return _required_string_list(payload, field, allow_empty=True)
+
+
+def _runtime_overrides(payload: dict[str, object], movies: list[str]) -> dict[str, int]:
+    raw = payload.get("runtime_overrides", {})
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError("runtime_overrides must be an object keyed by movie title")
+
+    selected = set(movies)
+    overrides: dict[str, int] = {}
+    for movie, value in raw.items():
+        if not isinstance(movie, str) or movie.strip() not in selected:
+            raise ValueError("runtime_overrides keys must be selected movies")
+        normalized_movie = movie.strip()
+        overrides[normalized_movie] = _bounded_integer(
+            value,
+            f"runtime_overrides[{normalized_movie}]",
+            minimum=1,
+            maximum=600,
+        )
+    return overrides
+
+
+def _apply_runtime_override(screening: Screening, runtime_minutes: int | None) -> Screening:
+    if runtime_minutes is None:
+        return screening
+    estimated_end = (
+        screening.actual_start + timedelta(minutes=runtime_minutes)
+        if screening.actual_start is not None
+        else None
+    )
+    return replace(
+        screening,
+        runtime_minutes=runtime_minutes,
+        estimated_end=estimated_end,
+    )
+
+
+def _optional_datetime(value: object, field: str) -> datetime | None:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be an ISO local datetime")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"{field} must be an ISO local datetime") from exc
+    if parsed.tzinfo is not None:
+        raise ValueError(f"{field} must not include a timezone offset")
+    return parsed
+
+
+def _bounded_integer(
+    value: object,
+    field: str,
+    *,
+    minimum: int,
+    maximum: int | None = None,
+) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{field} must be an integer")
+    if value < minimum or (maximum is not None and value > maximum):
+        if maximum is None:
+            raise ValueError(f"{field} must be {minimum} or greater")
+        raise ValueError(f"{field} must be between {minimum} and {maximum}")
+    return value
 
 
 def _omdb_client(api_key: str) -> OmdbClient | None:
