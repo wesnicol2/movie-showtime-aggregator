@@ -125,7 +125,9 @@ export function MovieFilterBar({ filters, screenings, onChange }: Props) {
               step="1"
               inputMode="numeric"
               value={filters.minimumRottenTomatoes}
-              onChange={(event) => onChange({ ...filters, minimumRottenTomatoes: event.target.value })}
+              onChange={(event) =>
+                onChange({ ...filters, minimumRottenTomatoes: event.target.value })
+              }
             />
           </label>
           <label className="movie-filter-field">
