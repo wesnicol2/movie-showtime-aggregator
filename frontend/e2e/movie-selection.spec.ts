@@ -190,9 +190,22 @@ async function mockApi(page: Page): Promise<void> {
   });
 }
 
+async function openMovieFilters(page: Page): Promise<void> {
+  const toggle = page.getByRole("button", { name: "Show movie filters" });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await toggle.click();
+  await expect(page.getByRole("button", { name: "Hide movie filters" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+}
+
 test("movie selection supports filtering and release-date sorting", async ({ page }) => {
   await mockApi(page);
   await page.goto("/movies");
+
+  await expect(page.getByLabel("Filter titles")).toHaveCount(0);
+  await openMovieFilters(page);
 
   await page.getByLabel("Sort movies").selectOption("initial_release_date");
   await expect(
@@ -216,6 +229,7 @@ test("movie selection supports filtering and release-date sorting", async ({ pag
 test("movie selection filters by actual theater and chain availability", async ({ page }) => {
   await mockApi(page);
   await page.goto("/movies");
+  await openMovieFilters(page);
 
   await keepOnly(page, "Theater", ["AMC Center 8"]);
   await expect(page.getByRole("button", { name: "Select Alpha" })).toBeVisible();
@@ -236,6 +250,7 @@ test("movie selection checkbox filters cover format, listed time, and selection"
 }) => {
   await mockApi(page);
   await page.goto("/movies");
+  await openMovieFilters(page);
 
   await keepOnly(page, "Format", ["IMAX"]);
   await expect(page.getByRole("button", { name: "Select Alpha" })).toBeVisible();
