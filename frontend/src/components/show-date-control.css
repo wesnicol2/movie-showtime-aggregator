@@ -1,0 +1,63 @@
+.app-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.show-date-control {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+}
+
+.show-date-control label {
+  display: grid;
+  gap: 3px;
+}
+
+.show-date-control label > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.show-date-control input,
+.show-date-control button {
+  min-height: 34px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.show-date-control input {
+  width: 142px;
+  font-variant-numeric: tabular-nums;
+}
+
+.show-date-control button {
+  color: var(--accent);
+}
+
+@media (max-width: 680px) {
+  .app-header-tools {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column-reverse;
+    gap: 7px;
+  }
+
+  .show-date-control {
+    width: 100%;
+  }
+
+  .show-date-control label {
+    flex: 1;
+  }
+
+  .show-date-control input {
+    width: 100%;
+  }
+}
