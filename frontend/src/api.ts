@@ -1,3 +1,4 @@
+import { browserDate } from "./show-date";
 import type {
   MovieDayPlanRequest,
   MovieDayPlanResponse,
@@ -5,14 +6,6 @@ import type {
   SharedSettings,
   SharedSettingsChanges,
 } from "./types";
-
-function browserDate(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, init);
@@ -23,8 +16,11 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Pro
   return payload;
 }
 
-export function fetchScreenings(enrich = true): Promise<ScreeningsResponse> {
-  const params = new URLSearchParams({ date: browserDate() });
+export function fetchScreenings(
+  showDate = browserDate(),
+  enrich = true,
+): Promise<ScreeningsResponse> {
+  const params = new URLSearchParams({ date: showDate });
   if (!enrich) {
     params.set("enrich", "0");
   }
