@@ -3,6 +3,7 @@ import { MovieDayPage } from "./MovieDayPage";
 import { MoviesPage } from "./MoviesPage";
 import { ScreeningsPage } from "./ScreeningsPage";
 import { SettingsPage } from "./SettingsPage";
+import { ShowDateControl } from "./components/ShowDateControl";
 import { useAppStore } from "./store";
 
 type AppPath = "/" | "/movies" | "/plan" | "/settings";
@@ -55,36 +56,39 @@ export function App() {
             <small>Movie decision workstation</small>
           </span>
         </button>
-        <nav className="app-nav" aria-label="Primary">
-          <button
-            className={path === "/" ? "current" : ""}
-            type="button"
-            onClick={() => navigate("/")}
-          >
-            Screenings
-          </button>
-          <button
-            className={path === "/movies" ? "current" : ""}
-            type="button"
-            onClick={() => navigate("/movies")}
-          >
-            Movies
-          </button>
-          <button
-            className={path === "/plan" ? "current" : ""}
-            type="button"
-            onClick={() => navigate("/plan")}
-          >
-            Movie Day
-          </button>
-          <button
-            className={path === "/settings" ? "current" : ""}
-            type="button"
-            onClick={() => navigate("/settings")}
-          >
-            Settings
-          </button>
-        </nav>
+        <div className="app-header-tools">
+          <ShowDateControl />
+          <nav className="app-nav" aria-label="Primary">
+            <button
+              className={path === "/" ? "current" : ""}
+              type="button"
+              onClick={() => navigate("/")}
+            >
+              Screenings
+            </button>
+            <button
+              className={path === "/movies" ? "current" : ""}
+              type="button"
+              onClick={() => navigate("/movies")}
+            >
+              Movies
+            </button>
+            <button
+              className={path === "/plan" ? "current" : ""}
+              type="button"
+              onClick={() => navigate("/plan")}
+            >
+              Movie Day
+            </button>
+            <button
+              className={path === "/settings" ? "current" : ""}
+              type="button"
+              onClick={() => navigate("/settings")}
+            >
+              Settings
+            </button>
+          </nav>
+        </div>
       </header>
       <main className="app-main">
         {movieDayMounted ? (
