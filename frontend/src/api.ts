@@ -16,10 +16,14 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Pro
   return payload;
 }
 
+export function fetchScreenings(enrich?: boolean): Promise<ScreeningsResponse>;
+export function fetchScreenings(showDate: string, enrich?: boolean): Promise<ScreeningsResponse>;
 export function fetchScreenings(
-  showDate = browserDate(),
-  enrich = true,
+  showDateOrEnrich: string | boolean = browserDate(),
+  requestedEnrich = true,
 ): Promise<ScreeningsResponse> {
+  const showDate = typeof showDateOrEnrich === "string" ? showDateOrEnrich : browserDate();
+  const enrich = typeof showDateOrEnrich === "boolean" ? showDateOrEnrich : requestedEnrich;
   const params = new URLSearchParams({ date: showDate });
   if (!enrich) {
     params.set("enrich", "0");
