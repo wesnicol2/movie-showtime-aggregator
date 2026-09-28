@@ -111,10 +111,7 @@ export const useAppStore = create<AppState>((set) => ({
   inspectedShowtimeId: null,
 
   setLoading: () => set({ status: "loading", error: null }),
-  setResponse: (response) =>
-    set((state) =>
-      response.date === state.selectedDate ? { response, status: "ready", error: null } : {},
-    ),
+  setResponse: (response) => set({ response, status: "ready", error: null }),
   setError: (message) => set({ response: null, status: "error", error: message }),
   setSelectedDate: (selectedDate) =>
     set((state) => {
