@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
+import { ShowDateControl } from "./components/ShowDateControl";
 import { MovieDayPage } from "./MovieDayPage";
 import { MoviesPage } from "./MoviesPage";
 import { ScreeningsPage } from "./ScreeningsPage";
 import { SettingsPage } from "./SettingsPage";
-import { ShowDateControl } from "./components/ShowDateControl";
 import { useAppStore } from "./store";
 
 type AppPath = "/" | "/movies" | "/plan" | "/settings";
