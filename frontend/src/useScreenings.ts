@@ -16,6 +16,7 @@ export function useScreenings(): void {
     void fetchScreenings(selectedDate)
       .then(setResponse)
       .catch((error: unknown) => {
+        if (useAppStore.getState().selectedDate !== selectedDate) return;
         setError(error instanceof Error ? error.message : "Unable to load screenings");
       });
   }, [selectedDate, setError, setLoading, setResponse, status]);
