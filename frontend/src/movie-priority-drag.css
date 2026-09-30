@@ -1,0 +1,54 @@
+.movie-priority-ordering {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.movie-priority-ordering button {
+  min-height: 30px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+}
+
+.movie-priority-drag-handle {
+  display: inline-grid;
+  min-width: 32px;
+  place-items: center;
+  padding-inline: 6px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.movie-priority-drag-handle:active,
+.movie-priority-list li.is-dragging .movie-priority-drag-handle {
+  cursor: grabbing;
+}
+
+.movie-priority-drag-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+}
+
+.movie-priority-top {
+  min-width: 42px;
+}
+
+.movie-priority-list li.is-dragging {
+  position: relative;
+  z-index: 1;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+@media (max-width: 700px) {
+  .movie-priority-ordering {
+    grid-column: 2 / -1;
+    justify-content: flex-end;
+  }
+}
