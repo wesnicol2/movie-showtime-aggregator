@@ -81,7 +81,9 @@ function priorityTitles(page: Page) {
   return page.locator(".movie-priority-title strong");
 }
 
-test("priority rows use drag handles and can send a movie directly to the top", async ({ page }) => {
+test("priority rows use drag handles and can send a movie directly to the top", async ({
+  page,
+}) => {
   await mockScreenings(page);
   await page.goto("/plan");
 
