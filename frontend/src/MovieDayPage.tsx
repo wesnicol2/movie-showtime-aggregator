@@ -86,6 +86,7 @@ export function MovieDayPage() {
   );
   const activeFilterCount = Object.values(filters).filter(isFilterActive).length;
   const activeShowingFilters = activeFacetCount(facets);
+  const homeConfigured = response?.preferences.home_configured === true;
   const targetCount = targetMovieCount ?? selectedMovies.length;
   const bounds = response
     ? dayBounds(response.date, earliestTime, latestTime)
@@ -242,6 +243,14 @@ export function MovieDayPage() {
         onMinimumBufferChange={setMinimumBuffer}
         onPlan={() => void generate()}
       />
+
+      {response && !homeConfigured ? (
+        <div className="status-strip" role="status">
+          <strong>Warning: no home address is set.</strong> “Home by” falls back to the final movie’s
+          end time and does not include travel home. <a href="/settings">Set a home address</a> to
+          include the return trip.
+        </div>
+      ) : null}
 
       <MoviePriorityEditor
         movies={rankedMovies}
