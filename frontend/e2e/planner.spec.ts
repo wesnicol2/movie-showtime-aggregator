@@ -89,7 +89,7 @@ async function mockPlannerApi(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem(
       "movie-showtime-aggregator.selected-movies.v1",
-      JSON.stringify(["Alpha", "Beta"]),
+      JSON.stringify(["Alpha", "Beta", "Gamma"]),
     );
   });
 
@@ -127,6 +127,7 @@ async function mockPlannerApi(page: Page): Promise<void> {
   await page.route("**/api/movie-day", async (route) => {
     const request = route.request().postDataJSON();
     const date = request.date as string;
+    expect(request.movies).toEqual(["Alpha", "Beta"]);
     await route.fulfill({
       json: {
         date,
@@ -179,17 +180,28 @@ async function mockPlannerApi(page: Page): Promise<void> {
   });
 }
 
-test("a Movie Day itinerary can be saved and appears in the continuous Planner", async ({
+test("Movie Day hides unavailable selected movies and deselects movies saved to Planner", async ({
   page,
 }) => {
   await mockPlannerApi(page);
   await page.goto("/plan");
 
+  const priorityRows = page.locator("[data-movie-priority-row]");
+  await expect(priorityRows).toHaveCount(2);
+  await expect(priorityRows.filter({ hasText: "Alpha" })).toHaveCount(1);
+  await expect(priorityRows.filter({ hasText: "Beta" })).toHaveCount(1);
+  await expect(priorityRows.filter({ hasText: "Gamma" })).toHaveCount(0);
+
   await page.getByRole("button", { name: "Find combinations" }).click();
   await page.getByRole("button", { name: "Save option 1 to Planner" }).click();
-  await expect(page.getByRole("button", { name: "Save option 1 to Planner" })).toHaveText(
-    "Saved to Planner",
-  );
+
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem("movie-showtime-aggregator.selected-movies.v1") ?? "[]"),
+      ),
+    )
+    .toEqual(["Gamma"]);
 
   await page.getByRole("button", { name: "Planner", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Movie planner" })).toBeVisible();
