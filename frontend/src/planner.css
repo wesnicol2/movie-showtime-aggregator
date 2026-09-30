@@ -1,0 +1,268 @@
+.planner-workspace {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.planner-workspace-bar {
+  align-items: center;
+}
+
+.planner-jump-controls {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.planner-jump-controls button,
+.planner-jump-controls input,
+.planner-day-actions button,
+.planner-plan-day {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.planner-jump-controls label {
+  display: grid;
+  gap: 4px;
+}
+
+.planner-jump-controls label span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.planner-overview {
+  position: sticky;
+  top: 58px;
+  z-index: 22;
+  background: rgba(13, 16, 21, 0.97);
+  backdrop-filter: blur(10px);
+}
+
+.planner-timeline {
+  position: relative;
+  padding-bottom: 30vh;
+}
+
+.planner-month-header {
+  position: sticky;
+  top: 95px;
+  z-index: 20;
+  margin: 0;
+  padding: 16px 0 8px;
+  border-bottom: 1px solid var(--line-strong);
+  background: rgba(13, 16, 21, 0.97);
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+}
+
+.planner-day {
+  scroll-margin-top: 140px;
+  border-bottom: 1px solid var(--line);
+}
+
+.planner-day.empty {
+  min-height: 54px;
+}
+
+.planner-day.planned {
+  padding-bottom: 14px;
+}
+
+.planner-day-header {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+}
+
+.planner-day-header > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.planner-day-header strong {
+  font-size: 13px;
+}
+
+.planner-day-header span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.planner-plan-day {
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent);
+}
+
+.planner-plan-day:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+.planner-day-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.planner-day-actions .danger-quiet {
+  color: var(--danger);
+}
+
+.planner-saved-plan {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.planner-plan-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 12px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.planner-plan-summary > span {
+  color: var(--muted);
+}
+
+.planner-plan-summary .planner-verification {
+  margin-left: auto;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.planner-plan-summary .planner-verification.valid {
+  border-color: #3d5b4a;
+  color: var(--success);
+}
+
+.planner-plan-summary .planner-verification.warning {
+  border-color: #755a2e;
+  color: #e8c57d;
+}
+
+.planner-showing-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.planner-showing-list li {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 11px;
+  border-bottom: 1px solid #222a36;
+}
+
+.planner-showing-list li:last-child {
+  border-bottom: 0;
+}
+
+.planner-showing-list time {
+  color: var(--accent);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.planner-showing-list li > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.planner-showing-list strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planner-showing-list span,
+.planner-showing-list a {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.planner-showing-list a:hover {
+  color: var(--text);
+}
+
+.planner-load-marker {
+  height: 1px;
+}
+
+@media (max-width: 680px) {
+  .planner-workspace-bar {
+    gap: 12px;
+  }
+
+  .planner-jump-controls {
+    width: 100%;
+  }
+
+  .planner-jump-controls label {
+    flex: 1;
+  }
+
+  .planner-jump-controls input {
+    width: 100%;
+  }
+
+  .planner-overview {
+    top: 108px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .planner-month-header {
+    top: 145px;
+  }
+
+  .planner-day {
+    scroll-margin-top: 190px;
+  }
+
+  .planner-day-header {
+    gap: 8px;
+  }
+
+  .planner-day-header > div:first-child {
+    display: grid;
+    gap: 1px;
+  }
+
+  .planner-showing-list li {
+    grid-template-columns: 58px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .planner-plan-summary .planner-verification {
+    width: 100%;
+    margin-left: 0;
+    border-radius: 5px;
+  }
+}
