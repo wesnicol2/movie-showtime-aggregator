@@ -50,8 +50,8 @@ function screeningsFor(date: string) {
     {
       showtime_id: `${date}-beta`,
       movie: "Beta",
-      theatre: "AMC Valley 12",
-      chain: "AMC",
+      theatre: "Harkins Valley 12",
+      chain: "Harkins",
       format: "Standard",
       advertised_start: `${date}T11:05:00`,
       actual_start: `${date}T11:30:00`,
@@ -109,14 +109,14 @@ async function mockPlannerApi(page: Page): Promise<void> {
           amc_a_list: false,
           home_configured: true,
         },
-        preview_minutes_by_chain: { AMC: 25 },
+        preview_minutes_by_chain: { AMC: 25, Harkins: 15 },
         enrichment_enabled: url.searchParams.get("enrich") !== "0",
         count: screenings.length,
         total_count: screenings.length,
         facets: {
-          chains: ["AMC"],
+          chains: ["AMC", "Harkins"],
           movies: ["Alpha", "Beta"],
-          theatres: ["AMC Center 8", "AMC Valley 12"],
+          theatres: ["AMC Center 8", "Harkins Valley 12"],
           formats: ["Standard"],
         },
         screenings,
@@ -128,6 +128,8 @@ async function mockPlannerApi(page: Page): Promise<void> {
     const request = route.request().postDataJSON();
     const date = request.date as string;
     expect(request.movies).toEqual(["Alpha", "Beta"]);
+    expect(request.sort_by).toBe("want");
+    expect(request.secondary_sort_by).toBe("elapsed");
     await route.fulfill({
       json: {
         date,
@@ -136,8 +138,8 @@ async function mockPlannerApi(page: Page): Promise<void> {
         runtime_overrides: {},
         target_movie_count: 2,
         plannable_movie_count: 2,
-        sort_by: "elapsed",
-        secondary_sort_by: "driving",
+        sort_by: request.sort_by,
+        secondary_sort_by: request.secondary_sort_by,
         earliest_start: null,
         latest_end: null,
         eligible_showings: 2,
@@ -167,7 +169,7 @@ async function mockPlannerApi(page: Page): Promise<void> {
                 from_showtime_id: `${date}-alpha`,
                 to_showtime_id: `${date}-beta`,
                 from_theatre: "AMC Center 8",
-                to_theatre: "AMC Valley 12",
+                to_theatre: "Harkins Valley 12",
                 drive_minutes: 15,
                 gap_minutes: 30,
                 route_source_url: "",
@@ -191,6 +193,8 @@ test("Movie Day hides unavailable selected movies and deselects movies saved to 
   await expect(priorityRows.filter({ hasText: "Alpha" })).toHaveCount(1);
   await expect(priorityRows.filter({ hasText: "Beta" })).toHaveCount(1);
   await expect(priorityRows.filter({ hasText: "Gamma" })).toHaveCount(0);
+  await expect(page.getByLabel("Sort itineraries")).toHaveValue("want");
+  await expect(page.getByLabel("Secondary sort itineraries")).toHaveValue("elapsed");
 
   await page.getByRole("button", { name: "Find combinations" }).click();
   await page.getByRole("button", { name: "Save option 1 to Planner" }).click();
@@ -212,6 +216,65 @@ test("Movie Day hides unavailable selected movies and deselects movies saved to 
   const today = page.locator(`[data-date="${isoDate()}"]`);
   await expect(today.getByText("Alpha", { exact: true })).toBeVisible();
   await expect(today.getByText("Beta", { exact: true })).toBeVisible();
+});
+
+test("Movie Day saved views restore planning controls without saving movie selection", async ({
+  page,
+}) => {
+  await mockPlannerApi(page);
+  await page.goto("/plan");
+
+  await expect(page.getByLabel("Sort itineraries")).toHaveValue("want");
+  await expect(page.getByLabel("Secondary sort itineraries")).toHaveValue("elapsed");
+  await page.getByLabel("Number of movies").selectOption("1");
+  await page.getByLabel("Movie day start").fill("17:00");
+  await page.getByLabel("Movie day end").fill("23:30");
+  await page.getByLabel("Extra transfer buffer").fill("15");
+  await page.getByRole("button", { name: "Show showing filters" }).click();
+  await page.getByRole("button", { name: "Filter by chain" }).click();
+  await page.getByRole("checkbox", { name: "Harkins" }).uncheck();
+
+  page.once("dialog", (dialog) => void dialog.accept("After work"));
+  await page.getByRole("button", { name: "Save view" }).click();
+
+  const savedView = await page.evaluate(() => {
+    const views = JSON.parse(
+      localStorage.getItem("movie-showtime-aggregator.movie-day-saved-views.v1") ?? "{}",
+    );
+    return views["After work"];
+  });
+  expect(savedView.targetMovieCount).toBe(1);
+  expect(savedView.earliestTime).toBe("17:00");
+  expect(savedView.latestTime).toBe("23:30");
+  expect(savedView.minimumBuffer).toBe(15);
+  expect(savedView.facets.chains).toEqual(["AMC"]);
+  expect(savedView.sortBy).toBe("want");
+  expect(savedView.secondarySortBy).toBe("elapsed");
+  expect(savedView.screeningView.filters.movie.selected).toBeNull();
+
+  await page.getByLabel("Number of movies").selectOption("all");
+  await page.getByLabel("Movie day start").fill("");
+  await page.getByLabel("Movie day end").fill("");
+  await page.getByLabel("Extra transfer buffer").fill("0");
+  await page.getByRole("button", { name: "Filter by chain" }).click();
+  await page.getByRole("button", { name: "All" }).click();
+  await page.getByLabel("Sort itineraries").selectOption("driving");
+
+  await page.getByLabel("Movie Day saved view").selectOption("After work");
+  await expect(page.getByLabel("Number of movies")).toHaveValue("1");
+  await expect(page.getByLabel("Movie day start")).toHaveValue("17:00");
+  await expect(page.getByLabel("Movie day end")).toHaveValue("23:30");
+  await expect(page.getByLabel("Extra transfer buffer")).toHaveValue("15");
+  await expect(page.getByLabel("Sort itineraries")).toHaveValue("want");
+  await expect(page.getByLabel("Secondary sort itineraries")).toHaveValue("elapsed");
+  await expect(page.getByRole("button", { name: "Filter by chain" })).toContainText("AMC");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem("movie-showtime-aggregator.selected-movies.v1") ?? "[]"),
+      ),
+    )
+    .toEqual(["Alpha", "Beta", "Gamma"]);
 });
 
 test("jumping far enough forward extends the timeline and hands the date to Movie Day", async ({
