@@ -160,9 +160,7 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
         sort_by = str(payload.get("sort_by", "elapsed") or "").strip()
         raw_secondary_sort_by = payload.get("secondary_sort_by")
         secondary_sort_by = (
-            None
-            if raw_secondary_sort_by is None
-            else str(raw_secondary_sort_by or "").strip()
+            None if raw_secondary_sort_by is None else str(raw_secondary_sort_by or "").strip()
         )
         earliest_start = _optional_datetime(payload.get("earliest_start"), "earliest_start")
         latest_end = _optional_datetime(payload.get("latest_end"), "latest_end")
