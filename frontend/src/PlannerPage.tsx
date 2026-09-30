@@ -10,6 +10,7 @@ import {
 } from "./planner";
 import "./planner.css";
 import { browserDate } from "./show-date";
+import type { Screening } from "./types";
 
 const INITIAL_DAY_COUNT = 35;
 const LOAD_MORE_DAY_COUNT = 28;
@@ -59,10 +60,6 @@ export function PlannerPage({ onPlanDate }: { onPlanDate: (date: string) => void
     return () => observer.disconnect();
   }, []);
 
-  const planKey = plans
-    .map((plan) => `${plan.date}:${plan.savedAt}:${plan.itinerary.showtime_ids.join("|")}`)
-    .join("::");
-
   useEffect(() => {
     let cancelled = false;
     setVerificationByDate(
@@ -106,7 +103,7 @@ export function PlannerPage({ onPlanDate }: { onPlanDate: (date: string) => void
     return () => {
       cancelled = true;
     };
-  }, [planKey]);
+  }, [plans]);
 
   const dates = useMemo(
     () => Array.from({ length: daysShown }, (_, index) => addDays(today, index)),
@@ -114,7 +111,10 @@ export function PlannerPage({ onPlanDate }: { onPlanDate: (date: string) => void
   );
   const planByDate = useMemo(() => new Map(plans.map((plan) => [plan.date, plan])), [plans]);
   const futurePlans = plans.filter((plan) => plan.date >= today);
-  const plannedMovies = futurePlans.reduce((total, plan) => total + plan.itinerary.movies.length, 0);
+  const plannedMovies = futurePlans.reduce(
+    (total, plan) => total + plan.itinerary.movies.length,
+    0,
+  );
 
   useEffect(() => {
     if (!pendingJump) return;
@@ -122,7 +122,7 @@ export function PlannerPage({ onPlanDate }: { onPlanDate: (date: string) => void
     if (!element) return;
     element.scrollIntoView({ behavior: "smooth", block: "start" });
     setPendingJump(null);
-  }, [daysShown, pendingJump]);
+  }, [pendingJump]);
 
   function jumpTo(date: string): void {
     if (!date) return;
@@ -152,7 +152,7 @@ export function PlannerPage({ onPlanDate }: { onPlanDate: (date: string) => void
             Today
           </button>
           <label>
-            <span>Jump to date</span>
+            <span className="planner-jump-label">Jump to date</span>
             <input
               type="date"
               min={today}
@@ -255,7 +255,7 @@ function SavedPlanDetails({
   );
   const screenings = plan.itinerary.showtime_ids
     .map((id) => screeningById.get(id))
-    .filter((screening) => screening !== undefined);
+    .filter((screening): screening is Screening => screening !== undefined);
 
   return (
     <div className="planner-saved-plan">
