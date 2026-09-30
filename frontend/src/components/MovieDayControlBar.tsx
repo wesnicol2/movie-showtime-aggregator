@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { readDefaultSavedView, writeDefaultSavedView } from "../saved-view-defaults";
 import {
   activeFacetCount,
   EMPTY_SCREENING_FACETS,
@@ -85,6 +86,8 @@ export function MovieDayControlBar({
   const [openControl, setOpenControl] = useState<OpenControl | null>(null);
   const [savedViews, setSavedViews] = useState(readMovieDaySavedViews);
   const [selectedView, setSelectedView] = useState("");
+  const [defaultView, setDefaultView] = useState(() => readDefaultSavedView("movie-day"));
+  const defaultAppliedRef = useRef(false);
   const defaultSortInitialized = useRef(false);
   const movies = useMemo(() => movieOptions(screenings), [screenings]);
   const theaters = useMemo(() => textOptions(screenings, "theatre"), [screenings]);
@@ -109,6 +112,38 @@ export function MovieDayControlBar({
       onSecondarySortByChange("elapsed");
     }
   }, [onSecondarySortByChange, onSortByChange, secondarySortBy, sortBy]);
+
+  useEffect(() => {
+    if (defaultAppliedRef.current) return;
+    defaultAppliedRef.current = true;
+    if (!defaultView) return;
+    const view = savedViews[defaultView];
+    if (!view) {
+      writeDefaultSavedView("movie-day", null);
+      setDefaultView("");
+      return;
+    }
+    setSelectedView(defaultView);
+    onTargetMovieCountChange(view.targetMovieCount);
+    onEarliestTimeChange(view.earliestTime);
+    onLatestTimeChange(view.latestTime);
+    onSortByChange(view.sortBy);
+    onSecondarySortByChange(view.secondarySortBy);
+    onMinimumBufferChange(view.minimumBuffer);
+    onFacetsChange(structuredClone(view.facets));
+    applySavedView(view.screeningView);
+  }, [
+    applySavedView,
+    defaultView,
+    onEarliestTimeChange,
+    onFacetsChange,
+    onLatestTimeChange,
+    onMinimumBufferChange,
+    onSecondarySortByChange,
+    onSortByChange,
+    onTargetMovieCountChange,
+    savedViews,
+  ]);
 
   function facetProps(key: keyof ScreeningFacets) {
     return {
@@ -171,7 +206,18 @@ export function MovieDayControlBar({
     delete next[selectedView];
     writeMovieDaySavedViews(next);
     setSavedViews(next);
+    if (defaultView === selectedView) {
+      writeDefaultSavedView("movie-day", null);
+      setDefaultView("");
+    }
     setSelectedView("");
+  }
+
+  function toggleDefaultView(): void {
+    if (!selectedView) return;
+    const next = defaultView === selectedView ? "" : selectedView;
+    writeDefaultSavedView("movie-day", next || null);
+    setDefaultView(next);
   }
 
   return (
@@ -293,13 +339,21 @@ export function MovieDayControlBar({
                 .sort((left, right) => left.localeCompare(right))
                 .map((name) => (
                   <option key={name} value={name}>
-                    {name}
+                    {name === defaultView ? `${name} · default` : name}
                   </option>
                 ))}
             </select>
           </label>
           <button type="button" onClick={saveView}>
             Save view
+          </button>
+          <button
+            type="button"
+            disabled={!selectedView}
+            aria-pressed={Boolean(selectedView) && selectedView === defaultView}
+            onClick={toggleDefaultView}
+          >
+            {selectedView && selectedView === defaultView ? "Default ✓" : "Set default"}
           </button>
           <button type="button" disabled={!selectedView} onClick={deleteView}>
             Delete
