@@ -438,11 +438,9 @@ def _arrives_home_by(screening: Screening, latest_end: datetime | None) -> bool:
 
 
 def _estimated_home_arrival(screening: Screening) -> datetime | None:
-    if screening.estimated_end is None:
+    if screening.estimated_end is None or screening.drive_home_minutes is None:
         return None
-    if screening.drive_home_minutes is not None:
-        return screening.estimated_end + timedelta(minutes=screening.drive_home_minutes)
-    return screening.home_arrival or screening.estimated_end
+    return screening.estimated_end + timedelta(minutes=screening.drive_home_minutes)
 
 
 def _transition_minutes(
