@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import heapq
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import cache
 
 from .location import GeoPoint
@@ -183,8 +183,7 @@ def plan_movie_day(
     candidates = [
         screening
         for screening in timed
-        if (earliest_start is None or screening.actual_start >= earliest_start)
-        and (latest_end is None or screening.estimated_end <= latest_end)
+        if earliest_start is None or screening.actual_start >= earliest_start
     ]
     candidates.sort(
         key=lambda screening: (
@@ -242,7 +241,9 @@ def plan_movie_day(
     def completion_count(index: int, visited_mask: int) -> int:
         visited_count = visited_mask.bit_count()
         if visited_count == target:
-            return 1 if visited_mask & required_mask == required_mask else 0
+            if visited_mask & required_mask != required_mask:
+                return 0
+            return 1 if _arrives_home_by(candidates[index], latest_end) else 0
         required_remaining = (required_mask & ~visited_mask).bit_count()
         if required_remaining > target - visited_count:
             return 0
@@ -427,6 +428,19 @@ def _path_priority(
         priority.append(priorities[SORT_DRIVING])
     showtime_ids = tuple(candidates[index].showtime_id for index, _ in path)
     return (*priority, starts_at, showtime_ids)
+
+
+def _arrives_home_by(screening: Screening, latest_end: datetime | None) -> bool:
+    if latest_end is None:
+        return True
+    home_arrival = _estimated_home_arrival(screening)
+    return home_arrival is not None and home_arrival <= latest_end
+
+
+def _estimated_home_arrival(screening: Screening) -> datetime | None:
+    if screening.estimated_end is None or screening.drive_home_minutes is None:
+        return None
+    return screening.estimated_end + timedelta(minutes=screening.drive_home_minutes)
 
 
 def _transition_minutes(

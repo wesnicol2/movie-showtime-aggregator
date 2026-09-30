@@ -90,6 +90,7 @@ async function dragFromTo(
   if (!hasTouch) {
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
+    await page.waitForTimeout(550);
     await page.mouse.move(end.x, end.y, { steps: 6 });
     await page.mouse.up();
     return;
@@ -100,7 +101,7 @@ async function dragFromTo(
     type: "touchStart",
     touchPoints: [{ x: start.x, y: start.y }],
   });
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(550);
   for (let step = 1; step <= 6; step += 1) {
     const progress = step / 6;
     await session.send("Input.dispatchTouchEvent", {
@@ -123,7 +124,7 @@ test("priority rows use drag handles and can send a movie directly to the top", 
   await mockScreenings(page);
   await page.goto("/plan");
 
-  await expect(page.getByRole("button", { name: "Drag Beta to reorder" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Hold and drag Beta to reorder" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Move Beta up; send to top" })).toHaveText("Top");
   await expect(page.locator(".movie-priority-moves")).toHaveCount(0);
 
@@ -131,11 +132,11 @@ test("priority rows use drag handles and can send a movie directly to the top", 
   await expect(priorityTitles(page)).toHaveText(["Gamma", "Alpha", "Beta"]);
 });
 
-test("dragging the three-line handle reorders movie priority", async ({ page }) => {
+test("holding then dragging the three-line handle reorders movie priority", async ({ page }) => {
   await mockScreenings(page);
   await page.goto("/plan");
 
-  const handle = page.getByRole("button", { name: "Drag Beta to reorder" });
+  const handle = page.getByRole("button", { name: "Hold and drag Beta to reorder" });
   const alphaRow = page.locator("[data-movie-priority-row]").filter({ hasText: "Alpha" });
   await handle.evaluate((element) => element.scrollIntoView({ block: "center" }));
   const handleBox = await handle.boundingBox();

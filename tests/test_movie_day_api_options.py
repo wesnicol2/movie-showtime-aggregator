@@ -40,6 +40,7 @@ def screening(showtime_id: str, movie: str, hour: int) -> Screening:
         runtime_minutes=60,
         distance_miles=1,
         purchase_url="https://example.test/tickets",
+        drive_home_minutes=0,
     )
 
 
@@ -91,8 +92,8 @@ def test_movie_day_api_threads_cardinality_time_bounds_and_sort(monkeypatch):
     assert payload["runtime_overrides"] == {}
     assert payload["earliest_start"] == "2026-09-10T09:00"
     assert payload["latest_end"] == "2026-09-10T17:00"
-    assert payload["plannable_movie_count"] == 2
-    assert payload["missing_movies"] == ["Gamma"]
+    assert payload["plannable_movie_count"] == 3
+    assert payload["missing_movies"] == []
     assert payload["itineraries"][0]["movies"] == ["Alpha", "Beta"]
     assert payload["itineraries"][0]["dropped_movies"] == ["Gamma"]
 

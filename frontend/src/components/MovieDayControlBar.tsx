@@ -148,9 +148,10 @@ export function MovieDayControlBar({
       </label>
 
       <label className="planner-control">
-        <span>End</span>
+        <span>Home by</span>
         <input
           aria-label="Movie day end"
+          title="Latest time to arrive home after the final movie"
           type="time"
           value={latestTime}
           onChange={(event) => onLatestTimeChange(event.target.value)}
