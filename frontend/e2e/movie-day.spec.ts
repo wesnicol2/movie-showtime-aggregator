@@ -95,7 +95,8 @@ async function mockApi(page: Page): Promise<void> {
     expect(request.required_movies).toEqual([]);
     expect(request.runtime_overrides).toEqual({});
     expect(request.showtime_ids).toEqual(["alpha-1", "beta-1"]);
-    expect(request.secondary_sort_by).toBe("driving");
+    expect(request.sort_by).toBe("want");
+    expect(request.secondary_sort_by).toBe("elapsed");
     await route.fulfill({
       json: {
         date: "2026-09-10",
@@ -388,7 +389,8 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
   await page.route("**/api/movie-day", async (route) => {
     const request = route.request().postDataJSON();
     expect(request.runtime_overrides).toEqual({ Alpha: 95 });
-    expect(request.secondary_sort_by).toBe("driving");
+    expect(request.sort_by).toBe("want");
+    expect(request.secondary_sort_by).toBe("elapsed");
     await route.fulfill({
       json: {
         date: "2026-09-10",
@@ -397,8 +399,8 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
         runtime_overrides: { Alpha: 95 },
         target_movie_count: 1,
         plannable_movie_count: 2,
-        sort_by: "elapsed",
-        secondary_sort_by: "driving",
+        sort_by: "want",
+        secondary_sort_by: "elapsed",
         earliest_start: null,
         latest_end: null,
         eligible_showings: 2,
