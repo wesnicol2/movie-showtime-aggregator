@@ -233,6 +233,7 @@ test("Movie Day saved views restore planning controls without saving movie selec
   await page.getByRole("button", { name: "Show showing filters" }).click();
   await page.getByRole("button", { name: "Filter by chain" }).click();
   await page.getByRole("checkbox", { name: "Harkins" }).uncheck();
+  await page.getByRole("button", { name: "Close chain filter" }).click();
 
   page.once("dialog", (dialog) => void dialog.accept("After work"));
   await page.getByRole("button", { name: "Save view" }).click();
@@ -258,6 +259,7 @@ test("Movie Day saved views restore planning controls without saving movie selec
   await page.getByLabel("Extra transfer buffer").fill("0");
   await page.getByRole("button", { name: "Filter by chain" }).click();
   await page.getByRole("button", { name: "All" }).click();
+  await page.getByRole("button", { name: "Close chain filter" }).click();
   await page.getByLabel("Sort itineraries", { exact: true }).selectOption("driving");
 
   await page.getByLabel("Movie Day saved view").selectOption("After work");
