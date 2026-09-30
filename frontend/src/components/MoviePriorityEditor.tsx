@@ -190,7 +190,7 @@ export function MoviePriorityEditor({
                 <button
                   type="button"
                   className="movie-priority-top"
-                  aria-label={`Send ${movie} to top`}
+                  aria-label={`Move ${movie} up; send to top`}
                   title="Send to top"
                   disabled={index === 0}
                   onClick={() => moveMovieToIndex(movie, 0)}
