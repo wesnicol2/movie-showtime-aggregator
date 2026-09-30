@@ -95,6 +95,7 @@ async function mockApi(page: Page): Promise<void> {
     expect(request.required_movies).toEqual([]);
     expect(request.runtime_overrides).toEqual({});
     expect(request.showtime_ids).toEqual(["alpha-1", "beta-1"]);
+    expect(request.secondary_sort_by).toBe("driving");
     await route.fulfill({
       json: {
         date: "2026-09-10",
@@ -104,6 +105,7 @@ async function mockApi(page: Page): Promise<void> {
         target_movie_count: request.target_movie_count,
         plannable_movie_count: 2,
         sort_by: request.sort_by,
+        secondary_sort_by: request.secondary_sort_by,
         earliest_start: request.earliest_start,
         latest_end: request.latest_end,
         eligible_showings: 2,
@@ -164,6 +166,8 @@ test("selected movies become a travel-aware movie-day itinerary", async ({ page 
 
   await expect(page.getByRole("heading", { name: "Plan a movie day" })).toBeVisible();
   await expect(page.getByText("2 selected movies")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show showing filters" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Filter by theater" })).toHaveCount(0);
   await page.getByLabel("Extra transfer buffer").fill("10");
   await page.getByRole("button", { name: "Find combinations" }).click();
 
@@ -174,15 +178,20 @@ test("selected movies become a travel-aware movie-day itinerary", async ({ page 
   await expect(page.getByText("15 min spare")).toBeVisible();
 });
 
-test("showing filters narrow the showings a plan may use", async ({ page }) => {
+test("showing filters are collapsed and narrow the showings a plan may use", async ({ page }) => {
   await mockApi(page);
   await page.goto("/plan");
   await expect(page.getByText("2 candidate showings")).toBeVisible();
   await expect(page.getByText("0 active showing filters")).toBeVisible();
 
+  await page.getByRole("button", { name: "Show showing filters" }).click();
   await keepOnly(page, "Theater", ["AMC Center 8"]);
   await expect(page.getByText("1 candidate showings")).toBeVisible();
   await expect(page.getByText("1 active showing filters")).toBeVisible();
+  await expect(page.locator(".movie-day-filter-count")).toHaveText("1");
+
+  await page.getByRole("button", { name: "Hide showing filters" }).click();
+  await expect(page.getByRole("button", { name: "Filter by theater" })).toHaveCount(0);
 
   await page.route("**/api/movie-day", async (route) => {
     const request = route.request().postDataJSON();
@@ -196,6 +205,7 @@ test("showing filters narrow the showings a plan may use", async ({ page }) => {
         target_movie_count: 2,
         plannable_movie_count: 1,
         sort_by: "elapsed",
+        secondary_sort_by: "driving",
         earliest_start: null,
         latest_end: null,
         eligible_showings: 1,
@@ -215,12 +225,13 @@ test("showing filters narrow the showings a plan may use", async ({ page }) => {
   await page.getByRole("button", { name: "Find combinations" }).click();
   await expect(page.getByText(/Only 1 selected movie has an eligible showing/)).toBeVisible();
 
+  await page.getByRole("button", { name: "Show showing filters" }).click();
   await page.getByRole("button", { name: "Clear showing filters" }).click();
   await expect(page.getByText("2 candidate showings")).toBeVisible();
   await expect(page.getByText("0 active showing filters")).toBeVisible();
 });
 
-test("planner edits its movie pool and sends exact count, time bounds, and sort", async ({
+test("planner sends exact count, time bounds, primary sort, and secondary sort", async ({
   page,
 }) => {
   await mockApi(page);
@@ -237,7 +248,8 @@ test("planner edits its movie pool and sends exact count, time bounds, and sort"
   await page.getByLabel("Number of movies").selectOption("1");
   await page.getByLabel("Movie day start").fill("09:00");
   await page.getByLabel("Movie day end").fill("14:00");
-  await page.getByLabel("Sort itineraries").selectOption("driving");
+  await page.getByLabel("Sort itineraries", { exact: true }).selectOption("driving");
+  await page.getByLabel("Secondary sort itineraries").selectOption("want");
 
   await page.route("**/api/movie-day", async (route) => {
     const request = route.request().postDataJSON();
@@ -246,6 +258,7 @@ test("planner edits its movie pool and sends exact count, time bounds, and sort"
     expect(request.runtime_overrides).toEqual({});
     expect(request.target_movie_count).toBe(1);
     expect(request.sort_by).toBe("driving");
+    expect(request.secondary_sort_by).toBe("want");
     expect(request.earliest_start).toBe("2026-09-10T09:00:00");
     expect(request.latest_end).toBe("2026-09-10T14:00:00");
     await route.fulfill({
@@ -257,6 +270,7 @@ test("planner edits its movie pool and sends exact count, time bounds, and sort"
         target_movie_count: 1,
         plannable_movie_count: 2,
         sort_by: "driving",
+        secondary_sort_by: "want",
         earliest_start: request.earliest_start,
         latest_end: request.latest_end,
         eligible_showings: 2,
@@ -290,7 +304,7 @@ test("planner edits its movie pool and sends exact count, time bounds, and sort"
 
   await page.getByRole("button", { name: "Find combinations" }).click();
   await expect(page.getByText("Skipped: Beta")).toBeVisible();
-  await expect(page.getByText("minimum driving first")).toBeVisible();
+  await expect(page.getByText("Minimum driving first; ties by highest want score")).toBeVisible();
 });
 
 test("movie priorities and pins are sent as hard planner constraints", async ({ page }) => {
@@ -304,7 +318,7 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
     "true",
   );
   await page.getByLabel("Number of movies").selectOption("1");
-  await page.getByLabel("Sort itineraries").selectOption("want");
+  await page.getByLabel("Sort itineraries", { exact: true }).selectOption("want");
 
   await page.route("**/api/movie-day", async (route) => {
     const request = route.request().postDataJSON();
@@ -313,6 +327,7 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
     expect(request.runtime_overrides).toEqual({});
     expect(request.target_movie_count).toBe(1);
     expect(request.sort_by).toBe("want");
+    expect(request.secondary_sort_by).toBe("elapsed");
     await route.fulfill({
       json: {
         date: "2026-09-10",
@@ -322,6 +337,7 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
         target_movie_count: 1,
         plannable_movie_count: 2,
         sort_by: "want",
+        secondary_sort_by: "elapsed",
         earliest_start: null,
         latest_end: null,
         eligible_showings: 2,
@@ -354,7 +370,7 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
   });
 
   await page.getByRole("button", { name: "Find combinations" }).click();
-  await expect(page.getByText("highest want score first")).toBeVisible();
+  await expect(page.getByText("Highest want score first; ties by minimum time")).toBeVisible();
   await expect(page.getByText("Want score 2")).toBeVisible();
   await expect(page.getByText("Skipped: Alpha")).toBeVisible();
 });
@@ -372,6 +388,7 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
   await page.route("**/api/movie-day", async (route) => {
     const request = route.request().postDataJSON();
     expect(request.runtime_overrides).toEqual({ Alpha: 95 });
+    expect(request.secondary_sort_by).toBe("driving");
     await route.fulfill({
       json: {
         date: "2026-09-10",
@@ -381,6 +398,7 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
         target_movie_count: 1,
         plannable_movie_count: 2,
         sort_by: "elapsed",
+        secondary_sort_by: "driving",
         earliest_start: null,
         latest_end: null,
         eligible_showings: 2,

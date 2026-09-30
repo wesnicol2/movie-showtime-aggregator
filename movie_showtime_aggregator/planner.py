@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import heapq
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import cache
 
 from .location import GeoPoint
@@ -74,6 +74,7 @@ class MovieDayPlan:
     target_movie_count: int
     plannable_movie_count: int
     sort_by: str
+    secondary_sort_by: str
     eligible_showings: int
     unplannable_showings: int
     missing_movies: tuple[str, ...]
@@ -90,6 +91,7 @@ class MovieDayPlan:
             "target_movie_count": self.target_movie_count,
             "plannable_movie_count": self.plannable_movie_count,
             "sort_by": self.sort_by,
+            "secondary_sort_by": self.secondary_sort_by,
             "eligible_showings": self.eligible_showings,
             "unplannable_showings": self.unplannable_showings,
             "missing_movies": list(self.missing_movies),
@@ -115,6 +117,14 @@ def theatre_points(screenings: list[Screening]) -> list[GeoPoint]:
     )
 
 
+def default_secondary_sort(sort_by: str) -> str:
+    if sort_by == SORT_DRIVING:
+        return SORT_ELAPSED
+    if sort_by == SORT_WANT:
+        return SORT_ELAPSED
+    return SORT_DRIVING
+
+
 def plan_movie_day(
     screenings: list[Screening],
     selected_movies: list[str],
@@ -124,7 +134,9 @@ def plan_movie_day(
     required_movies: list[str] | None = None,
     earliest_start: datetime | None = None,
     latest_end: datetime | None = None,
+    home_configured: bool = True,
     sort_by: str = SORT_ELAPSED,
+    secondary_sort_by: str | None = None,
     minimum_buffer_minutes: int = 0,
     offset: int = 0,
     limit: int = 50,
@@ -146,6 +158,13 @@ def plan_movie_day(
         raise ValueError("required_movies cannot exceed target_movie_count")
     if sort_by not in SORT_MODES:
         raise ValueError("sort_by must be 'elapsed', 'driving', or 'want'")
+    secondary_sort = (
+        default_secondary_sort(sort_by) if secondary_sort_by is None else secondary_sort_by
+    )
+    if secondary_sort not in SORT_MODES:
+        raise ValueError("secondary_sort_by must be 'elapsed', 'driving', or 'want'")
+    if secondary_sort == sort_by:
+        raise ValueError("secondary_sort_by must differ from sort_by")
     if earliest_start is not None and latest_end is not None and latest_end < earliest_start:
         raise ValueError("latest_end must not be before earliest_start")
     if not 0 <= minimum_buffer_minutes <= 180:
@@ -165,8 +184,7 @@ def plan_movie_day(
     candidates = [
         screening
         for screening in timed
-        if (earliest_start is None or screening.actual_start >= earliest_start)
-        and (latest_end is None or screening.estimated_end <= latest_end)
+        if earliest_start is None or screening.actual_start >= earliest_start
     ]
     candidates.sort(
         key=lambda screening: (
@@ -191,6 +209,7 @@ def plan_movie_day(
             target_movie_count=target,
             plannable_movie_count=len(present),
             sort_by=sort_by,
+            secondary_sort_by=secondary_sort,
             eligible_showings=len(candidates),
             unplannable_showings=len(relevant) - len(timed),
             missing_movies=missing_movies,
@@ -223,7 +242,17 @@ def plan_movie_day(
     def completion_count(index: int, visited_mask: int) -> int:
         visited_count = visited_mask.bit_count()
         if visited_count == target:
-            return 1 if visited_mask & required_mask == required_mask else 0
+            if visited_mask & required_mask != required_mask:
+                return 0
+            return (
+                1
+                if _arrives_home_by(
+                    candidates[index],
+                    latest_end,
+                    home_configured=home_configured,
+                )
+                else 0
+            )
         required_remaining = (required_mask & ~visited_mask).bit_count()
         if required_remaining > target - visited_count:
             return 0
@@ -250,6 +279,7 @@ def plan_movie_day(
         starts,
         target=target,
         sort_by=sort_by,
+        secondary_sort_by=secondary_sort,
         offset=offset,
         limit=limit,
     )
@@ -260,6 +290,7 @@ def plan_movie_day(
         target_movie_count=target,
         plannable_movie_count=len(present),
         sort_by=sort_by,
+        secondary_sort_by=secondary_sort,
         eligible_showings=len(candidates),
         unplannable_showings=len(relevant) - len(timed),
         missing_movies=missing_movies,
@@ -282,6 +313,7 @@ def _ranked_itineraries(
     *,
     target: int,
     sort_by: str,
+    secondary_sort_by: str,
     offset: int,
     limit: int,
 ) -> list[MovieDayItinerary]:
@@ -307,6 +339,7 @@ def _ranked_itineraries(
                     path,
                     0,
                     sort_by,
+                    secondary_sort_by,
                     movie_bits=movie_bits,
                     movie_scores=movie_scores,
                     visited_mask=visited_mask,
@@ -347,6 +380,7 @@ def _ranked_itineraries(
                         next_path,
                         next_drive,
                         sort_by,
+                        secondary_sort_by,
                         movie_bits=movie_bits,
                         movie_scores=movie_scores,
                         visited_mask=next_mask,
@@ -367,6 +401,7 @@ def _path_priority(
     path: tuple[tuple[int, int], ...],
     drive_minutes: int,
     sort_by: str,
+    secondary_sort_by: str,
     *,
     movie_bits: dict[str, int],
     movie_scores: dict[str, int],
@@ -385,29 +420,43 @@ def _path_priority(
     return_home_minutes = (current.drive_home_minutes or 0) if is_complete else 0
     total_elapsed_minutes = elapsed_minutes + outbound_minutes + return_home_minutes
     total_drive_minutes = drive_minutes + outbound_minutes + return_home_minutes
+    current_score = sum(movie_scores[candidates[index].movie] for index, _ in path)
+    remaining_slots = target - visited_mask.bit_count()
+    remaining_scores = sorted(
+        (score for movie, score in movie_scores.items() if not visited_mask & movie_bits[movie]),
+        reverse=True,
+    )
+    score_upper_bound = current_score + sum(remaining_scores[:remaining_slots])
+    priorities = {
+        SORT_ELAPSED: total_elapsed_minutes,
+        SORT_DRIVING: total_drive_minutes,
+        SORT_WANT: -score_upper_bound,
+    }
+    priority: list[object] = [priorities[sort_by], priorities[secondary_sort_by]]
+    if sort_by == SORT_WANT and secondary_sort_by == SORT_ELAPSED:
+        priority.append(priorities[SORT_DRIVING])
     showtime_ids = tuple(candidates[index].showtime_id for index, _ in path)
-    if sort_by == SORT_DRIVING:
-        return (total_drive_minutes, total_elapsed_minutes, starts_at, showtime_ids)
-    if sort_by == SORT_WANT:
-        current_score = sum(movie_scores[candidates[index].movie] for index, _ in path)
-        remaining_slots = target - visited_mask.bit_count()
-        remaining_scores = sorted(
-            (
-                score
-                for movie, score in movie_scores.items()
-                if not visited_mask & movie_bits[movie]
-            ),
-            reverse=True,
-        )
-        score_upper_bound = current_score + sum(remaining_scores[:remaining_slots])
-        return (
-            -score_upper_bound,
-            total_elapsed_minutes,
-            total_drive_minutes,
-            starts_at,
-            showtime_ids,
-        )
-    return (total_elapsed_minutes, total_drive_minutes, starts_at, showtime_ids)
+    return (*priority, starts_at, showtime_ids)
+
+
+def _arrives_home_by(
+    screening: Screening,
+    latest_end: datetime | None,
+    *,
+    home_configured: bool,
+) -> bool:
+    if latest_end is None:
+        return True
+    if not home_configured:
+        return screening.estimated_end is not None and screening.estimated_end <= latest_end
+    home_arrival = _estimated_home_arrival(screening)
+    return home_arrival is not None and home_arrival <= latest_end
+
+
+def _estimated_home_arrival(screening: Screening) -> datetime | None:
+    if screening.estimated_end is None or screening.drive_home_minutes is None:
+        return None
+    return screening.estimated_end + timedelta(minutes=screening.drive_home_minutes)
 
 
 def _transition_minutes(
