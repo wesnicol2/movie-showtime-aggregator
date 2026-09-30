@@ -6,11 +6,7 @@ import {
   type ScreeningFacets,
   textOptions,
 } from "../screening-facets";
-import {
-  createSavedView,
-  type SavedView,
-  useAppStore,
-} from "../store";
+import { createSavedView, type SavedView, useAppStore } from "../store";
 import type { MovieDaySort, Screening } from "../types";
 import { CheckboxFilter, type CheckboxOption } from "./CheckboxFilter";
 
