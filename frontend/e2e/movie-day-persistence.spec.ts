@@ -119,6 +119,7 @@ async function mockApi(page: Page): Promise<() => number> {
         target_movie_count: request.target_movie_count,
         plannable_movie_count: 2,
         sort_by: request.sort_by,
+        secondary_sort_by: request.secondary_sort_by,
         earliest_start: request.earliest_start,
         latest_end: request.latest_end,
         eligible_showings: 2,
@@ -159,7 +160,7 @@ test("Movie Day keeps in-progress controls and results across app navigation", a
   await page.getByLabel("Number of movies").selectOption("1");
   await page.getByLabel("Movie day start").fill("09:00");
   await page.getByLabel("Movie day end").fill("14:00");
-  await page.getByLabel("Sort itineraries").selectOption("driving");
+  await page.getByLabel("Sort itineraries", { exact: true }).selectOption("driving");
   await page.getByLabel("Extra transfer buffer").fill("10");
   await page.getByRole("button", { name: "Find combinations" }).click();
 
@@ -174,7 +175,7 @@ test("Movie Day keeps in-progress controls and results across app navigation", a
   await expect(page.getByLabel("Number of movies")).toHaveValue("1");
   await expect(page.getByLabel("Movie day start")).toHaveValue("09:00");
   await expect(page.getByLabel("Movie day end")).toHaveValue("14:00");
-  await expect(page.getByLabel("Sort itineraries")).toHaveValue("driving");
+  await expect(page.getByLabel("Sort itineraries", { exact: true })).toHaveValue("driving");
   await expect(page.getByLabel("Extra transfer buffer")).toHaveValue("10");
   await expect(page.getByText("1 feasible 1-movie itineraries")).toBeVisible();
   await expect(page.getByText("OPTION 1")).toBeVisible();
