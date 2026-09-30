@@ -17,7 +17,7 @@ def screening(
     *,
     theatre: str = "Theater A",
     point: GeoPoint = POINT_A,
-    drive_home_minutes: int = 0,
+    drive_home_minutes: int | None = 0,
 ) -> Screening:
     actual_start = datetime(2026, 9, 30, hour, minute)
     return Screening(
@@ -54,6 +54,17 @@ def test_latest_end_requires_arriving_home_by_deadline():
 
     assert plan.total_itineraries == 1
     assert [itinerary.showtime_ids for itinerary in plan.itineraries] == [("home-in-time",)]
+
+
+def test_home_by_requires_known_return_travel_time():
+    plan = plan_movie_day(
+        [screening("unknown-home", "Alpha", 16, 0, 30, drive_home_minutes=None)],
+        ["Alpha"],
+        {},
+        latest_end=datetime(2026, 9, 30, 17, 0),
+    )
+
+    assert plan.total_itineraries == 0
 
 
 def test_home_by_check_is_applied_to_final_stop_not_every_intermediate_showing():
