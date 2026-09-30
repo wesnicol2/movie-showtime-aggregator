@@ -66,7 +66,7 @@ class StubRouter:
         return {}
 
     def travel_minutes(self, origin, destinations):
-        return {point: (5, 20) for point in destinations}
+        return dict.fromkeys(destinations, (5, 20))
 
 
 def request_payload() -> dict:
