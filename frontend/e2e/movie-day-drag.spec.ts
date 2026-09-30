@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type CDPSession, type Page, test } from "@playwright/test";
 
 const baseScreening = {
   chain: "AMC",
@@ -55,6 +55,16 @@ const screenings = [
   },
 ];
 
+interface Point {
+  x: number;
+  y: number;
+}
+
+interface ActivePress {
+  touch: boolean;
+  session: CDPSession | null;
+}
+
 async function mockScreenings(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -92,6 +102,44 @@ async function mockScreenings(page: Page): Promise<void> {
   });
 }
 
+async function startPress(page: Page, point: Point): Promise<ActivePress> {
+  const touch = await page.evaluate(() => navigator.maxTouchPoints > 0);
+  if (!touch) {
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.down();
+    return { touch: false, session: null };
+  }
+
+  const session = await page.context().newCDPSession(page);
+  await session.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [point],
+  });
+  return { touch: true, session };
+}
+
+async function movePress(page: Page, press: ActivePress, point: Point): Promise<void> {
+  if (!press.touch) {
+    await page.mouse.move(point.x, point.y, { steps: 4 });
+    return;
+  }
+  if (!press.session) throw new Error("Touch session is missing");
+  await press.session.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [point],
+  });
+}
+
+async function endPress(page: Page, press: ActivePress): Promise<void> {
+  if (!press.touch) {
+    await page.mouse.up();
+    return;
+  }
+  if (!press.session) throw new Error("Touch session is missing");
+  await press.session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await press.session.detach();
+}
+
 test("Movie Day reorder requires a hold and floats the dragged movie into position", async ({
   page,
 }) => {
@@ -106,20 +154,24 @@ test("Movie Day reorder requires a hold and floats the dragged movie into positi
 
   const betaHandle = page.getByRole("button", { name: "Hold and drag Beta to reorder" });
   const alphaRow = rows.nth(0);
+  await betaHandle.evaluate((element) => element.scrollIntoView({ block: "center" }));
+
   const quickHandleBox = await betaHandle.boundingBox();
   const quickAlphaBox = await alphaRow.boundingBox();
   if (!quickHandleBox || !quickAlphaBox) throw new Error("Movie priority rows are not measurable");
+  const quickStart = {
+    x: quickHandleBox.x + quickHandleBox.width / 2,
+    y: quickHandleBox.y + quickHandleBox.height / 2,
+  };
+  const quickEnd = {
+    x: quickStart.x,
+    y: quickAlphaBox.y + quickAlphaBox.height / 2,
+  };
 
-  await page.mouse.move(
-    quickHandleBox.x + quickHandleBox.width / 2,
-    quickHandleBox.y + quickHandleBox.height / 2,
-  );
-  await page.mouse.down();
-  await page.mouse.move(
-    quickAlphaBox.x + quickAlphaBox.width / 2,
-    quickAlphaBox.y + quickAlphaBox.height / 2,
-  );
-  await page.mouse.up();
+  const quickPress = await startPress(page, quickStart);
+  await page.waitForTimeout(75);
+  await movePress(page, quickPress, quickEnd);
+  await endPress(page, quickPress);
 
   await expect(rows.nth(0)).toContainText("Alpha");
   await expect(rows.nth(1)).toContainText("Beta");
@@ -127,22 +179,21 @@ test("Movie Day reorder requires a hold and floats the dragged movie into positi
   const holdHandleBox = await betaHandle.boundingBox();
   const holdAlphaBox = await alphaRow.boundingBox();
   if (!holdHandleBox || !holdAlphaBox) throw new Error("Movie priority rows are not measurable");
+  const holdStart = {
+    x: holdHandleBox.x + holdHandleBox.width / 2,
+    y: holdHandleBox.y + holdHandleBox.height / 2,
+  };
+  const holdEnd = {
+    x: holdStart.x,
+    y: holdAlphaBox.y + holdAlphaBox.height / 2,
+  };
 
-  await page.mouse.move(
-    holdHandleBox.x + holdHandleBox.width / 2,
-    holdHandleBox.y + holdHandleBox.height / 2,
-  );
-  await page.mouse.down();
+  const heldPress = await startPress(page, holdStart);
   await page.waitForTimeout(550);
   await expect(rows.nth(1)).toHaveClass(/is-dragging/);
-
-  await page.mouse.move(
-    holdAlphaBox.x + holdAlphaBox.width / 2,
-    holdAlphaBox.y + holdAlphaBox.height / 2,
-    { steps: 4 },
-  );
+  await movePress(page, heldPress, holdEnd);
   await expect(rows.nth(0)).toHaveClass(/is-shifting/);
-  await page.mouse.up();
+  await endPress(page, heldPress);
 
   await expect(rows.nth(0)).toContainText("Beta");
   await expect(rows.nth(1)).toContainText("Alpha");
