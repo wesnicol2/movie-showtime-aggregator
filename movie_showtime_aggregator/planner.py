@@ -157,7 +157,9 @@ def plan_movie_day(
         raise ValueError("required_movies cannot exceed target_movie_count")
     if sort_by not in SORT_MODES:
         raise ValueError("sort_by must be 'elapsed', 'driving', or 'want'")
-    secondary_sort = default_secondary_sort(sort_by) if secondary_sort_by is None else secondary_sort_by
+    secondary_sort = (
+        default_secondary_sort(sort_by) if secondary_sort_by is None else secondary_sort_by
+    )
     if secondary_sort not in SORT_MODES:
         raise ValueError("secondary_sort_by must be 'elapsed', 'driving', or 'want'")
     if secondary_sort == sort_by:
@@ -411,11 +413,7 @@ def _path_priority(
     current_score = sum(movie_scores[candidates[index].movie] for index, _ in path)
     remaining_slots = target - visited_mask.bit_count()
     remaining_scores = sorted(
-        (
-            score
-            for movie, score in movie_scores.items()
-            if not visited_mask & movie_bits[movie]
-        ),
+        (score for movie, score in movie_scores.items() if not visited_mask & movie_bits[movie]),
         reverse=True,
     )
     score_upper_bound = current_score + sum(remaining_scores[:remaining_slots])
@@ -424,17 +422,11 @@ def _path_priority(
         SORT_DRIVING: total_drive_minutes,
         SORT_WANT: -score_upper_bound,
     }
-    tertiary_sort_by = next(
-        mode for mode in (SORT_ELAPSED, SORT_DRIVING, SORT_WANT) if mode not in {sort_by, secondary_sort_by}
-    )
+    priority: list[object] = [priorities[sort_by], priorities[secondary_sort_by]]
+    if sort_by == SORT_WANT and secondary_sort_by == SORT_ELAPSED:
+        priority.append(priorities[SORT_DRIVING])
     showtime_ids = tuple(candidates[index].showtime_id for index, _ in path)
-    return (
-        priorities[sort_by],
-        priorities[secondary_sort_by],
-        priorities[tertiary_sort_by],
-        starts_at,
-        showtime_ids,
-    )
+    return (*priority, starts_at, showtime_ids)
 
 
 def _transition_minutes(
