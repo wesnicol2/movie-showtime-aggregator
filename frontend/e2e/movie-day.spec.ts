@@ -248,7 +248,7 @@ test("planner sends exact count, time bounds, primary sort, and secondary sort",
   await page.getByLabel("Number of movies").selectOption("1");
   await page.getByLabel("Movie day start").fill("09:00");
   await page.getByLabel("Movie day end").fill("14:00");
-  await page.getByLabel("Sort itineraries").selectOption("driving");
+  await page.getByLabel("Sort itineraries", { exact: true }).selectOption("driving");
   await page.getByLabel("Secondary sort itineraries").selectOption("want");
 
   await page.route("**/api/movie-day", async (route) => {
@@ -318,7 +318,7 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
     "true",
   );
   await page.getByLabel("Number of movies").selectOption("1");
-  await page.getByLabel("Sort itineraries").selectOption("want");
+  await page.getByLabel("Sort itineraries", { exact: true }).selectOption("want");
 
   await page.route("**/api/movie-day", async (route) => {
     const request = route.request().postDataJSON();
