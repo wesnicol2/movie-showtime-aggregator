@@ -1,4 +1,4 @@
-import { expect, type CDPSession, type Page, test } from "@playwright/test";
+import { type CDPSession, expect, type Page, test } from "@playwright/test";
 
 const baseScreening = {
   chain: "AMC",
