@@ -92,7 +92,7 @@ export function MoviePriorityEditor({
       const adjacent = bounds[adjacentIndex];
       const source = bounds[sourceIndex];
       rowShiftDistanceRef.current =
-        adjacent && source ? Math.abs(adjacent.top - source.top) : source?.height ?? 0;
+        adjacent && source ? Math.abs(adjacent.top - source.top) : (source?.height ?? 0);
     } else {
       rowShiftDistanceRef.current = bounds[0]?.height ?? 0;
     }
@@ -178,8 +178,7 @@ export function MoviePriorityEditor({
     commit: boolean,
   ): void {
     if (activePointerId.current !== event.pointerId) return;
-    const destinationIndex =
-      draggedMovieRef.current === movie ? dragDestinationRef.current : null;
+    const destinationIndex = draggedMovieRef.current === movie ? dragDestinationRef.current : null;
 
     clearPendingTimer();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
