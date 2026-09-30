@@ -49,23 +49,27 @@ export function MovieDayPage() {
   const [planning, setPlanning] = useState(false);
   const [savedItineraryKey, setSavedItineraryKey] = useState<string | null>(null);
 
+  const allScreenings = useMemo(() => response?.screenings ?? [], [response]);
+  const availableSelectedMovies = useMemo(() => {
+    const showingMovies = new Set(allScreenings.map((screening) => screening.movie));
+    return selectedMovies.filter((movie) => showingMovies.has(movie));
+  }, [allScreenings, selectedMovies]);
   const rankedMovies = useMemo(
-    () => reconcileMovieRanking(moviePreferences.ranking, selectedMovies),
-    [moviePreferences.ranking, selectedMovies],
+    () => reconcileMovieRanking(moviePreferences.ranking, availableSelectedMovies),
+    [availableSelectedMovies, moviePreferences.ranking],
   );
   const pinnedMovies = useMemo(() => {
-    const selected = new Set(selectedMovies);
+    const selected = new Set(availableSelectedMovies);
     return moviePreferences.pinned.filter((movie) => selected.has(movie));
-  }, [moviePreferences.pinned, selectedMovies]);
+  }, [availableSelectedMovies, moviePreferences.pinned]);
   const runtimeOverrides = useMemo(() => {
     const overrides: Record<string, number> = {};
-    for (const movie of selectedMovies) {
+    for (const movie of availableSelectedMovies) {
       const runtime = moviePreferences.runtimeOverrides[movie];
       if (runtime !== undefined) overrides[movie] = runtime;
     }
     return overrides;
-  }, [moviePreferences.runtimeOverrides, selectedMovies]);
-  const allScreenings = useMemo(() => response?.screenings ?? [], [response]);
+  }, [availableSelectedMovies, moviePreferences.runtimeOverrides]);
   const defaultRuntimeByMovie = useMemo(() => {
     const runtimes: Record<string, number | null> = {};
     for (const movie of rankedMovies) {
@@ -77,11 +81,11 @@ export function MovieDayPage() {
     return runtimes;
   }, [allScreenings, rankedMovies]);
   const eligibleScreenings = useMemo(() => {
-    const selected = new Set(selectedMovies);
+    const selected = new Set(availableSelectedMovies);
     return filterAndSort(allScreenings, filters, sort).filter(
       (screening) => selected.has(screening.movie) && matchesFacets(screening, facets),
     );
-  }, [allScreenings, facets, filters, selectedMovies, sort]);
+  }, [allScreenings, availableSelectedMovies, facets, filters, sort]);
   const screeningById = useMemo(
     () => new Map(allScreenings.map((screening) => [screening.showtime_id, screening])),
     [allScreenings],
@@ -89,7 +93,7 @@ export function MovieDayPage() {
   const activeFilterCount = Object.values(filters).filter(isFilterActive).length;
   const activeShowingFilters = activeFacetCount(facets);
   const homeConfigured = response?.preferences.home_configured === true;
-  const targetCount = targetMovieCount ?? selectedMovies.length;
+  const targetCount = targetMovieCount ?? availableSelectedMovies.length;
   const responseDate = response?.date ?? "";
   const bounds = response
     ? dayBounds(response.date, earliestTime, latestTime)
@@ -127,10 +131,10 @@ export function MovieDayPage() {
   }, [moviePreferences]);
 
   useEffect(() => {
-    if (targetMovieCount !== null && targetMovieCount >= selectedMovies.length) {
+    if (targetMovieCount !== null && targetMovieCount >= availableSelectedMovies.length) {
       setTargetMovieCount(null);
     }
-  }, [selectedMovies.length, targetMovieCount]);
+  }, [availableSelectedMovies.length, targetMovieCount]);
 
   useEffect(() => {
     if (targetMovieCount !== null && targetMovieCount < pinnedMovies.length) {
@@ -154,21 +158,31 @@ export function MovieDayPage() {
   function moveMovie(movie: string, direction: -1 | 1): void {
     setMoviePreferences((current) => {
       const ranking = reconcileMovieRanking(current.ranking, selectedMovies);
-      const index = ranking.indexOf(movie);
+      const visible = ranking.filter((value) => availableSelectedMovies.includes(value));
+      const index = visible.indexOf(movie);
       const destination = index + direction;
-      if (index < 0 || destination < 0 || destination >= ranking.length) return current;
-      const next = [...ranking];
-      const currentMovie = next[index];
-      const destinationMovie = next[destination];
+      if (index < 0 || destination < 0 || destination >= visible.length) return current;
+      const nextVisible = [...visible];
+      const currentMovie = nextVisible[index];
+      const destinationMovie = nextVisible[destination];
       if (currentMovie === undefined || destinationMovie === undefined) return current;
-      next[index] = destinationMovie;
-      next[destination] = currentMovie;
-      return { ...current, ranking: next };
+      nextVisible[index] = destinationMovie;
+      nextVisible[destination] = currentMovie;
+
+      const visibleMovies = new Set(availableSelectedMovies);
+      let visibleIndex = 0;
+      const nextRanking = ranking.map((value) => {
+        if (!visibleMovies.has(value)) return value;
+        const replacement = nextVisible[visibleIndex];
+        visibleIndex += 1;
+        return replacement ?? value;
+      });
+      return { ...current, ranking: nextRanking };
     });
   }
 
   function togglePinned(movie: string): void {
-    if (!selectedMovies.includes(movie)) return;
+    if (!availableSelectedMovies.includes(movie)) return;
     setMoviePreferences((current) => {
       const pinned = current.pinned.includes(movie)
         ? current.pinned.filter((value) => value !== movie)
@@ -178,7 +192,7 @@ export function MovieDayPage() {
   }
 
   function setRuntimeOverride(movie: string, minutes: number | null): void {
-    if (!selectedMovies.includes(movie)) return;
+    if (!availableSelectedMovies.includes(movie)) return;
     if (minutes !== null && (!Number.isInteger(minutes) || minutes < 1 || minutes > 600)) return;
     setMoviePreferences((current) => {
       const next = { ...current.runtimeOverrides };
@@ -186,6 +200,12 @@ export function MovieDayPage() {
       else next[movie] = minutes;
       return { ...current, runtimeOverrides: next };
     });
+  }
+
+  function setAvailableMovieSelection(movies: string[]): void {
+    const showingMovies = new Set(allScreenings.map((screening) => screening.movie));
+    const unavailableSelectedMovies = selectedMovies.filter((movie) => !showingMovies.has(movie));
+    setMovieSelection([...unavailableSelectedMovies, ...movies]);
   }
 
   function changeSortBy(value: MovieDaySort): void {
@@ -250,6 +270,8 @@ export function MovieDayPage() {
       screenings: structuredClone(screenings),
       runtimeOverrides: { ...runtimeOverrides },
     });
+    const plannedMovies = new Set(itinerary.movies);
+    setMovieSelection(selectedMovies.filter((movie) => !plannedMovies.has(movie)));
     setPlanError(null);
     setSavedItineraryKey(nextKey);
   }
@@ -266,7 +288,7 @@ export function MovieDayPage() {
       <MovieDayControlBar
         facets={facets}
         screenings={allScreenings}
-        selectedMovies={selectedMovies}
+        selectedMovies={availableSelectedMovies}
         targetMovieCount={targetMovieCount}
         minimumTargetMovieCount={pinnedMovies.length}
         earliestTime={earliestTime}
@@ -275,9 +297,9 @@ export function MovieDayPage() {
         secondarySortBy={secondarySortBy}
         minimumBuffer={minimumBuffer}
         planning={planning}
-        disabled={status !== "ready" || selectedMovies.length === 0}
+        disabled={status !== "ready" || availableSelectedMovies.length === 0}
         onFacetsChange={setFacets}
-        onMovieSelectionChange={setMovieSelection}
+        onMovieSelectionChange={setAvailableMovieSelection}
         onTargetMovieCountChange={setTargetMovieCount}
         onEarliestTimeChange={setEarliestTime}
         onLatestTimeChange={setLatestTime}
@@ -317,7 +339,7 @@ export function MovieDayPage() {
         <div className="planner-context">
           <div className="planner-facts">
             <span>{formatDate(response.date)}</span>
-            <span>{selectedMovies.length} selected movies</span>
+            <span>{availableSelectedMovies.length} selected movies</span>
             <span>{targetCount || 0} to watch</span>
             <span>{pinnedMovies.length} pinned</span>
             <span>{Object.keys(runtimeOverrides).length} runtime overrides</span>
