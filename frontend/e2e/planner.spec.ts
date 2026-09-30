@@ -193,7 +193,7 @@ test("Movie Day hides unavailable selected movies and deselects movies saved to 
   await expect(priorityRows.filter({ hasText: "Alpha" })).toHaveCount(1);
   await expect(priorityRows.filter({ hasText: "Beta" })).toHaveCount(1);
   await expect(priorityRows.filter({ hasText: "Gamma" })).toHaveCount(0);
-  await expect(page.getByLabel("Sort itineraries")).toHaveValue("want");
+  await expect(page.getByLabel("Sort itineraries", { exact: true })).toHaveValue("want");
   await expect(page.getByLabel("Secondary sort itineraries")).toHaveValue("elapsed");
 
   await page.getByRole("button", { name: "Find combinations" }).click();
@@ -224,7 +224,7 @@ test("Movie Day saved views restore planning controls without saving movie selec
   await mockPlannerApi(page);
   await page.goto("/plan");
 
-  await expect(page.getByLabel("Sort itineraries")).toHaveValue("want");
+  await expect(page.getByLabel("Sort itineraries", { exact: true })).toHaveValue("want");
   await expect(page.getByLabel("Secondary sort itineraries")).toHaveValue("elapsed");
   await page.getByLabel("Number of movies").selectOption("1");
   await page.getByLabel("Movie day start").fill("17:00");
@@ -258,14 +258,14 @@ test("Movie Day saved views restore planning controls without saving movie selec
   await page.getByLabel("Extra transfer buffer").fill("0");
   await page.getByRole("button", { name: "Filter by chain" }).click();
   await page.getByRole("button", { name: "All" }).click();
-  await page.getByLabel("Sort itineraries").selectOption("driving");
+  await page.getByLabel("Sort itineraries", { exact: true }).selectOption("driving");
 
   await page.getByLabel("Movie Day saved view").selectOption("After work");
   await expect(page.getByLabel("Number of movies")).toHaveValue("1");
   await expect(page.getByLabel("Movie day start")).toHaveValue("17:00");
   await expect(page.getByLabel("Movie day end")).toHaveValue("23:30");
   await expect(page.getByLabel("Extra transfer buffer")).toHaveValue("15");
-  await expect(page.getByLabel("Sort itineraries")).toHaveValue("want");
+  await expect(page.getByLabel("Sort itineraries", { exact: true })).toHaveValue("want");
   await expect(page.getByLabel("Secondary sort itineraries")).toHaveValue("elapsed");
   await expect(page.getByRole("button", { name: "Filter by chain" })).toContainText("AMC");
   await expect
