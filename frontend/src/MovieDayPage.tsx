@@ -39,6 +39,7 @@ export function MovieDayPage() {
   const [earliestTime, setEarliestTime] = useState("");
   const [latestTime, setLatestTime] = useState("");
   const [sortBy, setSortBy] = useState<MovieDaySort>("elapsed");
+  const [secondarySortBy, setSecondarySortBy] = useState<MovieDaySort>("driving");
   const [moviePreferences, setMoviePreferences] =
     useState<MovieDayPreferences>(readMovieDayPreferences);
   const [plan, setPlan] = useState<MovieDayPlanResponse | null>(null);
@@ -99,6 +100,7 @@ export function MovieDayPage() {
     earliestTime,
     latestTime,
     sortBy,
+    secondarySortBy,
     rankedMovies.join("|"),
     pinnedMovies.join("|"),
     runtimeSignature,
@@ -173,6 +175,11 @@ export function MovieDayPage() {
     });
   }
 
+  function changeSortBy(value: MovieDaySort): void {
+    setSortBy(value);
+    setSecondarySortBy(defaultSecondarySort(value));
+  }
+
   async function generate(offset = 0): Promise<void> {
     if (!response || rankedMovies.length === 0 || targetCount === 0) return;
     setPlanning(true);
@@ -186,6 +193,7 @@ export function MovieDayPage() {
         showtime_ids: eligibleScreenings.map((screening) => screening.showtime_id),
         target_movie_count: targetCount,
         sort_by: sortBy,
+        secondary_sort_by: secondarySortBy,
         earliest_start: bounds.earliestStart,
         latest_end: bounds.latestEnd,
         minimum_buffer_minutes: minimumBuffer,
@@ -220,6 +228,7 @@ export function MovieDayPage() {
         earliestTime={earliestTime}
         latestTime={latestTime}
         sortBy={sortBy}
+        secondarySortBy={secondarySortBy}
         minimumBuffer={minimumBuffer}
         planning={planning}
         disabled={status !== "ready" || selectedMovies.length === 0}
@@ -228,7 +237,8 @@ export function MovieDayPage() {
         onTargetMovieCountChange={setTargetMovieCount}
         onEarliestTimeChange={setEarliestTime}
         onLatestTimeChange={setLatestTime}
-        onSortByChange={setSortBy}
+        onSortByChange={changeSortBy}
+        onSecondarySortByChange={setSecondarySortBy}
         onMinimumBufferChange={setMinimumBuffer}
         onPlan={() => void generate()}
       />
@@ -269,7 +279,8 @@ export function MovieDayPage() {
             points, #2 is worth N−1, and so on; pinned movies are mandatory. Manual runtimes replace
             fetched runtimes when calculating end times and itinerary feasibility. The solver may
             omit only unpinned movies when Watch is below the selected count, then globally ranks
-            complete itineraries by the chosen objective.
+            complete itineraries by the chosen primary objective and uses Secondary sort to break
+            ties.
           </p>
         </div>
       ) : null}
@@ -282,7 +293,7 @@ export function MovieDayPage() {
             <span>·</span>
             <span>{plan.eligible_showings} timed showings considered</span>
             <span>·</span>
-            <span>{sortDescription(plan.sort_by)}</span>
+            <span>{sortDescription(plan.sort_by, plan.secondary_sort_by)}</span>
             {plan.unplannable_showings ? (
               <>
                 <span>·</span>
@@ -517,10 +528,18 @@ function arraysEqual(left: readonly string[], right: readonly string[]): boolean
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-function sortDescription(sortBy: MovieDaySort): string {
-  if (sortBy === "driving") return "minimum driving first";
-  if (sortBy === "want") return "highest want score first";
-  return "minimum time first";
+function defaultSecondarySort(sortBy: MovieDaySort): MovieDaySort {
+  return sortBy === "elapsed" ? "driving" : "elapsed";
+}
+
+function sortDescription(sortBy: MovieDaySort, secondarySortBy: MovieDaySort): string {
+  return `${sortLabel(sortBy)} first; ties by ${sortLabel(secondarySortBy).toLowerCase()}`;
+}
+
+function sortLabel(sortBy: MovieDaySort): string {
+  if (sortBy === "driving") return "Minimum driving";
+  if (sortBy === "want") return "Highest want score";
+  return "Minimum time";
 }
 
 function dayBounds(

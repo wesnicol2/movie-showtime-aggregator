@@ -79,6 +79,7 @@ def test_movie_day_api_threads_cardinality_time_bounds_and_sort(monkeypatch):
             "earliest_start": "2026-09-10T09:00:00",
             "latest_end": "2026-09-10T17:00:00",
             "sort_by": "driving",
+            "secondary_sort_by": "want",
             "minimum_buffer_minutes": 0,
         }
     )
@@ -86,6 +87,7 @@ def test_movie_day_api_threads_cardinality_time_bounds_and_sort(monkeypatch):
     assert code == 200
     assert payload["target_movie_count"] == 2
     assert payload["sort_by"] == "driving"
+    assert payload["secondary_sort_by"] == "want"
     assert payload["runtime_overrides"] == {}
     assert payload["earliest_start"] == "2026-09-10T09:00"
     assert payload["latest_end"] == "2026-09-10T17:00"
@@ -117,6 +119,7 @@ def test_movie_day_api_threads_rank_order_pins_and_want_sort(monkeypatch):
             "showtime_ids": ["alpha", "beta", "gamma"],
             "target_movie_count": 2,
             "sort_by": "want",
+            "secondary_sort_by": "driving",
             "minimum_buffer_minutes": 0,
         }
     )
@@ -125,6 +128,7 @@ def test_movie_day_api_threads_rank_order_pins_and_want_sort(monkeypatch):
     assert payload["selected_movies"] == ["Gamma", "Alpha", "Beta"]
     assert payload["required_movies"] == ["Beta"]
     assert payload["sort_by"] == "want"
+    assert payload["secondary_sort_by"] == "driving"
     assert payload["total_itineraries"] == 2
     assert payload["itineraries"][0]["movies"] == ["Beta", "Gamma"]
     assert payload["itineraries"][0]["want_score"] == 4
@@ -153,6 +157,7 @@ def test_movie_day_api_runtime_override_recalculates_end_and_unlocks_runtime(mon
 
     assert code == 200
     assert payload["runtime_overrides"] == {"Alpha": 95}
+    assert payload["secondary_sort_by"] == "driving"
     assert payload["plannable_movie_count"] == 1
     assert payload["unplannable_showings"] == 0
     assert payload["itineraries"][0]["ends_at"] == "2026-09-10T10:35"
@@ -192,3 +197,21 @@ def test_movie_day_api_rejects_unknown_sort(monkeypatch):
 
     assert code == 400
     assert "sort_by" in payload["error"]
+
+
+def test_movie_day_api_rejects_secondary_sort_matching_primary(monkeypatch):
+    monkeypatch.setattr(api, "_SERVICE", StubService([screening("alpha", "Alpha", 9)]))
+    monkeypatch.setattr(api, "_ROUTER", NoTravelRouter())
+
+    code, payload = call_movie_day(
+        {
+            "date": "2026-09-10",
+            "movies": ["Alpha"],
+            "showtime_ids": ["alpha"],
+            "sort_by": "elapsed",
+            "secondary_sort_by": "elapsed",
+        }
+    )
+
+    assert code == 400
+    assert "secondary_sort_by" in payload["error"]

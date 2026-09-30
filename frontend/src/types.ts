@@ -127,6 +127,7 @@ export interface MovieDayPlanResponse {
   target_movie_count: number;
   plannable_movie_count: number;
   sort_by: MovieDaySort;
+  secondary_sort_by: MovieDaySort;
   earliest_start: string | null;
   latest_end: string | null;
   eligible_showings: number;
@@ -150,6 +151,7 @@ export interface MovieDayPlanRequest {
   showtime_ids: string[];
   target_movie_count: number;
   sort_by: MovieDaySort;
+  secondary_sort_by: MovieDaySort;
   earliest_start?: string | null;
   latest_end?: string | null;
   minimum_buffer_minutes: number;
