@@ -140,7 +140,7 @@ def test_target_movie_count_allows_each_itinerary_to_drop_different_movies():
     }
 
 
-def test_start_and_end_bounds_apply_to_actual_start_and_calculated_end():
+def test_start_bound_and_home_by_deadline_limit_complete_itineraries():
     screenings = [
         screening("early", "Alpha", 8, 30, 60),
         screening("middle", "Beta", 10, 0, 60),
@@ -158,7 +158,8 @@ def test_start_and_end_bounds_apply_to_actual_start_and_calculated_end():
 
     assert plan.total_itineraries == 1
     assert plan.itineraries[0].movies == ("Beta",)
-    assert plan.missing_movies == ("Alpha", "Gamma")
+    assert plan.plannable_movie_count == 2
+    assert plan.missing_movies == ("Alpha",)
 
 
 def test_same_theater_needs_no_coordinates_or_route_lookup():
