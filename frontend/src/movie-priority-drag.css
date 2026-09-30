@@ -46,6 +46,11 @@
   box-shadow: 0 0 0 1px var(--accent);
 }
 
+.movie-priority-list li.is-drop-target:not(.is-dragging) {
+  border-color: var(--accent);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
 @media (max-width: 700px) {
   .movie-priority-ordering {
     grid-column: 2 / -1;
