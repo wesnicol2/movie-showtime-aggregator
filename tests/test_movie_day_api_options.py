@@ -40,6 +40,7 @@ def screening(showtime_id: str, movie: str, hour: int) -> Screening:
         runtime_minutes=60,
         distance_miles=1,
         purchase_url="https://example.test/tickets",
+        drive_home_minutes=0,
     )
 
 
