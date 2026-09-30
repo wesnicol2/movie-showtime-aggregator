@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { type ColumnFilter, createEmptyFilters, type Filters, type SortState } from "./screenings";
+import { browserDate } from "./show-date";
 import type { ColumnKey, ScreeningsResponse } from "./types";
 
 const MOVIE_SELECTION_KEY = "movie-showtime-aggregator.selected-movies.v1";
@@ -79,6 +80,7 @@ interface AppState {
   response: ScreeningsResponse | null;
   status: "idle" | "loading" | "ready" | "error";
   error: string | null;
+  selectedDate: string;
   filters: Filters;
   sort: SortState;
   selectedMovies: string[];
@@ -86,6 +88,7 @@ interface AppState {
   setLoading: () => void;
   setResponse: (response: ScreeningsResponse) => void;
   setError: (message: string) => void;
+  setSelectedDate: (date: string) => void;
   invalidateScreenings: () => void;
   toggleSort: (key: ColumnKey) => void;
   updateFilter: (key: ColumnKey, patch: Partial<ColumnFilter>) => void;
@@ -101,6 +104,7 @@ export const useAppStore = create<AppState>((set) => ({
   response: null,
   status: "idle",
   error: null,
+  selectedDate: browserDate(),
   filters: initialFilters,
   sort: { key: "advertised_start", direction: "asc" },
   selectedMovies: initialSelection,
@@ -109,6 +113,17 @@ export const useAppStore = create<AppState>((set) => ({
   setLoading: () => set({ status: "loading", error: null }),
   setResponse: (response) => set({ response, status: "ready", error: null }),
   setError: (message) => set({ response: null, status: "error", error: message }),
+  setSelectedDate: (selectedDate) =>
+    set((state) => {
+      if (!selectedDate || selectedDate === state.selectedDate) return {};
+      return {
+        selectedDate,
+        response: null,
+        status: "idle",
+        error: null,
+        inspectedShowtimeId: null,
+      };
+    }),
   invalidateScreenings: () => set({ response: null, status: "idle", error: null }),
 
   toggleSort: (key) =>
