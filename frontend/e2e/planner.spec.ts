@@ -179,7 +179,9 @@ async function mockPlannerApi(page: Page): Promise<void> {
   });
 }
 
-test("a Movie Day itinerary can be saved and appears in the continuous Planner", async ({ page }) => {
+test("a Movie Day itinerary can be saved and appears in the continuous Planner", async ({
+  page,
+}) => {
   await mockPlannerApi(page);
   await page.goto("/plan");
 
