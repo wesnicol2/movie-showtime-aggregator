@@ -66,10 +66,7 @@ export function MovieDayControlBar({
 }: Props) {
   const [showingFiltersOpen, setShowingFiltersOpen] = useState(false);
   const [openControl, setOpenControl] = useState<OpenControl | null>(null);
-  const movies = useMemo(
-    () => movieOptions(screenings, selectedMovies),
-    [screenings, selectedMovies],
-  );
+  const movies = useMemo(() => movieOptions(screenings), [screenings]);
   const theaters = useMemo(() => textOptions(screenings, "theatre"), [screenings]);
   const chains = useMemo(() => textOptions(screenings, "chain"), [screenings]);
   const formats = useMemo(() => textOptions(screenings, "format"), [screenings]);
@@ -272,11 +269,8 @@ export function MovieDayControlBar({
   );
 }
 
-function movieOptions(
-  screenings: readonly Screening[],
-  selectedMovies: readonly string[],
-): CheckboxOption[] {
-  return [...new Set([...screenings.map((screening) => screening.movie), ...selectedMovies])]
+function movieOptions(screenings: readonly Screening[]): CheckboxOption[] {
+  return [...new Set(screenings.map((screening) => screening.movie))]
     .filter(Boolean)
     .sort((left, right) =>
       left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" }),
