@@ -4,7 +4,7 @@ import { createMovieDayPlan } from "./api";
 import { MovieDayControlBar } from "./components/MovieDayControlBar";
 import { MoviePriorityEditor } from "./components/MoviePriorityEditor";
 import "./movie-day.css";
-import { saveMoviePlan, savedMoviePlanForDate } from "./planner";
+import { savedMoviePlanForDate, saveMoviePlan } from "./planner";
 import {
   activeFacetCount,
   EMPTY_SCREENING_FACETS,
