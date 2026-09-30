@@ -24,7 +24,9 @@ export function MoviePriorityEditor({
   const listRef = useRef<HTMLOListElement>(null);
   const activePointerId = useRef<number | null>(null);
   const draggedMovieRef = useRef<string | null>(null);
+  const dragDestinationRef = useRef<number | null>(null);
   const [draggingMovie, setDraggingMovie] = useState<string | null>(null);
+  const [dragDestinationIndex, setDragDestinationIndex] = useState<number | null>(null);
 
   if (movies.length === 0) return null;
   const pinned = new Set(pinnedMovies);
@@ -57,9 +59,12 @@ export function MoviePriorityEditor({
   function beginDrag(event: PointerEvent<HTMLButtonElement>, movie: string): void {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     event.preventDefault();
+    const index = movies.indexOf(movie);
     activePointerId.current = event.pointerId;
     draggedMovieRef.current = movie;
+    dragDestinationRef.current = index;
     setDraggingMovie(movie);
+    setDragDestinationIndex(index);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -67,17 +72,27 @@ export function MoviePriorityEditor({
     if (activePointerId.current !== event.pointerId || draggedMovieRef.current !== movie) return;
     event.preventDefault();
     const destinationIndex = destinationIndexAt(event.clientY);
-    if (destinationIndex !== null) moveMovieToIndex(movie, destinationIndex);
+    if (destinationIndex === null || destinationIndex === dragDestinationRef.current) return;
+    dragDestinationRef.current = destinationIndex;
+    setDragDestinationIndex(destinationIndex);
   }
 
-  function endDrag(event: PointerEvent<HTMLButtonElement>, movie: string): void {
+  function finishDrag(
+    event: PointerEvent<HTMLButtonElement>,
+    movie: string,
+    commit: boolean,
+  ): void {
     if (activePointerId.current !== event.pointerId || draggedMovieRef.current !== movie) return;
+    const destinationIndex = dragDestinationRef.current;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     activePointerId.current = null;
     draggedMovieRef.current = null;
+    dragDestinationRef.current = null;
     setDraggingMovie(null);
+    setDragDestinationIndex(null);
+    if (commit && destinationIndex !== null) moveMovieToIndex(movie, destinationIndex);
   }
 
   function handleDragKeyDown(event: KeyboardEvent<HTMLButtonElement>, movie: string): void {
@@ -117,11 +132,15 @@ export function MoviePriorityEditor({
           const runtimeOverride = runtimeOverrides[movie];
           const defaultRuntime = defaultRuntimeByMovie[movie] ?? null;
           const isDragging = draggingMovie === movie;
+          const isDropTarget = draggingMovie !== null && dragDestinationIndex === index;
+          const rowClasses = [isDragging ? "is-dragging" : "", isDropTarget ? "is-drop-target" : ""]
+            .filter(Boolean)
+            .join(" ");
           return (
             <li
               key={movie}
               data-movie-priority-row
-              className={isDragging ? "is-dragging" : undefined}
+              className={rowClasses.length > 0 ? rowClasses : undefined}
             >
               <span className="movie-priority-rank">#{index + 1}</span>
               <div className="movie-priority-title">
@@ -179,8 +198,8 @@ export function MoviePriorityEditor({
                   title="Drag to reorder"
                   onPointerDown={(event) => beginDrag(event, movie)}
                   onPointerMove={(event) => continueDrag(event, movie)}
-                  onPointerUp={(event) => endDrag(event, movie)}
-                  onPointerCancel={(event) => endDrag(event, movie)}
+                  onPointerUp={(event) => finishDrag(event, movie, true)}
+                  onPointerCancel={(event) => finishDrag(event, movie, false)}
                   onKeyDown={(event) => handleDragKeyDown(event, movie)}
                 >
                   <svg className="movie-priority-drag-icon" viewBox="0 0 18 18" aria-hidden="true">
