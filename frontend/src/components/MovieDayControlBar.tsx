@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   activeFacetCount,
   EMPTY_SCREENING_FACETS,
@@ -6,16 +6,34 @@ import {
   type ScreeningFacets,
   textOptions,
 } from "../screening-facets";
+import {
+  createSavedView,
+  type SavedView,
+  useAppStore,
+} from "../store";
 import type { MovieDaySort, Screening } from "../types";
 import { CheckboxFilter, type CheckboxOption } from "./CheckboxFilter";
 
 type OpenControl = "movies" | keyof ScreeningFacets;
+
+const MOVIE_DAY_SAVED_VIEWS_KEY = "movie-showtime-aggregator.movie-day-saved-views.v1";
 
 const SORT_OPTIONS: readonly { value: MovieDaySort; label: string }[] = [
   { value: "elapsed", label: "Minimum time" },
   { value: "driving", label: "Minimum driving" },
   { value: "want", label: "Highest want score" },
 ];
+
+interface MovieDaySavedView {
+  targetMovieCount: number | null;
+  earliestTime: string;
+  latestTime: string;
+  sortBy: MovieDaySort;
+  secondarySortBy: MovieDaySort;
+  minimumBuffer: number;
+  facets: ScreeningFacets;
+  screeningView: SavedView;
+}
 
 interface Props {
   facets: ScreeningFacets;
@@ -64,8 +82,14 @@ export function MovieDayControlBar({
   onMinimumBufferChange,
   onPlan,
 }: Props) {
+  const screeningFilters = useAppStore((state) => state.filters);
+  const screeningSort = useAppStore((state) => state.sort);
+  const applySavedView = useAppStore((state) => state.applySavedView);
   const [showingFiltersOpen, setShowingFiltersOpen] = useState(false);
   const [openControl, setOpenControl] = useState<OpenControl | null>(null);
+  const [savedViews, setSavedViews] = useState(readMovieDaySavedViews);
+  const [selectedView, setSelectedView] = useState("");
+  const defaultSortInitialized = useRef(false);
   const movies = useMemo(() => movieOptions(screenings), [screenings]);
   const theaters = useMemo(() => textOptions(screenings, "theatre"), [screenings]);
   const chains = useMemo(() => textOptions(screenings, "chain"), [screenings]);
@@ -81,6 +105,15 @@ export function MovieDayControlBar({
   const minimumWatchCount = Math.max(1, minimumTargetMovieCount);
   const activeShowingFilters = activeFacetCount(facets);
 
+  useEffect(() => {
+    if (defaultSortInitialized.current) return;
+    defaultSortInitialized.current = true;
+    if (sortBy === "elapsed" && secondarySortBy === "driving") {
+      onSortByChange("want");
+      onSecondarySortByChange("elapsed");
+    }
+  }, [onSecondarySortByChange, onSortByChange, secondarySortBy, sortBy]);
+
   function facetProps(key: keyof ScreeningFacets) {
     return {
       selected: facets[key],
@@ -95,6 +128,54 @@ export function MovieDayControlBar({
       if (open) setOpenControl(null);
       return !open;
     });
+  }
+
+  function saveView(): void {
+    const rawName = window.prompt("Name this Movie Day view:");
+    if (rawName === null) return;
+    const name = rawName.trim();
+    if (!name) return;
+    if (savedViews[name] && !window.confirm(`Replace saved view “${name}”?`)) return;
+
+    const view: MovieDaySavedView = {
+      targetMovieCount,
+      earliestTime,
+      latestTime,
+      sortBy,
+      secondarySortBy,
+      minimumBuffer,
+      facets: structuredClone(facets),
+      screeningView: createSavedView(screeningSort, screeningFilters),
+    };
+    const next = { ...savedViews, [name]: view };
+    writeMovieDaySavedViews(next);
+    setSavedViews(next);
+    setSelectedView(name);
+  }
+
+  function loadView(name: string): void {
+    setSelectedView(name);
+    if (!name) return;
+    const view = savedViews[name];
+    if (!view) return;
+
+    onTargetMovieCountChange(view.targetMovieCount);
+    onEarliestTimeChange(view.earliestTime);
+    onLatestTimeChange(view.latestTime);
+    onSortByChange(view.sortBy);
+    onSecondarySortByChange(view.secondarySortBy);
+    onMinimumBufferChange(view.minimumBuffer);
+    onFacetsChange(structuredClone(view.facets));
+    applySavedView(view.screeningView);
+  }
+
+  function deleteView(): void {
+    if (!selectedView || !window.confirm(`Delete saved view “${selectedView}”?`)) return;
+    const next = { ...savedViews };
+    delete next[selectedView];
+    writeMovieDaySavedViews(next);
+    setSavedViews(next);
+    setSelectedView("");
   }
 
   return (
@@ -203,29 +284,54 @@ export function MovieDayControlBar({
       </label>
 
       <div className="movie-day-action-row">
-        <button
-          type="button"
-          className="movie-day-filter-toggle"
-          aria-expanded={showingFiltersOpen}
-          aria-controls="movie-day-showing-filters"
-          aria-label={showingFiltersOpen ? "Hide showing filters" : "Show showing filters"}
-          onClick={toggleShowingFilters}
-        >
-          <svg
-            className="movie-day-filter-icon"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-            focusable="false"
+        <div className="workspace-actions">
+          <label className="select-label">
+            <span className="sr-only">Movie Day saved view</span>
+            <select
+              aria-label="Movie Day saved view"
+              value={selectedView}
+              onChange={(event) => loadView(event.target.value)}
+            >
+              <option value="">Saved views</option>
+              {Object.keys(savedViews)
+                .sort((left, right) => left.localeCompare(right))
+                .map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <button type="button" onClick={saveView}>
+            Save view
+          </button>
+          <button type="button" disabled={!selectedView} onClick={deleteView}>
+            Delete
+          </button>
+          <button
+            type="button"
+            className="movie-day-filter-toggle"
+            aria-expanded={showingFiltersOpen}
+            aria-controls="movie-day-showing-filters"
+            aria-label={showingFiltersOpen ? "Hide showing filters" : "Show showing filters"}
+            onClick={toggleShowingFilters}
           >
-            <path d="M4 5h16l-6.5 7.5v5L10.5 19v-6.5L4 5Z" />
-          </svg>
-          <span>Filters</span>
-          {activeShowingFilters > 0 ? (
-            <span className="movie-day-filter-count" aria-hidden="true">
-              {activeShowingFilters}
-            </span>
-          ) : null}
-        </button>
+            <svg
+              className="movie-day-filter-icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M4 5h16l-6.5 7.5v5L10.5 19v-6.5L4 5Z" />
+            </svg>
+            <span>Filters</span>
+            {activeShowingFilters > 0 ? (
+              <span className="movie-day-filter-count" aria-hidden="true">
+                {activeShowingFilters}
+              </span>
+            ) : null}
+          </button>
+        </div>
         <button
           className="primary-action"
           type="button"
@@ -267,6 +373,47 @@ export function MovieDayControlBar({
       ) : null}
     </fieldset>
   );
+}
+
+function readMovieDaySavedViews(): Record<string, MovieDaySavedView> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(MOVIE_DAY_SAVED_VIEWS_KEY) ?? "{}");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter((entry): entry is [string, MovieDaySavedView] =>
+        isMovieDaySavedView(entry[1]),
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function writeMovieDaySavedViews(views: Record<string, MovieDaySavedView>): void {
+  if (Object.keys(views).length === 0) {
+    localStorage.removeItem(MOVIE_DAY_SAVED_VIEWS_KEY);
+    return;
+  }
+  localStorage.setItem(MOVIE_DAY_SAVED_VIEWS_KEY, JSON.stringify(views));
+}
+
+function isMovieDaySavedView(value: unknown): value is MovieDaySavedView {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<MovieDaySavedView>;
+  return (
+    (candidate.targetMovieCount === null || typeof candidate.targetMovieCount === "number") &&
+    typeof candidate.earliestTime === "string" &&
+    typeof candidate.latestTime === "string" &&
+    isMovieDaySort(candidate.sortBy) &&
+    isMovieDaySort(candidate.secondarySortBy) &&
+    typeof candidate.minimumBuffer === "number" &&
+    Boolean(candidate.facets && typeof candidate.facets === "object") &&
+    Boolean(candidate.screeningView && typeof candidate.screeningView === "object")
+  );
+}
+
+function isMovieDaySort(value: unknown): value is MovieDaySort {
+  return value === "elapsed" || value === "driving" || value === "want";
 }
 
 function movieOptions(screenings: readonly Screening[]): CheckboxOption[] {
