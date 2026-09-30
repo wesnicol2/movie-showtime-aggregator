@@ -327,7 +327,7 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
     expect(request.runtime_overrides).toEqual({});
     expect(request.target_movie_count).toBe(1);
     expect(request.sort_by).toBe("want");
-    expect(request.secondary_sort_by).toBe("driving");
+    expect(request.secondary_sort_by).toBe("elapsed");
     await route.fulfill({
       json: {
         date: "2026-09-10",
@@ -337,7 +337,7 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
         target_movie_count: 1,
         plannable_movie_count: 2,
         sort_by: "want",
-        secondary_sort_by: "driving",
+        secondary_sort_by: "elapsed",
         earliest_start: null,
         latest_end: null,
         eligible_showings: 2,
@@ -370,7 +370,7 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
   });
 
   await page.getByRole("button", { name: "Find combinations" }).click();
-  await expect(page.getByText("Highest want score first; ties by minimum driving")).toBeVisible();
+  await expect(page.getByText("Highest want score first; ties by minimum time")).toBeVisible();
   await expect(page.getByText("Want score 2")).toBeVisible();
   await expect(page.getByText("Skipped: Alpha")).toBeVisible();
 });
