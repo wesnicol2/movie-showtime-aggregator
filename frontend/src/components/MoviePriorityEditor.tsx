@@ -183,11 +183,7 @@ export function MoviePriorityEditor({
                   onPointerCancel={(event) => endDrag(event, movie)}
                   onKeyDown={(event) => handleDragKeyDown(event, movie)}
                 >
-                  <svg
-                    className="movie-priority-drag-icon"
-                    viewBox="0 0 18 18"
-                    aria-hidden="true"
-                  >
+                  <svg className="movie-priority-drag-icon" viewBox="0 0 18 18" aria-hidden="true">
                     <path d="M3 5h12M3 9h12M3 13h12" />
                   </svg>
                 </button>
