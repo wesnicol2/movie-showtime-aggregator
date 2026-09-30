@@ -134,6 +134,7 @@ def plan_movie_day(
     required_movies: list[str] | None = None,
     earliest_start: datetime | None = None,
     latest_end: datetime | None = None,
+    home_configured: bool = True,
     sort_by: str = SORT_ELAPSED,
     secondary_sort_by: str | None = None,
     minimum_buffer_minutes: int = 0,
@@ -243,7 +244,15 @@ def plan_movie_day(
         if visited_count == target:
             if visited_mask & required_mask != required_mask:
                 return 0
-            return 1 if _arrives_home_by(candidates[index], latest_end) else 0
+            return (
+                1
+                if _arrives_home_by(
+                    candidates[index],
+                    latest_end,
+                    home_configured=home_configured,
+                )
+                else 0
+            )
         required_remaining = (required_mask & ~visited_mask).bit_count()
         if required_remaining > target - visited_count:
             return 0
@@ -430,9 +439,16 @@ def _path_priority(
     return (*priority, starts_at, showtime_ids)
 
 
-def _arrives_home_by(screening: Screening, latest_end: datetime | None) -> bool:
+def _arrives_home_by(
+    screening: Screening,
+    latest_end: datetime | None,
+    *,
+    home_configured: bool,
+) -> bool:
     if latest_end is None:
         return True
+    if not home_configured:
+        return screening.estimated_end is not None and screening.estimated_end <= latest_end
     home_arrival = _estimated_home_arrival(screening)
     return home_arrival is not None and home_arrival <= latest_end
 
