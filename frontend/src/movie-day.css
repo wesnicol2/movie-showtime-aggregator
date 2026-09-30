@@ -58,20 +58,72 @@
   text-transform: none;
 }
 
-.movie-day-control-actions {
+.movie-day-action-row {
   display: grid;
-  grid-column: span 2;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
-  align-items: end;
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(180px, 1fr);
+  align-items: center;
   gap: 8px;
 }
 
-.movie-day-control-actions button {
-  width: 100%;
+.movie-day-action-row button,
+.movie-day-filter-actions button {
   min-height: 34px;
   padding: 6px 10px;
   border-radius: 6px;
   font-size: 12px;
+}
+
+.movie-day-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.movie-day-filter-icon {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+  flex: 0 0 auto;
+}
+
+.movie-day-filter-count {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.movie-day-action-row .primary-action {
+  width: 100%;
+}
+
+.movie-day-showing-filters {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.movie-day-filter-actions {
+  display: flex;
+  align-items: end;
+}
+
+.movie-day-filter-actions button {
+  width: 100%;
 }
 
 .primary-action {
@@ -373,12 +425,18 @@
 }
 
 @media (max-width: 700px) {
-  .movie-day-controls {
+  .movie-day-controls,
+  .movie-day-showing-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .movie-day-control-actions {
+  .movie-day-action-row,
+  .movie-day-filter-actions {
     grid-column: 1 / -1;
+  }
+
+  .movie-day-filter-actions button {
+    width: 100%;
   }
 
   .movie-priority-list li {
@@ -420,11 +478,13 @@
 
 @media (max-width: 420px) {
   .movie-day-controls,
-  .movie-day-control-actions {
+  .movie-day-action-row,
+  .movie-day-showing-filters {
     grid-template-columns: 1fr;
   }
 
-  .movie-day-control-actions {
+  .movie-day-action-row,
+  .movie-day-filter-actions {
     grid-column: 1;
   }
 
