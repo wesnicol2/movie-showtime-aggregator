@@ -11,6 +11,12 @@ import { CheckboxFilter, type CheckboxOption } from "./CheckboxFilter";
 
 type OpenControl = "movies" | keyof ScreeningFacets;
 
+const SORT_OPTIONS: readonly { value: MovieDaySort; label: string }[] = [
+  { value: "elapsed", label: "Minimum time" },
+  { value: "driving", label: "Minimum driving" },
+  { value: "want", label: "Highest want score" },
+];
+
 interface Props {
   facets: ScreeningFacets;
   screenings: readonly Screening[];
@@ -20,6 +26,7 @@ interface Props {
   earliestTime: string;
   latestTime: string;
   sortBy: MovieDaySort;
+  secondarySortBy: MovieDaySort;
   minimumBuffer: number;
   planning: boolean;
   disabled: boolean;
@@ -29,6 +36,7 @@ interface Props {
   onEarliestTimeChange: (value: string) => void;
   onLatestTimeChange: (value: string) => void;
   onSortByChange: (value: MovieDaySort) => void;
+  onSecondarySortByChange: (value: MovieDaySort) => void;
   onMinimumBufferChange: (value: number) => void;
   onPlan: () => void;
 }
@@ -42,6 +50,7 @@ export function MovieDayControlBar({
   earliestTime,
   latestTime,
   sortBy,
+  secondarySortBy,
   minimumBuffer,
   planning,
   disabled,
@@ -51,9 +60,11 @@ export function MovieDayControlBar({
   onEarliestTimeChange,
   onLatestTimeChange,
   onSortByChange,
+  onSecondarySortByChange,
   onMinimumBufferChange,
   onPlan,
 }: Props) {
+  const [showingFiltersOpen, setShowingFiltersOpen] = useState(false);
   const [openControl, setOpenControl] = useState<OpenControl | null>(null);
   const movies = useMemo(
     () => movieOptions(screenings, selectedMovies),
@@ -71,6 +82,7 @@ export function MovieDayControlBar({
       : [...selectedMovies];
   const selectedCount = selectedMovies.length;
   const minimumWatchCount = Math.max(1, minimumTargetMovieCount);
+  const activeShowingFilters = activeFacetCount(facets);
 
   function facetProps(key: keyof ScreeningFacets) {
     return {
@@ -81,9 +93,16 @@ export function MovieDayControlBar({
     };
   }
 
+  function toggleShowingFilters(): void {
+    setShowingFiltersOpen((open) => {
+      if (open) setOpenControl(null);
+      return !open;
+    });
+  }
+
   return (
     <fieldset className="movie-day-controls">
-      <legend className="sr-only">Movie Day filters and planning controls</legend>
+      <legend className="sr-only">Movie Day planning controls</legend>
 
       <CheckboxFilter
         label="Movies"
@@ -145,9 +164,26 @@ export function MovieDayControlBar({
           value={sortBy}
           onChange={(event) => onSortByChange(event.target.value as MovieDaySort)}
         >
-          <option value="elapsed">Minimum time</option>
-          <option value="driving">Minimum driving</option>
-          <option value="want">Highest want score</option>
+          {SORT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="planner-control">
+        <span>Secondary sort</span>
+        <select
+          aria-label="Secondary sort itineraries"
+          value={secondarySortBy}
+          onChange={(event) => onSecondarySortByChange(event.target.value as MovieDaySort)}
+        >
+          {SORT_OPTIONS.filter((option) => option.value !== sortBy).map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </label>
 
@@ -168,25 +204,29 @@ export function MovieDayControlBar({
         </span>
       </label>
 
-      <CheckboxFilter label="Theater" options={theaters} searchable {...facetProps("theaters")} />
-      <CheckboxFilter label="Chain" options={chains} searchable {...facetProps("chains")} />
-      <CheckboxFilter label="Format" options={formats} {...facetProps("formats")} />
-      <CheckboxFilter
-        label="Listed time"
-        options={listedWindows}
-        {...facetProps("listedWindows")}
-      />
-
-      <div className="movie-day-control-actions">
+      <div className="movie-day-action-row">
         <button
           type="button"
-          disabled={activeFacetCount(facets) === 0}
-          onClick={() => {
-            setOpenControl(null);
-            onFacetsChange(EMPTY_SCREENING_FACETS);
-          }}
+          className="movie-day-filter-toggle"
+          aria-expanded={showingFiltersOpen}
+          aria-controls="movie-day-showing-filters"
+          aria-label={showingFiltersOpen ? "Hide showing filters" : "Show showing filters"}
+          onClick={toggleShowingFilters}
         >
-          Clear showing filters
+          <svg
+            className="movie-day-filter-icon"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M4 5h16l-6.5 7.5v5L10.5 19v-6.5L4 5Z" />
+          </svg>
+          <span>Filters</span>
+          {activeShowingFilters > 0 ? (
+            <span className="movie-day-filter-count" aria-hidden="true">
+              {activeShowingFilters}
+            </span>
+          ) : null}
         </button>
         <button
           className="primary-action"
@@ -197,6 +237,36 @@ export function MovieDayControlBar({
           {planning ? "Planning…" : "Find combinations"}
         </button>
       </div>
+
+      {showingFiltersOpen ? (
+        <div id="movie-day-showing-filters" className="movie-day-showing-filters">
+          <CheckboxFilter
+            label="Theater"
+            options={theaters}
+            searchable
+            {...facetProps("theaters")}
+          />
+          <CheckboxFilter label="Chain" options={chains} searchable {...facetProps("chains")} />
+          <CheckboxFilter label="Format" options={formats} {...facetProps("formats")} />
+          <CheckboxFilter
+            label="Listed time"
+            options={listedWindows}
+            {...facetProps("listedWindows")}
+          />
+          <div className="movie-day-filter-actions">
+            <button
+              type="button"
+              disabled={activeShowingFilters === 0}
+              onClick={() => {
+                setOpenControl(null);
+                onFacetsChange(EMPTY_SCREENING_FACETS);
+              }}
+            >
+              Clear showing filters
+            </button>
+          </div>
+        </div>
+      ) : null}
     </fieldset>
   );
 }
