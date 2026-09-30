@@ -4,6 +4,7 @@ import { createMovieDayPlan } from "./api";
 import { MovieDayControlBar } from "./components/MovieDayControlBar";
 import { MoviePriorityEditor } from "./components/MoviePriorityEditor";
 import "./movie-day.css";
+import { saveMoviePlan, savedMoviePlanForDate } from "./planner";
 import {
   activeFacetCount,
   EMPTY_SCREENING_FACETS,
@@ -46,6 +47,7 @@ export function MovieDayPage() {
   const [planSignature, setPlanSignature] = useState("");
   const [planError, setPlanError] = useState<string | null>(null);
   const [planning, setPlanning] = useState(false);
+  const [savedItineraryKey, setSavedItineraryKey] = useState<string | null>(null);
 
   const rankedMovies = useMemo(
     () => reconcileMovieRanking(moviePreferences.ranking, selectedMovies),
@@ -88,6 +90,7 @@ export function MovieDayPage() {
   const activeShowingFilters = activeFacetCount(facets);
   const homeConfigured = response?.preferences.home_configured === true;
   const targetCount = targetMovieCount ?? selectedMovies.length;
+  const responseDate = response?.date ?? "";
   const bounds = response
     ? dayBounds(response.date, earliestTime, latestTime)
     : { earliestStart: null, latestEnd: null, endNextDay: false };
@@ -138,6 +141,15 @@ export function MovieDayPage() {
   useEffect(() => {
     if (plan && planSignature !== inputSignature) setPlan(null);
   }, [inputSignature, plan, planSignature]);
+
+  useEffect(() => {
+    if (!responseDate) {
+      setSavedItineraryKey(null);
+      return;
+    }
+    const saved = savedMoviePlanForDate(responseDate);
+    setSavedItineraryKey(saved ? itineraryKey(saved.itinerary) : null);
+  }, [responseDate]);
 
   function moveMovie(movie: string, direction: -1 | 1): void {
     setMoviePreferences((current) => {
@@ -209,6 +221,37 @@ export function MovieDayPage() {
     } finally {
       setPlanning(false);
     }
+  }
+
+  function saveItinerary(itinerary: MovieDayItinerary): void {
+    if (!response) return;
+    const screenings = itinerary.showtime_ids
+      .map((showtimeId) => screeningById.get(showtimeId))
+      .filter((screening): screening is Screening => screening !== undefined);
+    if (screenings.length !== itinerary.showtime_ids.length) {
+      setPlanError("Unable to save this itinerary because one or more showings are unavailable.");
+      return;
+    }
+
+    const nextKey = itineraryKey(itinerary);
+    const existing = savedMoviePlanForDate(response.date);
+    if (
+      existing &&
+      itineraryKey(existing.itinerary) !== nextKey &&
+      !window.confirm(`Replace the saved movie plan for ${formatDate(response.date)}?`)
+    ) {
+      return;
+    }
+
+    saveMoviePlan({
+      date: response.date,
+      savedAt: new Date().toISOString(),
+      itinerary: structuredClone(itinerary),
+      screenings: structuredClone(screenings),
+      runtimeOverrides: { ...runtimeOverrides },
+    });
+    setPlanError(null);
+    setSavedItineraryKey(nextKey);
   }
 
   return (
@@ -354,6 +397,8 @@ export function MovieDayPage() {
                 number={plan.offset + index + 1}
                 screeningById={screeningById}
                 runtimeOverrides={runtimeOverrides}
+                saved={savedItineraryKey === itineraryKey(itinerary)}
+                onSave={() => saveItinerary(itinerary)}
               />
             ))}
           </div>
@@ -391,11 +436,15 @@ function ItineraryCard({
   number,
   screeningById,
   runtimeOverrides,
+  saved,
+  onSave,
 }: {
   itinerary: MovieDayItinerary;
   number: number;
   screeningById: Map<string, Screening>;
   runtimeOverrides: Readonly<Record<string, number>>;
+  saved: boolean;
+  onSave: () => void;
 }) {
   const screenings = itinerary.showtime_ids
     .map((showtimeId) => screeningById.get(showtimeId))
@@ -418,6 +467,9 @@ function ItineraryCard({
           <span>{formatDuration(itinerary.elapsed_minutes)} total</span>
           <span>{itinerary.travel_minutes} min driving</span>
           <span>{itinerary.waiting_minutes} min free</span>
+          <button type="button" onClick={onSave} aria-label={`Save option ${number} to Planner`}>
+            {saved ? "Saved to Planner" : "Save to Planner"}
+          </button>
         </div>
       </header>
       <ol>
@@ -549,6 +601,10 @@ function sortLabel(sortBy: MovieDaySort): string {
   if (sortBy === "driving") return "Minimum driving";
   if (sortBy === "want") return "Highest want score";
   return "Minimum time";
+}
+
+function itineraryKey(itinerary: MovieDayItinerary): string {
+  return itinerary.showtime_ids.join("|");
 }
 
 function dayBounds(
