@@ -33,9 +33,7 @@ test("Movie Day warns when home is not configured", async ({ page }) => {
   await page.goto("/plan");
 
   await expect(page.getByText("Warning: no home address is set.")).toBeVisible();
-  await expect(
-    page.getByText(/Home by.*falls back to the final movie.*end time/i),
-  ).toBeVisible();
+  await expect(page.getByText(/Home by.*falls back to the final movie.*end time/i)).toBeVisible();
   await expect(page.getByRole("link", { name: "Set a home address" })).toHaveAttribute(
     "href",
     "/settings",
