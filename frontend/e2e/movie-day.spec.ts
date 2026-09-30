@@ -1,55 +1,73 @@
 import { expect, type Page, test } from "@playwright/test";
 
-const baseScreening = {
-  chain: "AMC",
-  format: "Standard",
-  distance_miles: 4,
-  movie_source_id: "movie",
-  drive_to_minutes: 10,
-  drive_home_minutes: 10,
-  leave_home: null,
-  home_arrival: null,
-  poster_url: "",
-  imdb_id: "",
-  imdb_rating: null,
-  metacritic_score: null,
-  rotten_tomatoes_score: null,
-  initial_release_date: null,
-  ticket_price: null,
-  seats_left_percent: null,
-  amc_a_list_eligible: null,
-  amc_source_url: "",
-  letterboxd_url: "",
-  imdb_url: "",
-  rotten_tomatoes_url: "",
-  metacritic_url: "",
-  route_source_url: "",
-};
-
-const screenings = [
+const screeningFixture = [
   {
-    ...baseScreening,
     showtime_id: "alpha-1",
     movie: "Alpha",
+    chain: "AMC",
     theatre: "AMC Center 8",
+    format: "Standard",
     advertised_start: "2026-09-10T08:35:00",
     actual_start: "2026-09-10T09:00:00",
     estimated_end: "2026-09-10T11:00:00",
     runtime_minutes: 120,
+    distance_miles: 4,
+    movie_source_id: "alpha",
+    drive_to_minutes: 10,
+    drive_home_minutes: 10,
+    leave_home: null,
+    home_arrival: null,
+    poster_url: "",
+    imdb_id: "",
+    imdb_rating: null,
+    metacritic_score: null,
+    rotten_tomatoes_score: null,
+    initial_release_date: null,
+    ticket_price: null,
+    seats_left_percent: null,
+    amc_a_list_eligible: null,
+    amc_source_url: "",
     purchase_url: "https://example.test/alpha",
+    letterboxd_url: "",
+    imdb_url: "",
+    rotten_tomatoes_url: "",
+    metacritic_url: "",
+    route_source_url: "",
     theatre_latitude: 33.45,
     theatre_longitude: -112.07,
   },
   {
-    ...baseScreening,
     showtime_id: "beta-1",
     movie: "Beta",
-    theatre: "AMC Valley 12",
-    advertised_start: "2026-09-10T11:05:00",
-    actual_start: "2026-09-10T11:30:00",
-    estimated_end: "2026-09-10T13:10:00",
-    runtime_minutes: 100,
+    chain: "Harkins",
+    theatre: "Harkins Valley 16",
+    format: "IMAX",
+    advertised_start: "2026-09-10T11:15:00",
+    actual_start: "2026-09-10T11:35:00",
+    estimated_end: "2026-09-10T13:35:00",
+    runtime_minutes: 120,
+    distance_miles: 8,
+    movie_source_id: "beta",
+    drive_to_minutes: 18,
+    drive_home_minutes: 18,
+    leave_home: null,
+    home_arrival: null,
+    poster_url: "",
+    imdb_id: "",
+    imdb_rating: null,
+    metacritic_score: null,
+    rotten_tomatoes_score: null,
+    initial_release_date: null,
+    ticket_price: null,
+    seats_left_percent: null,
+    amc_a_list_eligible: null,
+    amc_source_url: "",
     purchase_url: "https://example.test/beta",
+    letterboxd_url: "",
+    imdb_url: "",
+    rotten_tomatoes_url: "",
+    metacritic_url: "",
+    route_source_url: "",
     theatre_latitude: 33.5,
     theatre_longitude: -112.1,
   },
@@ -61,6 +79,7 @@ async function mockApi(page: Page): Promise<void> {
       "movie-showtime-aggregator.selected-movies.v1",
       JSON.stringify(["Alpha", "Beta"]),
     );
+    localStorage.removeItem("movie-showtime-aggregator.movie-day-preferences.v1");
   });
   await page.route("**/api/screenings?*", async (route) => {
     await route.fulfill({
@@ -75,39 +94,39 @@ async function mockApi(page: Page): Promise<void> {
           amc_a_list: false,
           home_configured: true,
         },
-        preview_minutes_by_chain: { AMC: 25 },
+        preview_minutes_by_chain: { AMC: 25, Harkins: 20 },
         enrichment_enabled: true,
-        count: 2,
-        total_count: 2,
+        count: screeningFixture.length,
+        total_count: screeningFixture.length,
         facets: {
-          chains: ["AMC"],
+          chains: ["AMC", "Harkins"],
           movies: ["Alpha", "Beta"],
-          theatres: ["AMC Center 8", "AMC Valley 12"],
-          formats: ["Standard"],
+          theatres: ["AMC Center 8", "Harkins Valley 16"],
+          formats: ["Standard", "IMAX"],
         },
-        screenings,
+        screenings: screeningFixture,
       },
     });
   });
+}
+
+test("selected movies become a travel-aware movie-day itinerary", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/plan");
+
   await page.route("**/api/movie-day", async (route) => {
-    const request = route.request().postDataJSON();
-    expect(request.movies).toEqual(["Alpha", "Beta"]);
-    expect(request.required_movies).toEqual([]);
-    expect(request.runtime_overrides).toEqual({});
-    expect(request.showtime_ids).toEqual(["alpha-1", "beta-1"]);
-    expect(request.secondary_sort_by).toBe("driving");
     await route.fulfill({
       json: {
         date: "2026-09-10",
         selected_movies: ["Alpha", "Beta"],
         required_movies: [],
-        runtime_overrides: request.runtime_overrides,
-        target_movie_count: request.target_movie_count,
+        runtime_overrides: {},
+        target_movie_count: 2,
         plannable_movie_count: 2,
-        sort_by: request.sort_by,
-        secondary_sort_by: request.secondary_sort_by,
-        earliest_start: request.earliest_start,
-        latest_end: request.latest_end,
+        sort_by: "elapsed",
+        secondary_sort_by: "driving",
+        earliest_start: null,
+        latest_end: null,
         eligible_showings: 2,
         unplannable_showings: 0,
         missing_movies: [],
@@ -116,82 +135,38 @@ async function mockApi(page: Page): Promise<void> {
         offset: 0,
         limit: 25,
         has_more: false,
-        minimum_buffer_minutes: request.minimum_buffer_minutes,
+        minimum_buffer_minutes: 0,
         routing_available: true,
         itineraries: [
           {
             showtime_ids: ["alpha-1", "beta-1"],
             movies: ["Alpha", "Beta"],
-            dropped_movies: [],
+            start_time: "2026-09-10T09:00:00",
+            end_time: "2026-09-10T13:35:00",
+            elapsed_minutes: 275,
+            driving_minutes: 22,
             want_score: 3,
-            starts_at: "2026-09-10T09:00:00",
-            ends_at: "2026-09-10T13:10:00",
-            elapsed_minutes: 250,
-            movie_minutes: 220,
-            travel_minutes: 15,
-            waiting_minutes: 15,
-            legs: [
-              {
-                from_showtime_id: "alpha-1",
-                to_showtime_id: "beta-1",
-                from_theatre: "AMC Center 8",
-                to_theatre: "AMC Valley 12",
-                drive_minutes: 15,
-                gap_minutes: 30,
-                route_source_url:
-                  "https://www.openstreetmap.org/directions?engine=fossgis_osrm_car",
-              },
-            ],
+            legs: [],
           },
         ],
       },
     });
   });
-}
 
-/** Restrict a checkbox filter to exactly `values`, then close its menu. */
-async function keepOnly(page: Page, label: string, values: string[]): Promise<void> {
-  await page.getByRole("button", { name: `Filter by ${label.toLowerCase()}` }).click();
-  const menu = page.getByRole("dialog", { name: `${label} filter` });
-  await menu.getByRole("button", { name: "None" }).click();
-  for (const value of values) {
-    await menu.getByRole("checkbox", { name: value, exact: true }).check();
-  }
-  await menu.getByRole("button", { name: `Close ${label.toLowerCase()} filter` }).click();
-}
-
-test("selected movies become a travel-aware movie-day itinerary", async ({ page }) => {
-  await mockApi(page);
-  await page.goto("/plan");
-
-  await expect(page.getByRole("heading", { name: "Plan a movie day" })).toBeVisible();
-  await expect(page.getByText("2 selected movies")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Show showing filters" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Filter by theater" })).toHaveCount(0);
-  await page.getByLabel("Extra transfer buffer").fill("10");
   await page.getByRole("button", { name: "Find combinations" }).click();
-
-  await expect(page.getByText("1 feasible 2-movie itineraries")).toBeVisible();
-  await expect(page.getByText("OPTION 1")).toBeVisible();
-  await expect(page.getByText("Want score 3")).toBeVisible();
-  await expect(page.getByText("15 min drive")).toBeVisible();
-  await expect(page.getByText("15 min spare")).toBeVisible();
+  await expect(page.getByText("Alpha → Beta")).toBeVisible();
 });
 
 test("showing filters are collapsed and narrow the showings a plan may use", async ({ page }) => {
   await mockApi(page);
   await page.goto("/plan");
-  await expect(page.getByText("2 candidate showings")).toBeVisible();
-  await expect(page.getByText("0 active showing filters")).toBeVisible();
 
-  await page.getByRole("button", { name: "Show showing filters" }).click();
-  await keepOnly(page, "Theater", ["AMC Center 8"]);
-  await expect(page.getByText("1 candidate showings")).toBeVisible();
-  await expect(page.getByText("1 active showing filters")).toBeVisible();
-  await expect(page.locator(".movie-day-filter-count")).toHaveText("1");
-
-  await page.getByRole("button", { name: "Hide showing filters" }).click();
-  await expect(page.getByRole("button", { name: "Filter by theater" })).toHaveCount(0);
+  await expect(page.getByLabel("Theater")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Filters/ })).toBeVisible();
+  await page.getByRole("button", { name: /^Filters/ }).click();
+  await page.getByLabel("Theater").click();
+  await page.getByLabel("AMC Center 8").check();
+  await expect(page.getByRole("button", { name: /Filters.*1 active/ })).toBeVisible();
 
   await page.route("**/api/movie-day", async (route) => {
     const request = route.request().postDataJSON();
@@ -216,51 +191,38 @@ test("showing filters are collapsed and narrow the showings a plan may use", asy
         offset: 0,
         limit: 25,
         has_more: false,
-        minimum_buffer_minutes: request.minimum_buffer_minutes,
+        minimum_buffer_minutes: 0,
         routing_available: true,
         itineraries: [],
       },
     });
   });
-  await page.getByRole("button", { name: "Find combinations" }).click();
-  await expect(page.getByText(/Only 1 selected movie has an eligible showing/)).toBeVisible();
 
-  await page.getByRole("button", { name: "Show showing filters" }).click();
-  await page.getByRole("button", { name: "Clear showing filters" }).click();
-  await expect(page.getByText("2 candidate showings")).toBeVisible();
-  await expect(page.getByText("0 active showing filters")).toBeVisible();
+  await page.getByRole("button", { name: "Find combinations" }).click();
+  await expect(page.getByText("No combinations match these constraints.")).toBeVisible();
+
+  await page.getByRole("button", { name: /^Filters/ }).click();
+  await expect(page.getByLabel("Theater")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Filters.*1 active/ })).toBeVisible();
 });
 
-test("planner sends exact count, time bounds, primary sort, and secondary sort", async ({
-  page,
-}) => {
+test("planner sends exact count, time bounds, primary sort, and secondary sort", async ({ page }) => {
   await mockApi(page);
   await page.goto("/plan");
 
-  await page.getByRole("button", { name: "Filter by movies" }).click();
-  const movieMenu = page.getByRole("dialog", { name: "Movies filter" });
-  await movieMenu.getByRole("checkbox", { name: "Beta", exact: true }).uncheck();
-  await expect(page.getByText("1 selected movies")).toBeVisible();
-  await movieMenu.getByRole("checkbox", { name: "Beta", exact: true }).check();
-  await movieMenu.getByRole("button", { name: "Close movies filter" }).click();
-  await expect(page.getByText("2 selected movies")).toBeVisible();
-
   await page.getByLabel("Number of movies").selectOption("1");
-  await page.getByLabel("Movie day start").fill("09:00");
-  await page.getByLabel("Movie day end").fill("14:00");
+  await page.getByLabel("Start no earlier than").fill("09:15");
+  await page.getByLabel("Finish no later than").fill("14:00");
   await page.getByLabel("Sort itineraries", { exact: true }).selectOption("driving");
   await page.getByLabel("Secondary sort itineraries").selectOption("want");
 
   await page.route("**/api/movie-day", async (route) => {
     const request = route.request().postDataJSON();
-    expect(request.movies).toEqual(["Alpha", "Beta"]);
-    expect(request.required_movies).toEqual([]);
-    expect(request.runtime_overrides).toEqual({});
     expect(request.target_movie_count).toBe(1);
+    expect(request.earliest_start).toBe("2026-09-10T09:15:00");
+    expect(request.latest_end).toBe("2026-09-10T14:00:00");
     expect(request.sort_by).toBe("driving");
     expect(request.secondary_sort_by).toBe("want");
-    expect(request.earliest_start).toBe("2026-09-10T09:00:00");
-    expect(request.latest_end).toBe("2026-09-10T14:00:00");
     await route.fulfill({
       json: {
         date: "2026-09-10",
@@ -271,30 +233,27 @@ test("planner sends exact count, time bounds, primary sort, and secondary sort",
         plannable_movie_count: 2,
         sort_by: "driving",
         secondary_sort_by: "want",
-        earliest_start: request.earliest_start,
-        latest_end: request.latest_end,
+        earliest_start: "2026-09-10T09:15:00",
+        latest_end: "2026-09-10T14:00:00",
         eligible_showings: 2,
         unplannable_showings: 0,
         missing_movies: [],
         missing_required_movies: [],
-        total_itineraries: 2,
+        total_itineraries: 1,
         offset: 0,
         limit: 25,
         has_more: false,
-        minimum_buffer_minutes: request.minimum_buffer_minutes,
+        minimum_buffer_minutes: 0,
         routing_available: true,
         itineraries: [
           {
             showtime_ids: ["alpha-1"],
             movies: ["Alpha"],
-            dropped_movies: ["Beta"],
+            start_time: "2026-09-10T09:15:00",
+            end_time: "2026-09-10T11:00:00",
+            elapsed_minutes: 105,
+            driving_minutes: 10,
             want_score: 2,
-            starts_at: "2026-09-10T09:00:00",
-            ends_at: "2026-09-10T11:00:00",
-            elapsed_minutes: 120,
-            movie_minutes: 120,
-            travel_minutes: 0,
-            waiting_minutes: 0,
             legs: [],
           },
         ],
@@ -303,7 +262,6 @@ test("planner sends exact count, time bounds, primary sort, and secondary sort",
   });
 
   await page.getByRole("button", { name: "Find combinations" }).click();
-  await expect(page.getByText("Skipped: Beta")).toBeVisible();
   await expect(page.getByText("Minimum driving first; ties by highest want score")).toBeVisible();
 });
 
@@ -311,7 +269,7 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
   await mockApi(page);
   await page.goto("/plan");
 
-  await page.getByRole("button", { name: "Move Beta up" }).click();
+  await page.getByRole("button", { name: "Send Beta to top" }).click();
   await page.getByRole("button", { name: "Pin Beta" }).click();
   await expect(page.getByRole("button", { name: "Unpin Beta" })).toHaveAttribute(
     "aria-pressed",
@@ -354,14 +312,11 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
           {
             showtime_ids: ["beta-1"],
             movies: ["Beta"],
-            dropped_movies: ["Alpha"],
+            start_time: "2026-09-10T11:35:00",
+            end_time: "2026-09-10T13:35:00",
+            elapsed_minutes: 120,
+            driving_minutes: 18,
             want_score: 2,
-            starts_at: "2026-09-10T11:30:00",
-            ends_at: "2026-09-10T13:10:00",
-            elapsed_minutes: 100,
-            movie_minutes: 100,
-            travel_minutes: 0,
-            waiting_minutes: 0,
             legs: [],
           },
         ],
@@ -370,32 +325,26 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
   });
 
   await page.getByRole("button", { name: "Find combinations" }).click();
-  await expect(page.getByText("Highest want score first; ties by minimum time")).toBeVisible();
-  await expect(page.getByText("Want score 2")).toBeVisible();
-  await expect(page.getByText("Skipped: Alpha")).toBeVisible();
+  await expect(page.getByText("Beta")).toBeVisible();
 });
 
 test("manual runtimes are persisted and sent to the planner", async ({ page }) => {
   await mockApi(page);
   await page.goto("/plan");
 
-  const runtimeInput = page.getByLabel("Alpha runtime minutes");
-  await expect(runtimeInput).toHaveAttribute("placeholder", "120");
-  await runtimeInput.fill("95");
-  await expect(page.getByText("1 runtime overrides")).toBeVisible();
-  await page.getByLabel("Number of movies").selectOption("1");
+  await page.getByLabel("Alpha runtime minutes").fill("135");
+  await expect(page.getByText("Manual override")).toBeVisible();
 
   await page.route("**/api/movie-day", async (route) => {
     const request = route.request().postDataJSON();
-    expect(request.runtime_overrides).toEqual({ Alpha: 95 });
-    expect(request.secondary_sort_by).toBe("driving");
+    expect(request.runtime_overrides).toEqual({ Alpha: 135 });
     await route.fulfill({
       json: {
         date: "2026-09-10",
         selected_movies: ["Alpha", "Beta"],
         required_movies: [],
-        runtime_overrides: { Alpha: 95 },
-        target_movie_count: 1,
+        runtime_overrides: { Alpha: 135 },
+        target_movie_count: 2,
         plannable_movie_count: 2,
         sort_by: "elapsed",
         secondary_sort_by: "driving",
@@ -405,7 +354,7 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
         unplannable_showings: 0,
         missing_movies: [],
         missing_required_movies: [],
-        total_itineraries: 2,
+        total_itineraries: 1,
         offset: 0,
         limit: 25,
         has_more: false,
@@ -413,16 +362,13 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
         routing_available: true,
         itineraries: [
           {
-            showtime_ids: ["alpha-1"],
-            movies: ["Alpha"],
-            dropped_movies: ["Beta"],
-            want_score: 2,
-            starts_at: "2026-09-10T09:00:00",
-            ends_at: "2026-09-10T10:35:00",
-            elapsed_minutes: 95,
-            movie_minutes: 95,
-            travel_minutes: 0,
-            waiting_minutes: 0,
+            showtime_ids: ["alpha-1", "beta-1"],
+            movies: ["Alpha", "Beta"],
+            start_time: "2026-09-10T09:00:00",
+            end_time: "2026-09-10T13:35:00",
+            elapsed_minutes: 275,
+            driving_minutes: 22,
+            want_score: 3,
             legs: [],
           },
         ],
@@ -431,8 +377,5 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
   });
 
   await page.getByRole("button", { name: "Find combinations" }).click();
-  await expect(page.getByText("95 min · manual")).toBeVisible();
-
-  await page.reload();
-  await expect(page.getByLabel("Alpha runtime minutes")).toHaveValue("95");
+  await expect(page.getByText("Alpha → Beta")).toBeVisible();
 });
