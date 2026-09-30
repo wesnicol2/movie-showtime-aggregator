@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ScreeningInspector } from "./components/ScreeningInspector";
 import { ScreeningTable } from "./components/ScreeningTable";
+import { readDefaultSavedView, writeDefaultSavedView } from "./saved-view-defaults";
 import { filterAndSort, isFilterActive } from "./screenings";
 import {
   createSavedView,
@@ -25,6 +26,22 @@ export function ScreeningsPage() {
   const applySavedView = useAppStore((state) => state.applySavedView);
   const [savedViews, setSavedViews] = useState(readSavedViews);
   const [selectedView, setSelectedView] = useState("");
+  const [defaultView, setDefaultView] = useState(() => readDefaultSavedView("screenings"));
+  const defaultAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (defaultAppliedRef.current) return;
+    defaultAppliedRef.current = true;
+    if (!defaultView) return;
+    const view = savedViews[defaultView];
+    if (!view) {
+      writeDefaultSavedView("screenings", null);
+      setDefaultView("");
+      return;
+    }
+    setSelectedView(defaultView);
+    applySavedView(view);
+  }, [applySavedView, defaultView, savedViews]);
 
   const screenings = response?.screenings ?? [];
   const visible = useMemo(
@@ -61,7 +78,18 @@ export function ScreeningsPage() {
     delete next[selectedView];
     writeSavedViews(next);
     setSavedViews(next);
+    if (defaultView === selectedView) {
+      writeDefaultSavedView("screenings", null);
+      setDefaultView("");
+    }
     setSelectedView("");
+  }
+
+  function toggleDefaultView(): void {
+    if (!selectedView) return;
+    const next = defaultView === selectedView ? "" : selectedView;
+    writeDefaultSavedView("screenings", next || null);
+    setDefaultView(next);
   }
 
   return (
@@ -74,19 +102,31 @@ export function ScreeningsPage() {
         <div className="workspace-actions">
           <label className="select-label">
             <span className="sr-only">Saved view</span>
-            <select value={selectedView} onChange={(event) => loadView(event.target.value)}>
+            <select
+              aria-label="Screenings saved view"
+              value={selectedView}
+              onChange={(event) => loadView(event.target.value)}
+            >
               <option value="">Saved views</option>
               {Object.keys(savedViews)
                 .sort((left, right) => left.localeCompare(right))
                 .map((name) => (
                   <option key={name} value={name}>
-                    {name}
+                    {name === defaultView ? `${name} · default` : name}
                   </option>
                 ))}
             </select>
           </label>
           <button type="button" onClick={saveView}>
             Save view
+          </button>
+          <button
+            type="button"
+            disabled={!selectedView}
+            aria-pressed={Boolean(selectedView) && selectedView === defaultView}
+            onClick={toggleDefaultView}
+          >
+            {selectedView && selectedView === defaultView ? "Default ✓" : "Set default"}
           </button>
           <button type="button" disabled={!selectedView} onClick={deleteView}>
             Delete
