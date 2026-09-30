@@ -39,8 +39,8 @@ export function MovieDayPage() {
   const [targetMovieCount, setTargetMovieCount] = useState<number | null>(null);
   const [earliestTime, setEarliestTime] = useState("");
   const [latestTime, setLatestTime] = useState("");
-  const [sortBy, setSortBy] = useState<MovieDaySort>("elapsed");
-  const [secondarySortBy, setSecondarySortBy] = useState<MovieDaySort>("driving");
+  const [sortBy, setSortBy] = useState<MovieDaySort>("want");
+  const [secondarySortBy, setSecondarySortBy] = useState<MovieDaySort>("elapsed");
   const [moviePreferences, setMoviePreferences] =
     useState<MovieDayPreferences>(readMovieDayPreferences);
   const [plan, setPlan] = useState<MovieDayPlanResponse | null>(null);
