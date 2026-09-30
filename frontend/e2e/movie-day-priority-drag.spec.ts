@@ -81,6 +81,42 @@ function priorityTitles(page: Page) {
   return page.locator(".movie-priority-title strong");
 }
 
+async function dragFromTo(
+  page: Page,
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+): Promise<void> {
+  const hasTouch = await page.evaluate(() => navigator.maxTouchPoints > 0);
+  if (!hasTouch) {
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 6 });
+    await page.mouse.up();
+    return;
+  }
+
+  const session = await page.context().newCDPSession(page);
+  await session.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: start.x, y: start.y }],
+  });
+  await page.waitForTimeout(150);
+  for (let step = 1; step <= 6; step += 1) {
+    const progress = step / 6;
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [
+        {
+          x: start.x + (end.x - start.x) * progress,
+          y: start.y + (end.y - start.y) * progress,
+        },
+      ],
+    });
+  }
+  await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await session.detach();
+}
+
 test("priority rows use drag handles and can send a movie directly to the top", async ({
   page,
 }) => {
@@ -107,10 +143,11 @@ test("dragging the three-line handle reorders movie priority", async ({ page }) 
   expect(alphaBox).not.toBeNull();
   if (!handleBox || !alphaBox) return;
 
-  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(handleBox.x + handleBox.width / 2, alphaBox.y + 2, { steps: 6 });
-  await page.mouse.up();
+  await dragFromTo(
+    page,
+    { x: handleBox.x + handleBox.width / 2, y: handleBox.y + handleBox.height / 2 },
+    { x: handleBox.x + handleBox.width / 2, y: alphaBox.y + 2 },
+  );
 
   await expect(priorityTitles(page)).toHaveText(["Beta", "Alpha", "Gamma"]);
 });
