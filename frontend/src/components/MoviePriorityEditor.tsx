@@ -38,7 +38,6 @@ export function MoviePriorityEditor({
   const pointerStartYRef = useRef(0);
   const lastPointerYRef = useRef(0);
   const draggedMovieRef = useRef<string | null>(null);
-  const dragSourceIndexRef = useRef<number | null>(null);
   const dragDestinationRef = useRef<number | null>(null);
   const rowCentersRef = useRef<number[]>([]);
   const rowShiftDistanceRef = useRef(0);
@@ -48,7 +47,12 @@ export function MoviePriorityEditor({
   const [dragDestinationIndex, setDragDestinationIndex] = useState<number | null>(null);
   const [dragOffsetY, setDragOffsetY] = useState(0);
 
-  useEffect(() => () => clearPendingTimer(), []);
+  useEffect(
+    () => () => {
+      if (pendingTimerRef.current !== null) clearTimeout(pendingTimerRef.current);
+    },
+    [],
+  );
 
   if (movies.length === 0) return null;
   const pinned = new Set(pinnedMovies);
@@ -96,7 +100,6 @@ export function MoviePriorityEditor({
     clearPendingTimer();
     pendingMovieRef.current = null;
     draggedMovieRef.current = movie;
-    dragSourceIndexRef.current = sourceIndex;
     dragDestinationRef.current = sourceIndex;
     setPressingMovie(null);
     setDraggingMovie(movie);
@@ -185,7 +188,6 @@ export function MoviePriorityEditor({
     activePointerId.current = null;
     pendingMovieRef.current = null;
     draggedMovieRef.current = null;
-    dragSourceIndexRef.current = null;
     dragDestinationRef.current = null;
     rowCentersRef.current = [];
     rowShiftDistanceRef.current = 0;
