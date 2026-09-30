@@ -4,8 +4,8 @@ import { MovieFilterBar } from "./components/MovieFilterBar";
 import "./movie-controls.css";
 import {
   createMovieSavedView,
-  readMovieSavedViews,
   type MovieSavedView,
+  readMovieSavedViews,
   writeMovieSavedViews,
 } from "./movie-saved-views";
 import {
