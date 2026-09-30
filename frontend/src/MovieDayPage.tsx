@@ -131,10 +131,14 @@ export function MovieDayPage() {
   }, [moviePreferences]);
 
   useEffect(() => {
-    if (targetMovieCount !== null && targetMovieCount >= availableSelectedMovies.length) {
+    if (
+      status === "ready" &&
+      targetMovieCount !== null &&
+      targetMovieCount >= availableSelectedMovies.length
+    ) {
       setTargetMovieCount(null);
     }
-  }, [availableSelectedMovies.length, targetMovieCount]);
+  }, [availableSelectedMovies.length, status, targetMovieCount]);
 
   useEffect(() => {
     if (targetMovieCount !== null && targetMovieCount < pinnedMovies.length) {
