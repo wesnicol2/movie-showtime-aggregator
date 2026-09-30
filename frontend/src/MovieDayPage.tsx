@@ -177,7 +177,7 @@ export function MovieDayPage() {
 
   function changeSortBy(value: MovieDaySort): void {
     setSortBy(value);
-    setSecondarySortBy((current) => (current === value ? defaultSecondarySort(value) : current));
+    setSecondarySortBy(defaultSecondarySort(value));
   }
 
   async function generate(offset = 0): Promise<void> {
