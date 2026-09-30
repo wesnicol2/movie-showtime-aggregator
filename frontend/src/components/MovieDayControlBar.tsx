@@ -88,7 +88,6 @@ export function MovieDayControlBar({
   const [selectedView, setSelectedView] = useState("");
   const [defaultView, setDefaultView] = useState(() => readDefaultSavedView("movie-day"));
   const defaultAppliedRef = useRef(false);
-  const defaultSortInitialized = useRef(false);
   const movies = useMemo(() => movieOptions(screenings), [screenings]);
   const theaters = useMemo(() => textOptions(screenings, "theatre"), [screenings]);
   const chains = useMemo(() => textOptions(screenings, "chain"), [screenings]);
@@ -103,15 +102,6 @@ export function MovieDayControlBar({
   const selectedCount = selectedMovies.length;
   const minimumWatchCount = Math.max(1, minimumTargetMovieCount);
   const activeShowingFilters = activeFacetCount(facets);
-
-  useEffect(() => {
-    if (defaultSortInitialized.current) return;
-    defaultSortInitialized.current = true;
-    if (sortBy === "elapsed" && secondarySortBy === "driving") {
-      onSortByChange("want");
-      onSecondarySortByChange("elapsed");
-    }
-  }, [onSecondarySortByChange, onSortByChange, secondarySortBy, sortBy]);
 
   useEffect(() => {
     if (defaultAppliedRef.current) return;
