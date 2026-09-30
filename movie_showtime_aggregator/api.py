@@ -184,11 +184,17 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
             zip_code=zip_code,
             radius_miles=radius_miles,
         )
-        candidates = [
-            _apply_runtime_override(screening, runtime_overrides.get(screening.movie))
-            for screening in canonical
-            if screening.showtime_id in showtime_ids and screening.movie in movies
-        ]
+        stored = _STORE.load()
+        home = _home_point(stored)
+        candidates = enrich_travel_times(
+            [
+                _apply_runtime_override(screening, runtime_overrides.get(screening.movie))
+                for screening in canonical
+                if screening.showtime_id in showtime_ids and screening.movie in movies
+            ],
+            home,
+            _ROUTER,
+        )
         try:
             travel = _ROUTER.travel_matrix(theatre_points(candidates))
             routing_available = True
@@ -203,6 +209,7 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
             required_movies=required_movies,
             earliest_start=earliest_start,
             latest_end=latest_end,
+            home_configured=home is not None,
             sort_by=sort_by,
             secondary_sort_by=secondary_sort_by,
             minimum_buffer_minutes=minimum_buffer_minutes,
