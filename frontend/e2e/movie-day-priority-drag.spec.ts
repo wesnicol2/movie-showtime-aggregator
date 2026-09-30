@@ -137,16 +137,19 @@ test("dragging the three-line handle reorders movie priority", async ({ page }) 
 
   const handle = page.getByRole("button", { name: "Drag Beta to reorder" });
   const alphaRow = page.locator("[data-movie-priority-row]").filter({ hasText: "Alpha" });
+  await handle.evaluate((element) => element.scrollIntoView({ block: "center" }));
   const handleBox = await handle.boundingBox();
   const alphaBox = await alphaRow.boundingBox();
   expect(handleBox).not.toBeNull();
   expect(alphaBox).not.toBeNull();
   if (!handleBox || !alphaBox) return;
 
+  const viewportHeight = await page.evaluate(() => window.innerHeight);
+  const destinationY = Math.max(1, Math.min(alphaBox.y + 2, viewportHeight - 1));
   await dragFromTo(
     page,
     { x: handleBox.x + handleBox.width / 2, y: handleBox.y + handleBox.height / 2 },
-    { x: handleBox.x + handleBox.width / 2, y: alphaBox.y + 2 },
+    { x: handleBox.x + handleBox.width / 2, y: destinationY },
   );
 
   await expect(priorityTitles(page)).toHaveText(["Beta", "Alpha", "Gamma"]);
