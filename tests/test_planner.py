@@ -34,6 +34,7 @@ def screening(
         purchase_url="https://example.test/tickets",
         theatre_latitude=point.latitude if point else None,
         theatre_longitude=point.longitude if point else None,
+        drive_home_minutes=0,
     )
 
 
