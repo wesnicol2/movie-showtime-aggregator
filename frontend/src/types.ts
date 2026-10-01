@@ -112,6 +112,7 @@ export interface MovieDayItinerary {
   want_score: number;
   starts_at: string;
   ends_at: string;
+  home_at: string | null;
   elapsed_minutes: number;
   movie_minutes: number;
   travel_minutes: number;
