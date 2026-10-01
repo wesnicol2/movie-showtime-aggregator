@@ -42,9 +42,7 @@ export function createMovieDayPlan(request: MovieDayPlanRequest): Promise<MovieD
   return requestExactMovieDayPlan(request as MovieDayPlanRequest & { target_movie_count: number });
 }
 
-async function createAnyMovieDayPlan(
-  request: MovieDayPlanRequest,
-): Promise<MovieDayPlanResponse> {
+async function createAnyMovieDayPlan(request: MovieDayPlanRequest): Promise<MovieDayPlanResponse> {
   const minimumCount = Math.max(1, request.required_movies.length);
   const pageOffset = request.offset ?? 0;
   const pageLimit = request.limit ?? 50;
@@ -62,7 +60,9 @@ async function createAnyMovieDayPlan(
 
   const itineraries = exactPlans
     .flatMap((plan) => plan.itineraries)
-    .sort((left, right) => compareItineraries(left, right, reference.sort_by, reference.secondary_sort_by));
+    .sort((left, right) =>
+      compareItineraries(left, right, reference.sort_by, reference.secondary_sort_by),
+    );
   const totalItineraries = exactPlans.reduce((total, plan) => total + plan.total_itineraries, 0);
   const page = itineraries.slice(pageOffset, pageEnd);
 
@@ -89,7 +89,10 @@ async function collectExactMovieDayPlan(
     offset: 0,
     limit: firstLimit,
   });
-  if (first.itineraries.length >= requiredCount || first.itineraries.length >= first.total_itineraries) {
+  if (
+    first.itineraries.length >= requiredCount ||
+    first.itineraries.length >= first.total_itineraries
+  ) {
     return first;
   }
 
