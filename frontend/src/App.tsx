@@ -2,27 +2,39 @@ import { useEffect, useState } from "react";
 import { ShowDateControl } from "./components/ShowDateControl";
 import { MovieDayPage } from "./MovieDayPage";
 import { MoviesPage } from "./MoviesPage";
+import { PlannerPage } from "./PlannerPage";
 import { ScreeningsPage } from "./ScreeningsPage";
 import { SettingsPage } from "./SettingsPage";
 import { useAppStore } from "./store";
 
-type AppPath = "/" | "/movies" | "/plan" | "/settings";
+type AppPath = "/" | "/movies" | "/plan" | "/planner" | "/settings";
 
-function normalizePath(path: string): AppPath {
+function normalizeLocation(): AppPath {
+  const path = window.location.pathname;
   if (path === "/movies") return "/movies";
-  if (path === "/plan") return "/plan";
+  if (path === "/plan") {
+    return new URLSearchParams(window.location.search).get("view") === "planner"
+      ? "/planner"
+      : "/plan";
+  }
   if (path === "/settings") return "/settings";
   return "/";
 }
 
+function browserUrl(path: AppPath): string {
+  return path === "/planner" ? "/plan?view=planner" : path;
+}
+
 export function App() {
-  const [path, setPath] = useState(() => normalizePath(window.location.pathname));
+  const [path, setPath] = useState(normalizeLocation);
   const [movieDayMounted, setMovieDayMounted] = useState(() => path === "/plan");
   const syncMovieSelection = useAppStore((state) => state.syncMovieSelection);
+  const setMovieSelection = useAppStore((state) => state.setMovieSelection);
+  const setSelectedDate = useAppStore((state) => state.setSelectedDate);
 
   useEffect(() => {
     const onPopState = () => {
-      const nextPath = normalizePath(window.location.pathname);
+      const nextPath = normalizeLocation();
       setPath(nextPath);
       if (nextPath === "/plan") setMovieDayMounted(true);
     };
@@ -40,8 +52,17 @@ export function App() {
   function navigate(nextPath: AppPath): void {
     if (nextPath === "/plan") setMovieDayMounted(true);
     if (nextPath === path) return;
-    window.history.pushState({}, "", nextPath);
+    window.history.pushState({}, "", browserUrl(nextPath));
     setPath(nextPath);
+  }
+
+  function planDate(date: string, movies: readonly string[] = []): void {
+    if (movies.length > 0) {
+      const currentSelection = useAppStore.getState().selectedMovies;
+      setMovieSelection([...currentSelection, ...movies]);
+    }
+    setSelectedDate(date);
+    navigate("/plan");
   }
 
   return (
@@ -57,7 +78,7 @@ export function App() {
           </span>
         </button>
         <div className="app-header-tools">
-          <ShowDateControl />
+          {path === "/planner" ? null : <ShowDateControl />}
           <nav className="app-nav" aria-label="Primary">
             <button
               className={path === "/" ? "current" : ""}
@@ -81,6 +102,13 @@ export function App() {
               Movie Day
             </button>
             <button
+              className={path === "/planner" ? "current" : ""}
+              type="button"
+              onClick={() => navigate("/planner")}
+            >
+              Planner
+            </button>
+            <button
               className={path === "/settings" ? "current" : ""}
               type="button"
               onClick={() => navigate("/settings")}
@@ -96,7 +124,9 @@ export function App() {
             <MovieDayPage />
           </div>
         ) : null}
-        {path === "/plan" ? null : path === "/movies" ? (
+        {path === "/plan" ? null : path === "/planner" ? (
+          <PlannerPage onPlanDate={planDate} />
+        ) : path === "/movies" ? (
           <MoviesPage />
         ) : path === "/settings" ? (
           <SettingsPage />

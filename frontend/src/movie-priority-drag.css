@@ -70,6 +70,17 @@
   min-width: 42px;
 }
 
+.movie-priority-ordering .movie-priority-remove {
+  min-width: 30px;
+  color: var(--danger);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.movie-priority-remove:hover:not(:disabled) {
+  border-color: var(--danger);
+}
+
 @media (max-width: 700px) {
   .movie-priority-ordering {
     grid-column: 2 / -1;
