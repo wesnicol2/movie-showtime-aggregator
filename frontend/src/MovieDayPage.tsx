@@ -371,8 +371,8 @@ export function MovieDayPage() {
             points, #2 is worth N−1, and so on; pinned movies are mandatory. Each positive screening
             experience deviation adds one want point and each negative deviation removes one. Manual
             runtimes replace fetched runtimes when calculating end times and itinerary feasibility.
-            Watch “Any” mixes every feasible movie count under the same filters. Results are globally
-            ranked by the chosen primary objective and use Secondary sort to break ties.
+            Watch “Any” mixes every feasible movie count under the same filters. Results are
+            globally ranked by the chosen primary objective and use Secondary sort to break ties.
           </p>
         </div>
       ) : null}
@@ -544,8 +544,7 @@ function ItineraryCard({
                 <div>
                   <strong>{screening.movie}</strong>
                   <span>
-                    {screening.theatre} ·{" "}
-                    {runtime === null ? "runtime unknown" : `${runtime} min`}
+                    {screening.theatre} · {runtime === null ? "runtime unknown" : `${runtime} min`}
                     {runtimeOverride !== undefined ? " · manual" : ""}
                   </span>
                   <ExperienceDeviationChips deviations={screening.experience_deviations} />
