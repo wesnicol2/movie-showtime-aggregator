@@ -72,6 +72,20 @@ def test_movie_day_totals_include_drives_from_and_back_home():
     assert itinerary.elapsed_minutes == 190
     assert itinerary.travel_minutes == 50
     assert itinerary.waiting_minutes == 20
+    assert itinerary.home_at == datetime(2026, 9, 19, 11, 55)
+    assert itinerary.to_dict()["home_at"] == "2026-09-19T11:55"
+
+
+def test_movie_day_does_not_claim_home_arrival_without_home_configuration():
+    plan = plan_movie_day(
+        [screening("a", "Alpha", 9, 0, 60, drive_home_minutes=25)],
+        ["Alpha"],
+        {},
+        home_configured=False,
+    )
+
+    assert plan.itineraries[0].home_at is None
+    assert plan.itineraries[0].to_dict()["home_at"] is None
 
 
 def test_outbound_and_return_drives_participate_in_global_sorting():
