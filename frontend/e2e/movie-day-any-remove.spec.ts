@@ -179,7 +179,9 @@ test("Any returns itineraries across every feasible movie count in global want-s
   await page.getByLabel("Number of movies").selectOption("any");
   await page.getByRole("button", { name: "Find combinations" }).click();
 
-  await expect(page.getByText("3 feasible itineraries across all valid movie counts")).toBeVisible();
+  await expect(
+    page.getByText("3 feasible itineraries across all valid movie counts"),
+  ).toBeVisible();
   expect(requestedCounts.sort()).toEqual([1, 2]);
   const cards = page.locator(".itinerary-card");
   await expect(cards).toHaveCount(3);
@@ -198,7 +200,9 @@ test("the priority-list X confirms and globally deselects the movie", async ({ p
   });
   await page.getByRole("button", { name: "Remove Alpha from selected movies" }).click();
 
-  await expect(page.getByRole("button", { name: "Remove Alpha from selected movies" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Remove Alpha from selected movies" })).toHaveCount(
+    0,
+  );
   const selected = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("movie-showtime-aggregator.selected-movies.v1") ?? "[]"),
   );
