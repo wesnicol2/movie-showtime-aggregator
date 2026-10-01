@@ -233,7 +233,9 @@ export function MovieDayControlBar({
           disabled={selectedCount === 0}
           onChange={(event) => {
             const value = event.target.value;
-            onTargetMovieCountChange(value === "all" ? null : value === "any" ? "any" : Number(value));
+            onTargetMovieCountChange(
+              value === "all" ? null : value === "any" ? "any" : Number(value),
+            );
           }}
         >
           <option value="all">All selected ({selectedCount})</option>
