@@ -21,7 +21,9 @@ type VerificationState =
   | { status: "changed"; missingMovies: string[] }
   | { status: "unavailable" };
 
-export function PlannerPage({ onPlanDate }: { onPlanDate: (date: string) => void }) {
+type PlanDateHandler = (date: string, movies?: readonly string[]) => void;
+
+export function PlannerPage({ onPlanDate }: { onPlanDate: PlanDateHandler }) {
   const today = browserDate();
   const [plans, setPlans] = useState(readSavedMoviePlans);
   const [daysShown, setDaysShown] = useState(INITIAL_DAY_COUNT);
@@ -208,7 +210,7 @@ function DayRow({
   date: string;
   plan: SavedMoviePlan | undefined;
   verification: VerificationState | undefined;
-  onPlanDate: (date: string) => void;
+  onPlanDate: PlanDateHandler;
   onDelete: (plan: SavedMoviePlan) => void;
 }) {
   return (
@@ -224,7 +226,7 @@ function DayRow({
         </div>
         {plan ? (
           <div className="planner-day-actions">
-            <button type="button" onClick={() => onPlanDate(date)}>
+            <button type="button" onClick={() => onPlanDate(date, plan.itinerary.movies)}>
               Replan
             </button>
             <button className="danger-quiet" type="button" onClick={() => onDelete(plan)}>
