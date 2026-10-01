@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchScreenings } from "./api";
+import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
 import {
   deleteMoviePlan,
   PLANNER_STORAGE_KEY,
@@ -279,9 +280,10 @@ function SavedPlanDetails({
               <div>
                 <strong>{screening.movie}</strong>
                 <span>
-                  {screening.theatre} · {screening.format}
+                  {screening.theatre}
                   {runtime !== null ? ` · ${runtime} min` : ""}
                 </span>
+                <ExperienceDeviationChips deviations={screening.experience_deviations} />
               </div>
               {screening.purchase_url ? (
                 <a href={screening.purchase_url} target="_blank" rel="noreferrer">
