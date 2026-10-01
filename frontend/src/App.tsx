@@ -29,7 +29,6 @@ export function App() {
   const [path, setPath] = useState(normalizeLocation);
   const [movieDayMounted, setMovieDayMounted] = useState(() => path === "/plan");
   const syncMovieSelection = useAppStore((state) => state.syncMovieSelection);
-  const selectedMovies = useAppStore((state) => state.selectedMovies);
   const setMovieSelection = useAppStore((state) => state.setMovieSelection);
   const setSelectedDate = useAppStore((state) => state.setSelectedDate);
 
@@ -59,7 +58,8 @@ export function App() {
 
   function planDate(date: string, movies: readonly string[] = []): void {
     if (movies.length > 0) {
-      setMovieSelection([...selectedMovies, ...movies]);
+      const currentSelection = useAppStore.getState().selectedMovies;
+      setMovieSelection([...currentSelection, ...movies]);
     }
     setSelectedDate(date);
     navigate("/plan");
