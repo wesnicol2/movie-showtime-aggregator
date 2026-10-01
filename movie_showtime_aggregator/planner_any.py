@@ -5,7 +5,7 @@ from datetime import datetime
 
 from .location import GeoPoint
 from .models import Screening
-from .planner import MovieDayItinerary, MovieDayPlan, plan_movie_day
+from .planner import MovieDayItinerary, plan_movie_day
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,7 +64,6 @@ def plan_movie_day_any(
         dict.fromkeys(movie.strip() for movie in (required_movies or []) if movie.strip())
     )
 
-    # Validate shared inputs and establish response metadata using the widest exact plan.
     validation = plan_movie_day(
         screenings,
         normalized_movies,
