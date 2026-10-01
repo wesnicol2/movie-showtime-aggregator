@@ -12,6 +12,7 @@ def market_payload():
         *,
         movie_id="246821",
         film_format="",
+        amenities=None,
         zip_code="85004",
         latitude=33.45,
         longitude=-112.07,
@@ -39,7 +40,7 @@ def market_payload():
                             "filmFormatHeader": film_format or "Standard",
                             "amenityGroups": [
                                 {
-                                    "amenities": [],
+                                    "amenities": amenities or [],
                                     "isDolby": film_format == "Dolby Cinema",
                                     "showtimes": [
                                         {
@@ -71,6 +72,7 @@ def market_payload():
                 "2026-09-04+18:30",
                 movie_id="246821",
                 film_format="Dolby Cinema",
+                amenities=[{"name": "AMC Signature Recliners"}],
             ),
             theater(
                 "Harkins Christown 14",
@@ -101,6 +103,7 @@ def test_flatten_market_showtimes_preserves_theater_chain_location_runtime_and_f
     assert showtimes[0]["posterUrl"] == "https://images.example/poster-400.jpg"
     assert showtimes[0]["runTime"] == 101
     assert showtimes[0]["premiumFormat"] == "Dolby Cinema"
+    assert showtimes[0]["attributes"] == ["Dolby Cinema", "AMC Signature Recliners"]
     assert showtimes[0]["showDateTimeLocal"] == "2026-09-04T18:30"
     assert showtimes[1]["theatreName"] == "Harkins Christown 14"
     assert showtimes[1]["chainName"] == "Harkins Theatres"
@@ -144,3 +147,13 @@ def test_expired_and_sold_out_flags_are_normalized():
     flattened = flatten_market_showtimes(payload)[0]
     assert flattened["isExpired"] is True
     assert flattened["isSoldOut"] is True
+
+
+def test_fan_event_amenity_is_preserved_for_experience_classification():
+    payload = market_payload()
+    group = payload["theaters"][0]["movies"][0]["variants"][0]["amenityGroups"][0]
+    group["amenities"].append({"name": "Opening Night Fan Event"})
+
+    flattened = flatten_market_showtimes(payload)[0]
+
+    assert "Opening Night Fan Event" in flattened["attributes"]
