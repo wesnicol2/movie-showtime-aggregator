@@ -182,7 +182,7 @@ async function mockPlannerApi(page: Page): Promise<void> {
   });
 }
 
-test("Movie Day hides unavailable selected movies and deselects movies saved to Planner", async ({
+test("Movie Day hides unavailable selected movies, deselects saved movies, and restores them when replanning", async ({
   page,
 }) => {
   await mockPlannerApi(page);
@@ -216,6 +216,19 @@ test("Movie Day hides unavailable selected movies and deselects movies saved to 
   const today = page.locator(`[data-date="${isoDate()}"]`);
   await expect(today.getByText("Alpha", { exact: true })).toBeVisible();
   await expect(today.getByText("Beta", { exact: true })).toBeVisible();
+
+  await today.getByRole("button", { name: "Replan" }).click();
+  await expect(page).toHaveURL(/\/plan$/);
+  await expect(page.getByRole("heading", { name: "Plan a movie day" })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem("movie-showtime-aggregator.selected-movies.v1") ?? "[]"),
+      ),
+    )
+    .toEqual(["Alpha", "Beta", "Gamma"]);
+  await expect(priorityRows.filter({ hasText: "Alpha" })).toHaveCount(1);
+  await expect(priorityRows.filter({ hasText: "Beta" })).toHaveCount(1);
 });
 
 test("Movie Day saved views restore planning controls without saving movie selection", async ({
