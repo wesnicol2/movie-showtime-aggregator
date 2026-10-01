@@ -9,18 +9,12 @@ export function ExperienceDeviationChips({
   if (!deviations?.length) return null;
 
   return (
-    <span className="experience-deviations" aria-label="Experience differences">
+    <span className="experience-deviations">
       {deviations.map((deviation) => {
         const positive = deviation.score_delta > 0;
         return (
-          <span
-            key={deviation.id}
-            className={`experience-deviation ${deviation.polarity}`}
-            aria-label={`${deviation.label}, ${positive ? "plus" : "minus"} one want point`}
-          >
-            <span className="experience-deviation-sign" aria-hidden="true">
-              {positive ? "+" : "−"}
-            </span>
+          <span key={deviation.id} className={`experience-deviation ${deviation.polarity}`}>
+            <span className="experience-deviation-sign">{positive ? "+" : "−"}</span>
             {deviation.label}
           </span>
         );
