@@ -137,7 +137,7 @@ def test_special_event_stacks_with_premium_format():
     assert screening is not None
     assert [(item.label, item.score_delta) for item in screening.experience_deviations] == [
         ("Dolby Cinema", 1),
-        ("Special Event", 1),
+        ("Fan Event", 1),
     ]
     assert screening.experience_score_adjustment == 2
     payload = screening.to_dict()
