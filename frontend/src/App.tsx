@@ -29,6 +29,8 @@ export function App() {
   const [path, setPath] = useState(normalizeLocation);
   const [movieDayMounted, setMovieDayMounted] = useState(() => path === "/plan");
   const syncMovieSelection = useAppStore((state) => state.syncMovieSelection);
+  const selectedMovies = useAppStore((state) => state.selectedMovies);
+  const setMovieSelection = useAppStore((state) => state.setMovieSelection);
   const setSelectedDate = useAppStore((state) => state.setSelectedDate);
 
   useEffect(() => {
@@ -55,7 +57,10 @@ export function App() {
     setPath(nextPath);
   }
 
-  function planDate(date: string): void {
+  function planDate(date: string, movies: readonly string[] = []): void {
+    if (movies.length > 0) {
+      setMovieSelection([...selectedMovies, ...movies]);
+    }
     setSelectedDate(date);
     navigate("/plan");
   }
