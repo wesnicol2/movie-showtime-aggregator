@@ -45,6 +45,7 @@ class MovieDayItinerary:
     want_score: int
     starts_at: datetime
     ends_at: datetime
+    home_at: datetime | None
     elapsed_minutes: int
     movie_minutes: int
     travel_minutes: int
@@ -59,6 +60,7 @@ class MovieDayItinerary:
             "want_score": self.want_score,
             "starts_at": self.starts_at.isoformat(timespec="minutes"),
             "ends_at": self.ends_at.isoformat(timespec="minutes"),
+            "home_at": self.home_at.isoformat(timespec="minutes") if self.home_at is not None else None,
             "elapsed_minutes": self.elapsed_minutes,
             "movie_minutes": self.movie_minutes,
             "travel_minutes": self.travel_minutes,
@@ -278,6 +280,7 @@ def plan_movie_day(
         completion_count,
         starts,
         target=target,
+        home_configured=home_configured,
         sort_by=sort_by,
         secondary_sort_by=secondary_sort,
         offset=offset,
@@ -312,6 +315,7 @@ def _ranked_itineraries(
     starts: list[tuple[int, int, int]],
     *,
     target: int,
+    home_configured: bool,
     sort_by: str,
     secondary_sort_by: str,
     offset: int,
@@ -360,7 +364,15 @@ def _ranked_itineraries(
             if skipped < offset:
                 skipped += 1
             else:
-                itineraries.append(_make_itinerary(candidates, movies, movie_scores, list(path)))
+                itineraries.append(
+                    _make_itinerary(
+                        candidates,
+                        movies,
+                        movie_scores,
+                        list(path),
+                        home_configured=home_configured,
+                    )
+                )
             continue
 
         for target_index, drive_minutes in edges[index]:
@@ -485,6 +497,8 @@ def _make_itinerary(
     selected_movies: tuple[str, ...],
     movie_scores: dict[str, int],
     path: list[tuple[int, int]],
+    *,
+    home_configured: bool,
 ) -> MovieDayItinerary:
     selected = [candidates[index] for index, _ in path]
     starts_at = selected[0].actual_start
@@ -530,6 +544,7 @@ def _make_itinerary(
         want_score=sum(movie_scores[movie] for movie in included_movies),
         starts_at=starts_at,
         ends_at=ends_at,
+        home_at=_estimated_home_arrival(selected[-1]) if home_configured else None,
         elapsed_minutes=elapsed_minutes,
         movie_minutes=movie_minutes,
         travel_minutes=total_travel,
