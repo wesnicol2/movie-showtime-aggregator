@@ -8,10 +8,11 @@ import {
   textOptions,
 } from "../screening-facets";
 import { createSavedView, type SavedView, useAppStore } from "../store";
-import type { MovieDaySort, Screening } from "../types";
+import type { MovieDaySort, MovieDayTargetCount, Screening } from "../types";
 import { CheckboxFilter, type CheckboxOption } from "./CheckboxFilter";
 
 type OpenControl = "movies" | keyof ScreeningFacets;
+type MovieDayWatchSetting = MovieDayTargetCount | null;
 
 const MOVIE_DAY_SAVED_VIEWS_KEY = "movie-showtime-aggregator.movie-day-saved-views.v1";
 
@@ -22,7 +23,7 @@ const SORT_OPTIONS: readonly { value: MovieDaySort; label: string }[] = [
 ];
 
 interface MovieDaySavedView {
-  targetMovieCount: number | null;
+  targetMovieCount: MovieDayWatchSetting;
   earliestTime: string;
   latestTime: string;
   sortBy: MovieDaySort;
@@ -36,7 +37,7 @@ interface Props {
   facets: ScreeningFacets;
   screenings: readonly Screening[];
   selectedMovies: readonly string[];
-  targetMovieCount: number | null;
+  targetMovieCount: MovieDayWatchSetting;
   minimumTargetMovieCount: number;
   earliestTime: string;
   latestTime: string;
@@ -47,7 +48,7 @@ interface Props {
   disabled: boolean;
   onFacetsChange: (facets: ScreeningFacets) => void;
   onMovieSelectionChange: (movies: string[]) => void;
-  onTargetMovieCountChange: (count: number | null) => void;
+  onTargetMovieCountChange: (count: MovieDayWatchSetting) => void;
   onEarliestTimeChange: (value: string) => void;
   onLatestTimeChange: (value: string) => void;
   onSortByChange: (value: MovieDaySort) => void;
@@ -230,13 +231,13 @@ export function MovieDayControlBar({
           aria-label="Number of movies"
           value={targetMovieCount === null ? "all" : String(targetMovieCount)}
           disabled={selectedCount === 0}
-          onChange={(event) =>
-            onTargetMovieCountChange(
-              event.target.value === "all" ? null : Number(event.target.value),
-            )
-          }
+          onChange={(event) => {
+            const value = event.target.value;
+            onTargetMovieCountChange(value === "all" ? null : value === "any" ? "any" : Number(value));
+          }}
         >
           <option value="all">All selected ({selectedCount})</option>
+          <option value="any">Any valid count</option>
           {Array.from({ length: Math.max(0, selectedCount - 1) }, (_, index) => index + 1)
             .filter((count) => count >= minimumWatchCount)
             .map((count) => (
@@ -441,7 +442,9 @@ function isMovieDaySavedView(value: unknown): value is MovieDaySavedView {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const candidate = value as Partial<MovieDaySavedView>;
   return (
-    (candidate.targetMovieCount === null || typeof candidate.targetMovieCount === "number") &&
+    (candidate.targetMovieCount === null ||
+      candidate.targetMovieCount === "any" ||
+      typeof candidate.targetMovieCount === "number") &&
     typeof candidate.earliestTime === "string" &&
     typeof candidate.latestTime === "string" &&
     isMovieDaySort(candidate.sortBy) &&
