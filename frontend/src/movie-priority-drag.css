@@ -70,10 +70,10 @@
   min-width: 42px;
 }
 
-.movie-priority-remove {
+.movie-priority-ordering .movie-priority-remove {
   min-width: 30px;
   color: var(--danger);
-  font-size: 16px !important;
+  font-size: 16px;
   line-height: 1;
 }
 
