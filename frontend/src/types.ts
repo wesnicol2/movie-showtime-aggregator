@@ -26,6 +26,14 @@ export interface ColumnDefinition {
   calculated?: boolean;
 }
 
+export interface ExperienceDeviation {
+  id: string;
+  label: string;
+  category: string;
+  polarity: "positive" | "negative";
+  score_delta: 1 | -1;
+}
+
 export interface Screening {
   showtime_id: string;
   movie: string;
@@ -60,6 +68,8 @@ export interface Screening {
   rotten_tomatoes_url: string;
   metacritic_url: string;
   route_source_url: string;
+  experience_deviations?: ExperienceDeviation[];
+  experience_score_adjustment?: number;
 }
 
 export interface PublicPreferences {
@@ -110,6 +120,8 @@ export interface MovieDayItinerary {
   showtime_ids: string[];
   movies: string[];
   dropped_movies: string[];
+  base_want_score?: number;
+  experience_adjustment?: number;
   want_score: number;
   starts_at: string;
   ends_at: string;
