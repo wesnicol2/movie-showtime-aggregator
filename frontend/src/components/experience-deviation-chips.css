@@ -1,0 +1,36 @@
+.experience-deviations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.experience-deviation {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--panel-raised);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.experience-deviation.positive {
+  border-color: #3d5b4a;
+  color: var(--success);
+}
+
+.experience-deviation.negative {
+  border-color: #714149;
+  color: #ee9ca8;
+}
+
+.experience-deviation-sign {
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
