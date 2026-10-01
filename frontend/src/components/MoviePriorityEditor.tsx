@@ -19,6 +19,7 @@ interface Props {
   runtimeOverrides: Readonly<Record<string, number>>;
   onMove: (movie: string, direction: -1 | 1) => void;
   onTogglePinned: (movie: string) => void;
+  onRemoveMovie: (movie: string) => void;
   onRuntimeOverrideChange: (movie: string, minutes: number | null) => void;
 }
 
@@ -29,6 +30,7 @@ export function MoviePriorityEditor({
   runtimeOverrides,
   onMove,
   onTogglePinned,
+  onRemoveMovie,
   onRuntimeOverrideChange,
 }: Props) {
   const listRef = useRef<HTMLOListElement>(null);
@@ -240,8 +242,9 @@ export function MoviePriorityEditor({
       <p className="movie-priority-help" id="movie-priority-help">
         Higher-ranked movies are worth more want points. Press and hold the three-line handle until
         the movie lifts, then drag it into place; use Top to jump a movie to #1. Pin a movie to
-        require it in every itinerary. Runtime overrides replace the fetched runtime for Movie Day
-        planning; clear an override to use the fetched value again.
+        require it in every itinerary. Use × to deselect a movie from the app entirely. Runtime
+        overrides replace the fetched runtime for Movie Day planning; clear an override to use the
+        fetched value again.
       </p>
       <ol className="movie-priority-list" ref={listRef} aria-describedby="movie-priority-help">
         {movies.map((movie, index) => {
@@ -348,6 +351,15 @@ export function MoviePriorityEditor({
                   onClick={() => moveMovieToIndex(movie, 0)}
                 >
                   Top
+                </button>
+                <button
+                  type="button"
+                  className="movie-priority-remove"
+                  aria-label={`Remove ${movie} from selected movies`}
+                  title="Deselect movie"
+                  onClick={() => onRemoveMovie(movie)}
+                >
+                  ×
                 </button>
               </div>
             </li>
