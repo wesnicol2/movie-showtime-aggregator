@@ -195,7 +195,9 @@ async function mockExperienceApi(page: Page): Promise<void> {
   });
 }
 
-test("itinerary hides standard experience and highlights only scored deviations", async ({ page }) => {
+test("itinerary hides standard experience and highlights only scored deviations", async ({
+  page,
+}) => {
   await mockExperienceApi(page);
   await page.goto("/plan");
   await page.getByRole("button", { name: "Find combinations" }).click();
@@ -205,9 +207,14 @@ test("itinerary hides standard experience and highlights only scored deviations"
   await expect(alphaRow).not.toContainText("Standard");
   await expect(alphaRow.locator(".experience-deviation")).toHaveCount(0);
 
-  await expect(page.getByLabel("IMAX, plus one want point")).toBeVisible();
-  await expect(page.getByLabel("Fan Event, plus one want point")).toBeVisible();
-  await expect(page.getByLabel("No Signature Recliners, minus one want point")).toBeVisible();
+  const imax = page.locator(".experience-deviation.positive", { hasText: "IMAX" });
+  const fanEvent = page.locator(".experience-deviation.positive", { hasText: "Fan Event" });
+  const noRecliners = page.locator(".experience-deviation.negative", {
+    hasText: "No Signature Recliners",
+  });
+  await expect(imax).toContainText("+");
+  await expect(fanEvent).toContainText("+");
+  await expect(noRecliners).toContainText("−");
 
   const gammaRow = page.locator(".showing-line", { hasText: "Gamma" });
   await expect(gammaRow).not.toContainText("Standard");
