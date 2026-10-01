@@ -13,14 +13,14 @@ class ExperienceDeviation:
     score_delta: int
 
 
-_POSITIVE_EVENT_MARKERS = (
-    "fan event",
-    "early access",
-    "special event",
-    "sneak preview",
-    "premiere event",
-    "opening night event",
-    "event screening",
+_EVENT_MARKERS = (
+    ("fan event", "Fan Event"),
+    ("early access", "Early Access"),
+    ("sneak preview", "Sneak Preview"),
+    ("premiere event", "Premiere Event"),
+    ("opening night event", "Opening Night Event"),
+    ("special event", "Special Event"),
+    ("event screening", "Special Event"),
 )
 
 
@@ -47,11 +47,12 @@ def classify_experience(
             )
         )
 
-    if any(marker in searchable for marker in _POSITIVE_EVENT_MARKERS):
+    event_label = next((label for marker, label in _EVENT_MARKERS if marker in searchable), None)
+    if event_label is not None:
         deviations.append(
             ExperienceDeviation(
-                id="event:special",
-                label="Special Event",
+                id=f"event:{_slug(event_label)}",
+                label=event_label,
                 category="event",
                 polarity="positive",
                 score_delta=1,
