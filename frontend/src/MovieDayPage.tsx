@@ -491,6 +491,7 @@ function ItineraryCard({
         <div className="itinerary-summary">
           <span>Want score {itinerary.want_score}</span>
           <span>{formatDuration(itinerary.elapsed_minutes)} total</span>
+          <span>Home at {itinerary.home_at ? formatTime(itinerary.home_at) : "not available"}</span>
           <span>{itinerary.travel_minutes} min driving</span>
           <span>{itinerary.waiting_minutes} min free</span>
           <button type="button" onClick={onSave} aria-label={`Save option ${number} to Planner`}>
