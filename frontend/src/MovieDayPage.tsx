@@ -13,7 +13,13 @@ import {
 } from "./screening-facets";
 import { filterAndSort, isFilterActive } from "./screenings";
 import { useAppStore } from "./store";
-import type { MovieDayItinerary, MovieDayPlanResponse, MovieDaySort, Screening } from "./types";
+import type {
+  MovieDayItinerary,
+  MovieDayPlanResponse,
+  MovieDaySort,
+  MovieDayTargetCount,
+  Screening,
+} from "./types";
 import { useScreenings } from "./useScreenings";
 
 const PAGE_SIZE = 25;
@@ -36,7 +42,7 @@ export function MovieDayPage() {
   const setMovieSelection = useAppStore((state) => state.setMovieSelection);
   const [minimumBuffer, setMinimumBuffer] = useState(0);
   const [facets, setFacets] = useState<ScreeningFacets>(EMPTY_SCREENING_FACETS);
-  const [targetMovieCount, setTargetMovieCount] = useState<number | null>(null);
+  const [targetMovieCount, setTargetMovieCount] = useState<MovieDayTargetCount | null>(null);
   const [earliestTime, setEarliestTime] = useState("");
   const [latestTime, setLatestTime] = useState("");
   const [sortBy, setSortBy] = useState<MovieDaySort>("want");
@@ -93,7 +99,7 @@ export function MovieDayPage() {
   const activeFilterCount = Object.values(filters).filter(isFilterActive).length;
   const activeShowingFilters = activeFacetCount(facets);
   const homeConfigured = response?.preferences.home_configured === true;
-  const targetCount = targetMovieCount ?? availableSelectedMovies.length;
+  const targetCount: MovieDayTargetCount = targetMovieCount ?? availableSelectedMovies.length;
   const responseDate = response?.date ?? "";
   const bounds = response
     ? dayBounds(response.date, earliestTime, latestTime)
@@ -133,7 +139,7 @@ export function MovieDayPage() {
   useEffect(() => {
     if (
       status === "ready" &&
-      targetMovieCount !== null &&
+      typeof targetMovieCount === "number" &&
       targetMovieCount >= availableSelectedMovies.length
     ) {
       setTargetMovieCount(null);
@@ -141,7 +147,7 @@ export function MovieDayPage() {
   }, [availableSelectedMovies.length, status, targetMovieCount]);
 
   useEffect(() => {
-    if (targetMovieCount !== null && targetMovieCount < pinnedMovies.length) {
+    if (typeof targetMovieCount === "number" && targetMovieCount < pinnedMovies.length) {
       setTargetMovieCount(pinnedMovies.length);
     }
   }, [pinnedMovies.length, targetMovieCount]);
@@ -193,6 +199,12 @@ export function MovieDayPage() {
         : [...current.pinned, movie];
       return { ...current, pinned };
     });
+  }
+
+  function removeMovie(movie: string): void {
+    if (!selectedMovies.includes(movie)) return;
+    if (!window.confirm(`Remove “${movie}” from your selected movies?`)) return;
+    setMovieSelection(selectedMovies.filter((selected) => selected !== movie));
   }
 
   function setRuntimeOverride(movie: string, minutes: number | null): void {
@@ -328,6 +340,7 @@ export function MovieDayPage() {
         runtimeOverrides={runtimeOverrides}
         onMove={moveMovie}
         onTogglePinned={togglePinned}
+        onRemoveMovie={removeMovie}
         onRuntimeOverrideChange={setRuntimeOverride}
       />
 
@@ -344,7 +357,7 @@ export function MovieDayPage() {
           <div className="planner-facts">
             <span>{formatDate(response.date)}</span>
             <span>{availableSelectedMovies.length} selected movies</span>
-            <span>{targetCount || 0} to watch</span>
+            <span>{targetCount === "any" ? "Any valid count" : `${targetCount} to watch`}</span>
             <span>{pinnedMovies.length} pinned</span>
             <span>{Object.keys(runtimeOverrides).length} runtime overrides</span>
             <span>{eligibleScreenings.length} candidate showings</span>
@@ -355,10 +368,9 @@ export function MovieDayPage() {
           <p>
             Rank selected movies from most to least wanted. With N selected movies, #1 is worth N
             points, #2 is worth N−1, and so on; pinned movies are mandatory. Manual runtimes replace
-            fetched runtimes when calculating end times and itinerary feasibility. The solver may
-            omit only unpinned movies when Watch is below the selected count, then globally ranks
-            complete itineraries by the chosen primary objective and uses Secondary sort to break
-            ties.
+            fetched runtimes when calculating end times and itinerary feasibility. Watch “Any” mixes
+            every feasible movie count under the same filters. Results are globally ranked by the
+            chosen primary objective and use Secondary sort to break ties.
           </p>
         </div>
       ) : null}
@@ -366,8 +378,10 @@ export function MovieDayPage() {
       {plan ? (
         <>
           <div className="result-strip planner-results" aria-live="polite">
-            <strong>{plan.total_itineraries}</strong> feasible {plan.target_movie_count}-movie
-            itineraries
+            <strong>{plan.total_itineraries}</strong>{" "}
+            {plan.target_movie_count === "any"
+              ? "feasible itineraries across all valid movie counts"
+              : `feasible ${plan.target_movie_count}-movie itineraries`}
             <span>·</span>
             <span>{plan.eligible_showings} timed showings considered</span>
             <span>·</span>
@@ -386,7 +400,8 @@ export function MovieDayPage() {
               showing: {plan.missing_required_movies.join(", ")}. Change the showing/time filters or
               unpin the movie to find itineraries.
             </p>
-          ) : plan.plannable_movie_count < plan.target_movie_count ? (
+          ) : typeof plan.target_movie_count === "number" &&
+            plan.plannable_movie_count < plan.target_movie_count ? (
             <p className="empty-state">
               Only {plan.plannable_movie_count} selected movie
               {plan.plannable_movie_count === 1 ? " has" : "s have"} an eligible showing, but this
@@ -406,12 +421,10 @@ export function MovieDayPage() {
             </div>
           ) : null}
 
-          {plan.missing_required_movies.length === 0 &&
-          plan.plannable_movie_count >= plan.target_movie_count &&
-          plan.total_itineraries === 0 ? (
+          {plan.missing_required_movies.length === 0 && plan.total_itineraries === 0 ? (
             <p className="empty-state">
-              Enough movies have eligible showings, but no {plan.target_movie_count}-movie itinerary
-              satisfies the current pinned-movie, time, travel, and transfer-buffer constraints.
+              No itinerary satisfies the current pinned-movie, time, travel, and transfer-buffer
+              constraints.
             </p>
           ) : null}
 
