@@ -60,7 +60,9 @@ class MovieDayItinerary:
             "want_score": self.want_score,
             "starts_at": self.starts_at.isoformat(timespec="minutes"),
             "ends_at": self.ends_at.isoformat(timespec="minutes"),
-            "home_at": self.home_at.isoformat(timespec="minutes") if self.home_at is not None else None,
+            "home_at": self.home_at.isoformat(timespec="minutes")
+            if self.home_at is not None
+            else None,
             "elapsed_minutes": self.elapsed_minutes,
             "movie_minutes": self.movie_minutes,
             "travel_minutes": self.travel_minutes,
