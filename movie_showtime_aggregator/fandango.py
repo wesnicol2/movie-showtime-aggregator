@@ -99,6 +99,7 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
         raise FandangoError("Fandango response did not contain a theater list")
 
     flattened: list[dict[str, object]] = []
+    market_titles = _market_movie_titles(theaters)
     for theater in theaters:
         if not isinstance(theater, dict):
             continue
@@ -109,17 +110,11 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
         movies = theater.get("movies")
         if not theatre_name or not isinstance(movies, list):
             continue
-        sibling_titles = [
-            _clean_title(str(movie.get("title") or ""))
-            for movie in movies
-            if isinstance(movie, dict)
-        ]
-
         for movie in movies:
             if not isinstance(movie, dict):
                 continue
             source_title = _clean_title(str(movie.get("title") or ""))
-            title = _canonical_event_title(source_title, sibling_titles)
+            title = _canonical_event_title(source_title, market_titles)
             movie_source_id = _movie_source_id(movie)
             poster_url = _movie_poster_url(movie)
             runtime = movie.get("runtime")
@@ -181,6 +176,23 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
                             }
                         )
     return flattened
+
+
+def _market_movie_titles(theaters: list[object]) -> list[str]:
+    titles: list[str] = []
+    for theater in theaters:
+        if not isinstance(theater, dict):
+            continue
+        movies = theater.get("movies")
+        if not isinstance(movies, list):
+            continue
+        for movie in movies:
+            if not isinstance(movie, dict):
+                continue
+            title = _clean_title(str(movie.get("title") or ""))
+            if title:
+                titles.append(title)
+    return list(dict.fromkeys(titles))
 
 
 _EVENT_TITLE_PREFIXES = (
