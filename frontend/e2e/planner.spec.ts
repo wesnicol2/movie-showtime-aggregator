@@ -202,6 +202,8 @@ test("calendar-first flow keeps wanted movies and returns to the planned day aft
 
   await expect(page.getByRole("heading", { name: "Plan your movie week" })).toBeVisible();
   await expect(page.getByText("3 wanted movies still unplanned")).toBeVisible();
+  await page.getByText("3 wanted movies still unplanned").click();
+  await expect(page.getByText("Alpha, Beta, Gamma")).toBeVisible();
 
   const today = page.locator(`[data-date="${isoDate()}"]`);
   await today.getByRole("button", { name: "Choose movies" }).click();
@@ -233,6 +235,8 @@ test("calendar-first flow keeps wanted movies and returns to the planned day aft
   await expect(page.getByText("1 planned day")).toBeVisible();
   await expect(page.getByText("2 planned movies")).toBeVisible();
   await expect(page.getByText("1 wanted movie still unplanned")).toBeVisible();
+  await page.getByText("1 wanted movie still unplanned").click();
+  await expect(page.getByText("Gamma", { exact: true })).toBeVisible();
   await expect(today.getByText("Alpha", { exact: true })).toBeVisible();
   await expect(today.getByText("Beta", { exact: true })).toBeVisible();
   const savedEvent = today.locator(".experience-deviation.positive", { hasText: "Fan Event" });
@@ -242,6 +246,73 @@ test("calendar-first flow keeps wanted movies and returns to the planned day aft
   await expect(page).toHaveURL(/\/movies$/);
   await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
   await expect(page.getByText("Planned this day").first()).toBeVisible();
+});
+
+test("a past plan does not hide a wanted movie from the unplanned warning", async ({ page }) => {
+  const pastDate = isoDate(-1);
+  await page.addInitScript(
+    ({ date }) => {
+      localStorage.setItem(
+        "movie-showtime-aggregator.selected-movies.v1",
+        JSON.stringify(["Past Movie"]),
+      );
+      localStorage.setItem(
+        "movie-showtime-aggregator.planner.v1",
+        JSON.stringify({
+          [date]: {
+            date,
+            savedAt: `${date}T12:00:00`,
+            itinerary: {
+              showtime_ids: [],
+              movies: ["Past Movie"],
+              dropped_movies: [],
+              want_score: 1,
+              starts_at: `${date}T12:00:00`,
+              ends_at: `${date}T14:00:00`,
+              elapsed_minutes: 120,
+              movie_minutes: 120,
+              travel_minutes: 0,
+              waiting_minutes: 0,
+              legs: [],
+            },
+            screenings: [],
+            runtimeOverrides: {},
+          },
+        }),
+      );
+    },
+    { date: pastDate },
+  );
+  await page.route("**/api/screenings?*", async (route) => {
+    const url = new URL(route.request().url());
+    const date = url.searchParams.get("date") ?? isoDate();
+    await route.fulfill({
+      json: {
+        date,
+        market_zip: "85004",
+        radius_miles: 25,
+        location: { zip_code: "85004", radius_miles: 25 },
+        preferences: {
+          amc_vendor_key_set: false,
+          omdb_api_key_set: false,
+          amc_a_list: false,
+          home_configured: true,
+        },
+        preview_minutes_by_chain: {},
+        enrichment_enabled: false,
+        count: 0,
+        total_count: 0,
+        facets: { chains: [], movies: [], theatres: [], formats: [] },
+        screenings: [],
+      },
+    });
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByText("1 wanted movie still unplanned")).toBeVisible();
+  await page.getByText("1 wanted movie still unplanned").click();
+  await expect(page.getByText("Past Movie", { exact: true })).toBeVisible();
 });
 
 test("Movie Day saved views restore planning controls without saving movie selection", async ({
