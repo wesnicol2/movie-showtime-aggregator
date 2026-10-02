@@ -4,7 +4,7 @@ import json
 import os
 import threading
 from contextlib import suppress
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +18,8 @@ class PersistentSettings:
     amc_vendor_key: str = ""
     omdb_api_key: str = ""
     amc_a_list: bool = False
+    experience_deviation_impacts: dict[str, int] = field(default_factory=dict)
+    disabled_experience_deviations: tuple[str, ...] = ()
 
     def public_dict(self) -> dict[str, object]:
         return {
@@ -79,6 +81,12 @@ def _parse_settings(payload: object) -> PersistentSettings:
         amc_vendor_key=_string(payload.get("amc_vendor_key")),
         omdb_api_key=_string(payload.get("omdb_api_key")),
         amc_a_list=payload.get("amc_a_list") is True,
+        experience_deviation_impacts=_experience_impacts(
+            payload.get("experience_deviation_impacts")
+        ),
+        disabled_experience_deviations=_string_tuple(
+            payload.get("disabled_experience_deviations")
+        ),
     )
 
 
@@ -94,3 +102,27 @@ def _coordinate(value: Any, minimum: float, maximum: float) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if minimum <= number <= maximum else None
+
+
+def _experience_impacts(value: Any) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    impacts: dict[str, int] = {}
+    for key, raw_score in value.items():
+        if not isinstance(key, str) or not key.strip() or isinstance(raw_score, bool):
+            continue
+        try:
+            score = int(raw_score)
+        except (TypeError, ValueError):
+            continue
+        if -10 <= score <= 10 and score != 0:
+            impacts[key.strip()] = score
+    return impacts
+
+
+def _string_tuple(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, list | tuple):
+        return ()
+    return tuple(
+        dict.fromkeys(item.strip() for item in value if isinstance(item, str) and item.strip())
+    )
