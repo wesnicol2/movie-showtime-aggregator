@@ -123,6 +123,7 @@ test("priority rows use drag handles and can send a movie directly to the top", 
 }) => {
   await mockScreenings(page);
   await page.goto("/plan");
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
 
   await expect(page.getByRole("button", { name: "Hold and drag Beta to reorder" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Move Beta up; send to top" })).toHaveText("Top");
@@ -135,6 +136,7 @@ test("priority rows use drag handles and can send a movie directly to the top", 
 test("holding then dragging the three-line handle reorders movie priority", async ({ page }) => {
   await mockScreenings(page);
   await page.goto("/plan");
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
 
   const handle = page.getByRole("button", { name: "Hold and drag Beta to reorder" });
   const alphaRow = page.locator("[data-movie-priority-row]").filter({ hasText: "Alpha" });
