@@ -193,14 +193,15 @@ test("the priority-list X confirms and globally deselects the movie", async ({ p
   const date = today();
   await mockScreenings(page, date);
   await page.goto("/plan");
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
 
   page.once("dialog", async (dialog) => {
     expect(dialog.message()).toContain("Alpha");
     await dialog.accept();
   });
-  await page.getByRole("button", { name: "Remove Alpha from selected movies" }).click();
+  await page.getByRole("button", { name: "Remove Alpha from want list" }).click();
 
-  await expect(page.getByRole("button", { name: "Remove Alpha from selected movies" })).toHaveCount(
+  await expect(page.getByRole("button", { name: "Remove Alpha from want list" })).toHaveCount(
     0,
   );
   const selected = await page.evaluate(() =>
