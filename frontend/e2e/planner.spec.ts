@@ -46,6 +46,16 @@ function screeningsFor(date: string) {
       rotten_tomatoes_url: "",
       metacritic_url: "",
       route_source_url: "",
+      experience_deviations: [
+        {
+          id: "event:fan-event",
+          label: "Fan Event",
+          category: "event",
+          polarity: "positive",
+          score_delta: 1,
+        },
+      ],
+      experience_score_adjustment: 1,
     },
     {
       showtime_id: `${date}-beta`,
@@ -157,7 +167,9 @@ async function mockPlannerApi(page: Page): Promise<void> {
             showtime_ids: [`${date}-alpha`, `${date}-beta`],
             movies: ["Alpha", "Beta"],
             dropped_movies: [],
-            want_score: 3,
+            base_want_score: 3,
+            experience_adjustment: 1,
+            want_score: 4,
             starts_at: `${date}T09:00:00`,
             ends_at: `${date}T13:10:00`,
             elapsed_minutes: 250,
@@ -216,6 +228,8 @@ test("Movie Day hides unavailable selected movies, deselects saved movies, and r
   const today = page.locator(`[data-date="${isoDate()}"]`);
   await expect(today.getByText("Alpha", { exact: true })).toBeVisible();
   await expect(today.getByText("Beta", { exact: true })).toBeVisible();
+  const savedEvent = today.locator(".experience-deviation.positive", { hasText: "Fan Event" });
+  await expect(savedEvent).toContainText("+");
 
   await today.getByRole("button", { name: "Replan" }).click();
   await expect(page).toHaveURL(/\/plan$/);

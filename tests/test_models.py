@@ -80,3 +80,65 @@ def test_format_can_be_derived_from_attributes():
 
     assert screening is not None
     assert screening.format == "IMAX"
+
+
+def test_standard_recliner_screening_has_no_experience_deviations():
+    screening = normalize_showtime(
+        raw_showtime(premiumFormat="", attributes=["Standard", "AMC Signature Recliners"])
+    )
+
+    assert screening is not None
+    assert screening.format == "Standard"
+    assert screening.experience_deviations == ()
+    assert screening.experience_score_adjustment == 0
+
+
+def test_premium_format_is_positive_experience_deviation():
+    screening = normalize_showtime(
+        raw_showtime(attributes=["Dolby Cinema", "AMC Signature Recliners"])
+    )
+
+    assert screening is not None
+    assert [(item.label, item.score_delta) for item in screening.experience_deviations] == [
+        ("Dolby Cinema", 1)
+    ]
+    assert screening.experience_score_adjustment == 1
+
+
+def test_amc_without_recliner_attribute_is_negative_deviation():
+    screening = normalize_showtime(raw_showtime(premiumFormat="", attributes=["Standard"]))
+
+    assert screening is not None
+    assert [(item.label, item.score_delta) for item in screening.experience_deviations] == [
+        ("No Signature Recliners", -1)
+    ]
+    assert screening.experience_score_adjustment == -1
+
+
+def test_non_amc_without_recliner_attribute_is_not_penalized():
+    screening = normalize_showtime(
+        raw_showtime(
+            chainName="Harkins Theatres",
+            theatreName="Harkins Test 14",
+            premiumFormat="",
+            attributes=["Standard"],
+        )
+    )
+
+    assert screening is not None
+    assert screening.experience_deviations == ()
+
+
+def test_special_event_stacks_with_premium_format():
+    screening = normalize_showtime(
+        raw_showtime(attributes=["Dolby Cinema", "AMC Signature Recliners", "Fan Event"])
+    )
+
+    assert screening is not None
+    assert [(item.label, item.score_delta) for item in screening.experience_deviations] == [
+        ("Dolby Cinema", 1),
+        ("Fan Event", 1),
+    ]
+    assert screening.experience_score_adjustment == 2
+    payload = screening.to_dict()
+    assert payload["experience_score_adjustment"] == 2

@@ -99,6 +99,7 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
         raise FandangoError("Fandango response did not contain a theater list")
 
     flattened: list[dict[str, object]] = []
+    market_titles = _market_movie_titles(theaters)
     for theater in theaters:
         if not isinstance(theater, dict):
             continue
@@ -109,11 +110,11 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
         movies = theater.get("movies")
         if not theatre_name or not isinstance(movies, list):
             continue
-
         for movie in movies:
             if not isinstance(movie, dict):
                 continue
-            title = _clean_title(str(movie.get("title") or ""))
+            source_title = _clean_title(str(movie.get("title") or ""))
+            title = _canonical_event_title(source_title, market_titles)
             movie_source_id = _movie_source_id(movie)
             poster_url = _movie_poster_url(movie)
             runtime = movie.get("runtime")
@@ -159,6 +160,13 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
                                 "showDateTimeLocal": ticketing_date.replace("+", "T", 1),
                                 "runTime": runtime,
                                 "premiumFormat": _showtime_format(showtime, format_name),
+                                "attributes": _experience_attributes(
+                                    header,
+                                    group,
+                                    showtime,
+                                    source_title=source_title,
+                                    canonical_title=title,
+                                ),
                                 "purchaseUrl": showtime.get("ticketingJumpPageURL") or "",
                                 "isCanceled": False,
                                 "isSoldOut": bool(showtime.get("isSoldOut"))
@@ -168,6 +176,67 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
                             }
                         )
     return flattened
+
+
+def _market_movie_titles(theaters: list[object]) -> list[str]:
+    titles: list[str] = []
+    for theater in theaters:
+        if not isinstance(theater, dict):
+            continue
+        movies = theater.get("movies")
+        if not isinstance(movies, list):
+            continue
+        for movie in movies:
+            if not isinstance(movie, dict):
+                continue
+            title = _clean_title(str(movie.get("title") or ""))
+            if title:
+                titles.append(title)
+    return list(dict.fromkeys(titles))
+
+
+_EVENT_TITLE_PREFIXES = (re.compile(r"^blumfest\s+presents\s*:\s*", re.IGNORECASE),)
+_EVENT_TITLE_SUFFIXES = (
+    re.compile(r"\s*[-:]?\s*fan\s+event\s+screenings?\s*$", re.IGNORECASE),
+    re.compile(r"\s*[-:]?\s*fan\s+event\s*$", re.IGNORECASE),
+)
+
+
+def _canonical_event_title(source_title: str, sibling_titles: list[str]) -> str:
+    candidate, year_suffix = _split_title_year_suffix(source_title)
+    for pattern in _EVENT_TITLE_PREFIXES:
+        candidate = pattern.sub("", candidate).strip()
+    for pattern in _EVENT_TITLE_SUFFIXES:
+        candidate = pattern.sub("", candidate).strip()
+
+    if candidate == _split_title_year_suffix(source_title)[0] or not candidate:
+        return source_title
+
+    if year_suffix:
+        candidate = f"{candidate} {year_suffix}"
+
+    candidate_identity = _movie_title_identity(candidate)
+    if not candidate_identity:
+        return source_title
+
+    for sibling in sibling_titles:
+        if sibling == source_title:
+            continue
+        if _movie_title_identity(sibling) == candidate_identity:
+            return sibling
+    return source_title
+
+
+def _split_title_year_suffix(title: str) -> tuple[str, str]:
+    match = re.search(r"(\s*\(\d{4}\)\s*)$", title)
+    if match is None:
+        return title, ""
+    return title[: match.start()].strip(), match.group(1).strip()
+
+
+def _movie_title_identity(title: str) -> str:
+    without_year = re.sub(r"\s*\(\d{4}\)\s*$", "", title).strip()
+    return " ".join(re.findall(r"[a-z0-9]+", without_year.casefold()))
 
 
 def _movie_source_id(movie: dict[str, object]) -> str:
@@ -220,6 +289,49 @@ def _showtime_format(showtime: dict[str, object], fallback: str) -> str:
                 texts.append(str(entry))
     specific = _canonical_format(" ".join(texts))
     return specific if specific != "Standard" else fallback
+
+
+def _experience_attributes(
+    header: str,
+    group: dict[str, object],
+    showtime: dict[str, object],
+    *,
+    source_title: str = "",
+    canonical_title: str = "",
+) -> list[str]:
+    texts: list[str] = []
+    if source_title and source_title != canonical_title:
+        texts.append(source_title)
+    if header.strip():
+        texts.append(header.strip())
+
+    amenities = group.get("amenities")
+    if isinstance(amenities, list):
+        for amenity in amenities:
+            if isinstance(amenity, dict):
+                for key in ("name", "description", "code"):
+                    text = str(amenity.get(key) or "").strip()
+                    if text:
+                        texts.append(text)
+            else:
+                text = str(amenity).strip()
+                if text:
+                    texts.append(text)
+
+    film_format = showtime.get("filmFormat")
+    if isinstance(film_format, list):
+        for entry in film_format:
+            if isinstance(entry, dict):
+                for key in ("filterName", "name", "code"):
+                    text = str(entry.get(key) or "").strip()
+                    if text:
+                        texts.append(text)
+            else:
+                text = str(entry).strip()
+                if text:
+                    texts.append(text)
+
+    return list(dict.fromkeys(texts))
 
 
 def _format_name(header: str, group: dict[str, object]) -> str:

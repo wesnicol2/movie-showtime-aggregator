@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { createMovieDayPlan } from "./api";
+import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
 import { MovieDayControlBar } from "./components/MovieDayControlBar";
 import { MoviePriorityEditor } from "./components/MoviePriorityEditor";
 import "./movie-day.css";
@@ -367,10 +368,11 @@ export function MovieDayPage() {
           </div>
           <p>
             Rank selected movies from most to least wanted. With N selected movies, #1 is worth N
-            points, #2 is worth N−1, and so on; pinned movies are mandatory. Manual runtimes replace
-            fetched runtimes when calculating end times and itinerary feasibility. Watch “Any” mixes
-            every feasible movie count under the same filters. Results are globally ranked by the
-            chosen primary objective and use Secondary sort to break ties.
+            points, #2 is worth N−1, and so on; pinned movies are mandatory. Each positive screening
+            experience deviation adds one want point and each negative deviation removes one. Manual
+            runtimes replace fetched runtimes when calculating end times and itinerary feasibility.
+            Watch “Any” mixes every feasible movie count under the same filters. Results are
+            globally ranked by the chosen primary objective and use Secondary sort to break ties.
           </p>
         </div>
       ) : null}
@@ -488,6 +490,7 @@ function ItineraryCard({
   const screenings = itinerary.showtime_ids
     .map((showtimeId) => screeningById.get(showtimeId))
     .filter((screening): screening is Screening => screening !== undefined);
+  const experienceAdjustment = itinerary.experience_adjustment ?? 0;
 
   return (
     <article className="itinerary-card">
@@ -502,7 +505,12 @@ function ItineraryCard({
           ) : null}
         </div>
         <div className="itinerary-summary">
-          <span>Want score {itinerary.want_score}</span>
+          <span>
+            Want score {itinerary.want_score}
+            {experienceAdjustment !== 0
+              ? ` (${formatSignedScore(experienceAdjustment)} experience)`
+              : ""}
+          </span>
           <span>{formatDuration(itinerary.elapsed_minutes)} total</span>
           <span>Home at {itinerary.home_at ? formatTime(itinerary.home_at) : "not available"}</span>
           <span>{itinerary.travel_minutes} min driving</span>
@@ -536,10 +544,10 @@ function ItineraryCard({
                 <div>
                   <strong>{screening.movie}</strong>
                   <span>
-                    {screening.theatre} · {screening.format} ·{" "}
-                    {runtime === null ? "runtime unknown" : `${runtime} min`}
+                    {screening.theatre} · {runtime === null ? "runtime unknown" : `${runtime} min`}
                     {runtimeOverride !== undefined ? " · manual" : ""}
                   </span>
+                  <ExperienceDeviationChips deviations={screening.experience_deviations} />
                 </div>
                 <a href={screening.purchase_url} target="_blank" rel="noreferrer">
                   Tickets
@@ -682,4 +690,8 @@ function formatDuration(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   return hours ? `${hours}h ${remainder}m` : `${remainder}m`;
+}
+
+function formatSignedScore(value: number): string {
+  return value > 0 ? `+${value}` : `${value}`;
 }

@@ -42,6 +42,8 @@ class MovieDayItinerary:
     showtime_ids: tuple[str, ...]
     movies: tuple[str, ...]
     dropped_movies: tuple[str, ...]
+    base_want_score: int
+    experience_adjustment: int
     want_score: int
     starts_at: datetime
     ends_at: datetime
@@ -57,6 +59,8 @@ class MovieDayItinerary:
             "showtime_ids": list(self.showtime_ids),
             "movies": list(self.movies),
             "dropped_movies": list(self.dropped_movies),
+            "base_want_score": self.base_want_score,
+            "experience_adjustment": self.experience_adjustment,
             "want_score": self.want_score,
             "starts_at": self.starts_at.isoformat(timespec="minutes"),
             "ends_at": self.ends_at.isoformat(timespec="minutes"),
@@ -332,6 +336,16 @@ def _ranked_itineraries(
             tuple[tuple[int, int], ...],
         ]
     ] = []
+    score_upper_bounds = {
+        movie: movie_scores[movie]
+        + max(
+            screening.experience_score_adjustment
+            for screening in candidates
+            if screening.movie == movie
+        )
+        for movie in movies
+        if any(screening.movie == movie for screening in candidates)
+    }
 
     for index, visited_mask, count in starts:
         if count == 0:
@@ -348,6 +362,7 @@ def _ranked_itineraries(
                     secondary_sort_by,
                     movie_bits=movie_bits,
                     movie_scores=movie_scores,
+                    score_upper_bounds=score_upper_bounds,
                     visited_mask=visited_mask,
                     target=target,
                 ),
@@ -397,6 +412,7 @@ def _ranked_itineraries(
                         secondary_sort_by,
                         movie_bits=movie_bits,
                         movie_scores=movie_scores,
+                        score_upper_bounds=score_upper_bounds,
                         visited_mask=next_mask,
                         target=target,
                     ),
@@ -419,6 +435,7 @@ def _path_priority(
     *,
     movie_bits: dict[str, int],
     movie_scores: dict[str, int],
+    score_upper_bounds: dict[str, int],
     visited_mask: int,
     target: int,
 ) -> tuple[object, ...]:
@@ -434,10 +451,17 @@ def _path_priority(
     return_home_minutes = (current.drive_home_minutes or 0) if is_complete else 0
     total_elapsed_minutes = elapsed_minutes + outbound_minutes + return_home_minutes
     total_drive_minutes = drive_minutes + outbound_minutes + return_home_minutes
-    current_score = sum(movie_scores[candidates[index].movie] for index, _ in path)
+    current_score = sum(
+        movie_scores[candidates[index].movie] + candidates[index].experience_score_adjustment
+        for index, _ in path
+    )
     remaining_slots = target - visited_mask.bit_count()
     remaining_scores = sorted(
-        (score for movie, score in movie_scores.items() if not visited_mask & movie_bits[movie]),
+        (
+            score
+            for movie, score in score_upper_bounds.items()
+            if not visited_mask & movie_bits[movie]
+        ),
         reverse=True,
     )
     score_upper_bound = current_score + sum(remaining_scores[:remaining_slots])
@@ -539,11 +563,15 @@ def _make_itinerary(
     total_travel = outbound_minutes + sum(leg.drive_minutes for leg in legs) + return_home_minutes
     included_movies = tuple(screening.movie for screening in selected)
     included = set(included_movies)
+    base_want_score = sum(movie_scores[movie] for movie in included_movies)
+    experience_adjustment = sum(screening.experience_score_adjustment for screening in selected)
     return MovieDayItinerary(
         showtime_ids=tuple(screening.showtime_id for screening in selected),
         movies=included_movies,
         dropped_movies=tuple(movie for movie in selected_movies if movie not in included),
-        want_score=sum(movie_scores[movie] for movie in included_movies),
+        base_want_score=base_want_score,
+        experience_adjustment=experience_adjustment,
+        want_score=base_want_score + experience_adjustment,
         starts_at=starts_at,
         ends_at=ends_at,
         home_at=_estimated_home_arrival(selected[-1]) if home_configured else None,

@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta
 
+from .experience import ExperienceDeviation, classify_experience
+
 
 @dataclass(frozen=True, slots=True)
 class Screening:
@@ -39,6 +41,11 @@ class Screening:
     rotten_tomatoes_url: str = ""
     metacritic_url: str = ""
     route_source_url: str = ""
+    experience_deviations: tuple[ExperienceDeviation, ...] = ()
+
+    @property
+    def experience_score_adjustment(self) -> int:
+        return sum(deviation.score_delta for deviation in self.experience_deviations)
 
     def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -51,6 +58,7 @@ class Screening:
         ):
             value = getattr(self, field)
             payload[field] = value.isoformat(timespec="minutes") if value else None
+        payload["experience_score_adjustment"] = self.experience_score_adjustment
         return payload
 
 
@@ -72,12 +80,13 @@ def normalize_showtime(raw: dict[str, object]) -> Screening | None:
     except ValueError:
         return None
 
+    format_name = _format_name(raw)
     return Screening(
         showtime_id=str(showtime_id_raw),
         movie=movie,
         theatre=theatre,
         chain=chain,
-        format=_format_name(raw),
+        format=format_name,
         advertised_start=advertised_start,
         actual_start=None,
         estimated_end=None,
@@ -88,6 +97,7 @@ def normalize_showtime(raw: dict[str, object]) -> Screening | None:
         theatre_latitude=_coordinate(raw.get("theatreLatitude"), minimum=-90, maximum=90),
         theatre_longitude=_coordinate(raw.get("theatreLongitude"), minimum=-180, maximum=180),
         poster_url=str(raw.get("posterUrl") or "").strip(),
+        experience_deviations=classify_experience(raw, chain=chain, format_name=format_name),
     )
 
 
