@@ -15,6 +15,11 @@ from wsgiref.simple_server import make_server
 from .amc import AMCClient
 from .config import Settings
 from .enrichment import enrich_amc_details, enrich_movie_metadata, enrich_travel_times
+from .experience import (
+    configure_experience,
+    experience_rule_ids,
+    experience_settings_payload,
+)
 from .fandango import FandangoClient, FandangoError
 from .location import GeoPoint, LocationError, ZipLocator
 from .metadata import OMDB_DAILY_LIMIT, OmdbClient
@@ -92,6 +97,9 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
             radius_miles=radius_miles,
         )
         stored = _STORE.load()
+        all_screenings = [
+            _configure_screening_experience(screening, stored) for screening in all_screenings
+        ]
         if enrichment_enabled:
             all_screenings = enrich_movie_metadata(
                 all_screenings, _omdb_client(stored.omdb_api_key)
@@ -188,7 +196,10 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
         home = _home_point(stored)
         candidates = enrich_travel_times(
             [
-                _apply_runtime_override(screening, runtime_overrides.get(screening.movie))
+                _apply_runtime_override(
+                    _configure_screening_experience(screening, stored),
+                    runtime_overrides.get(screening.movie),
+                )
                 for screening in canonical
                 if screening.showtime_id in showtime_ids and screening.movie in movies
             ],
@@ -286,6 +297,13 @@ def _settings_response(environ: dict, start_response: Callable, method: str) -> 
             clear_field="clear_omdb_api_key",
             current_value=current.omdb_api_key,
         )
+        if "experience_deviations" in payload:
+            impacts, disabled = _parse_experience_deviation_settings(
+                payload["experience_deviations"],
+                current,
+            )
+            changes["experience_deviation_impacts"] = impacts
+            changes["disabled_experience_deviations"] = disabled
         updated = _STORE.update(**changes) if changes else current
     except ValueError as exc:
         return _json_response(start_response, 400, {"error": str(exc)}, method)
@@ -301,7 +319,65 @@ def _settings_payload(settings: PersistentSettings) -> dict[str, object]:
         "omdb": _PROVIDER_CACHE.status("omdb", published_daily_limit=OMDB_DAILY_LIMIT),
         "amc": _PROVIDER_CACHE.status("amc"),
     }
+    payload["experience_deviations"] = experience_settings_payload(
+        settings.experience_deviation_impacts,
+        settings.disabled_experience_deviations,
+    )
     return payload
+
+
+def _parse_experience_deviation_settings(
+    value: object,
+    current: PersistentSettings,
+) -> tuple[dict[str, int], tuple[str, ...]]:
+    if not isinstance(value, list):
+        raise ValueError("experience_deviations must be a list")
+
+    known_ids = experience_rule_ids()
+    impacts = dict(current.experience_deviation_impacts)
+    disabled = set(current.disabled_experience_deviations)
+    seen: set[str] = set()
+
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError("each experience deviation must be an object")
+        rule_id = str(item.get("id") or "").strip()
+        if rule_id not in known_ids:
+            raise ValueError(f"unknown experience deviation: {rule_id or 'missing id'}")
+        if rule_id in seen:
+            raise ValueError(f"duplicate experience deviation: {rule_id}")
+        seen.add(rule_id)
+
+        enabled = item.get("enabled")
+        if not isinstance(enabled, bool):
+            raise ValueError(f"{rule_id} enabled must be true or false")
+        raw_score = item.get("score_delta")
+        if isinstance(raw_score, bool) or not isinstance(raw_score, int):
+            raise ValueError(f"{rule_id} impact must be a whole number")
+        if raw_score == 0 or not -10 <= raw_score <= 10:
+            raise ValueError(f"{rule_id} impact must be a non-zero whole number from -10 to 10")
+
+        impacts[rule_id] = raw_score
+        if enabled:
+            disabled.discard(rule_id)
+        else:
+            disabled.add(rule_id)
+
+    return impacts, tuple(sorted(disabled))
+
+
+def _configure_screening_experience(
+    screening: Screening,
+    settings: PersistentSettings,
+) -> Screening:
+    return replace(
+        screening,
+        experience_deviations=configure_experience(
+            screening.experience_deviations,
+            score_overrides=settings.experience_deviation_impacts,
+            disabled=settings.disabled_experience_deviations,
+        ),
+    )
 
 
 def _apply_secret_change(
