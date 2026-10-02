@@ -459,6 +459,26 @@ def test_experience_deviation_settings_persist_and_apply_to_screenings(monkeypat
     assert payload["screenings"][0]["experience_score_adjustment"] == 3
     assert payload["screenings"][0]["experience_deviations"][0]["score_delta"] == 3
 
+    class NoTravelRouter:
+        def travel_matrix(self, points):
+            return {}
+
+    monkeypatch.setattr(api, "_ROUTER", NoTravelRouter())
+    code, movie_day = call(
+        "/api/movie-day",
+        method="POST",
+        json_body={
+            "date": "2026-09-04",
+            "movies": ["Premium"],
+            "showtime_ids": ["1"],
+            "sort_by": "want",
+        },
+    )
+    assert code == 200
+    assert movie_day["itineraries"][0]["base_want_score"] == 1
+    assert movie_day["itineraries"][0]["experience_adjustment"] == 3
+    assert movie_day["itineraries"][0]["want_score"] == 4
+
     code, _ = call(
         "/api/settings",
         method="POST",
