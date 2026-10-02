@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+branch="$(git branch --show-current)"
+if [[ "$branch" != dev/* ]]; then
+  echo "scripts/prepush must run from a dev/* branch; current branch: ${branch:-<detached>}." >&2
+  exit 1
+fi
+
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "scripts/prepush requires a clean working tree and index. Commit your intended changes first." >&2
+  exit 1
+fi
+
+npm ci
+bash scripts/fix
+
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "scripts/fix changed tracked files. Review and commit those fixes, then rerun scripts/prepush." >&2
+  git diff --stat >&2
+  exit 1
+fi
+
+bash scripts/verify
+bash scripts/verify-browser
