@@ -189,9 +189,7 @@ test("Any returns itineraries across every feasible movie count in global want-s
   await expect(cards.nth(0).getByText("Beta", { exact: true })).toBeVisible();
 });
 
-test("the priority-list X removes a movie from this day but keeps it wanted", async ({
-  page,
-}) => {
+test("the priority-list X removes a movie from this day but keeps it wanted", async ({ page }) => {
   const date = today();
   await mockScreenings(page, date);
   await page.goto("/plan");
