@@ -90,8 +90,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
       planningDraftDate === responseDate && planningDraftMovies !== null
         ? planningDraftMovies
         : null;
-    const candidates =
-      draftMovies ?? [...new Set([...selectedMovies, ...currentPlanMovies])];
+    const candidates = draftMovies ?? [...new Set([...selectedMovies, ...currentPlanMovies])];
     return candidates.filter(
       (movie) =>
         showingMovies.has(movie) && (!plannedElsewhere.has(movie) || currentPlanMovies.has(movie)),
