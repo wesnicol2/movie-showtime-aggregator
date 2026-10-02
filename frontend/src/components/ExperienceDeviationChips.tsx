@@ -4,7 +4,7 @@ import "./experience-deviation-chips.css";
 export function ExperienceDeviationChips({
   deviations,
 }: {
-  deviations?: readonly ExperienceDeviation[];
+  deviations: readonly ExperienceDeviation[] | undefined;
 }) {
   if (!deviations?.length) return null;
 
