@@ -84,9 +84,7 @@ def _parse_settings(payload: object) -> PersistentSettings:
         experience_deviation_impacts=_experience_impacts(
             payload.get("experience_deviation_impacts")
         ),
-        disabled_experience_deviations=_string_tuple(
-            payload.get("disabled_experience_deviations")
-        ),
+        disabled_experience_deviations=_string_tuple(payload.get("disabled_experience_deviations")),
     )
 
 
