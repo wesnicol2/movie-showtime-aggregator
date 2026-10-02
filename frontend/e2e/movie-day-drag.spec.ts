@@ -146,7 +146,7 @@ test("Movie Day reorder requires a hold and floats the dragged movie into positi
   await mockScreenings(page);
   await page.goto("/plan");
 
-  await expect(page.getByText("Home by", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Build your itinerary" })).toBeVisible();
 
   const rows = page.locator("[data-movie-priority-row]");
   await expect(rows.nth(0)).toContainText("Alpha");
