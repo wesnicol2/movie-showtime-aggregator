@@ -559,8 +559,8 @@
   margin: 8px 0 12px;
 }
 
-.movie-day-priority-advanced > summary,
-.movie-day-explanation > summary {
+.movie-day-priority-advanced > .movie-day-detail-summary,
+.movie-day-explanation > .movie-day-detail-summary {
   width: max-content;
   padding: 8px 2px;
   cursor: pointer;
@@ -569,8 +569,8 @@
   font-weight: 700;
 }
 
-.movie-day-priority-advanced[open] > summary,
-.movie-day-explanation[open] > summary {
+.movie-day-priority-advanced[open] > .movie-day-detail-summary,
+.movie-day-explanation[open] > .movie-day-detail-summary {
   color: var(--text);
 }
 
