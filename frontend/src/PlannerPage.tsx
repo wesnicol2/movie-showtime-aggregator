@@ -267,7 +267,7 @@ function DayRow({
         {plan ? (
           <div className="planner-day-actions">
             <button type="button" onClick={() => onChooseDate(date)}>
-              Replan
+              Edit day
             </button>
             <button className="danger-quiet" type="button" onClick={() => onDelete(plan)}>
               Remove
@@ -275,7 +275,7 @@ function DayRow({
           </div>
         ) : (
           <button className="planner-plan-day" type="button" onClick={() => onChooseDate(date)}>
-            Plan this day →
+            Choose movies →
           </button>
         )}
       </header>
