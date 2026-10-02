@@ -315,6 +315,7 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
   await mockApi(page);
   await page.goto("/plan");
   await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
 
   await page.getByRole("button", { name: "Move Beta up" }).click();
   await page.getByRole("button", { name: "Pin Beta" }).click();
@@ -384,10 +385,12 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
   await mockApi(page);
   await page.goto("/plan");
   await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
 
   const runtimeInput = page.getByLabel("Alpha runtime minutes");
   await expect(runtimeInput).toHaveAttribute("placeholder", "120");
   await runtimeInput.fill("95");
+  await page.getByText("How this plan is scored", { exact: true }).click();
   await expect(page.getByText("1 runtime overrides")).toBeVisible();
   await page.getByLabel("Number of movies").selectOption("1");
 
@@ -441,5 +444,6 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
   await expect(page.getByText("95 min · manual")).toBeVisible();
 
   await page.reload();
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
   await expect(page.getByLabel("Alpha runtime minutes")).toHaveValue("95");
 });
