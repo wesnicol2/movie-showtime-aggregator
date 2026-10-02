@@ -63,7 +63,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
 
   const responseDate = response?.date ?? "";
   const allScreenings = useMemo(() => response?.screenings ?? [], [response]);
-  const savedPlans = useMemo(() => readSavedMoviePlans(), [responseDate]);
+  const savedPlans = useMemo(() => readSavedMoviePlans(), []);
   const currentPlanMovies = useMemo(
     () =>
       new Set(
