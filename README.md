@@ -227,23 +227,41 @@ After editing frontend or Python code:
 
 ```bash
 bash scripts/fix
-```
-
-Before every push:
-
-```bash
 bash scripts/verify
 ```
 
-That repo-owned deterministic gate checks Biome, strict TypeScript, a Vite production build, Ruff lint/format, Python compilation, and pytest. CI then additionally builds the production Docker image, boots that exact image, and runs Playwright Chromium smoke coverage at desktop and mobile sizes with screening/settings API responses mocked. The browser smoke therefore verifies production asset serving and core UI state behavior without consuming Fandango, OMDb, or AMC quota.
+For browser/UI work, reproduce a specific failing test directly against the built
+production container instead of debugging from CI logs:
+
+```bash
+bash scripts/verify-browser frontend/e2e/filter-none.spec.ts --project=desktop-chromium
+bash scripts/verify-browser frontend/e2e/filter-none.spec.ts --project=mobile-chromium
+```
+
+Playwright retains a trace and failure screenshot under `test-results/`. Inspect
+those artifacts before changing implementation or assertions, rerun the specific
+test on both projects, then run the full browser suite.
+
+Before every push, commit the intended changes and run:
+
+```bash
+bash scripts/prepush
+```
+
+The prepush gate only runs on a clean `dev/*` branch. It installs pinned frontend
+dependencies, runs the fixer and fails if the fixer changes tracked files, then runs
+both the deterministic source gate and the production-container browser gate. CI
+delegates to the same repo-owned scripts and uploads `test-results/` when the
+browser gate fails.
 
 A deployed Test environment remains the integration gate for real upstream credentials, networking, persistent volumes, AMC matching/seating permissions, and external-provider behavior.
 
 ## Endpoints
 
-- `/` — spreadsheet-style screening workstation.
-- `/movies` — poster-first Movie Selection page.
-- `/plan` — Movie Day optimizer with editable/ranked movie pool, pins, exact watch count, time bounds, collapsible showing filters, and global primary/secondary itinerary sorting.
+- `/` — infinite-scroll movie calendar and primary planning home.
+- `/movies` — date-specific poster-first movie picker backed by the persistent want list.
+- `/plan` — itinerary builder for the selected date; defaults to one movie with power-user controls progressively disclosed.
+- `/showtimes` — spreadsheet-style screening inspection and saved-view surface.
 - `/settings` — browser settings plus shared server settings/integration credentials and provider usage/cache status.
 - `/api/settings` — GET public settings/provider-usage state; POST shared settings. Secret values are never returned.
 - `/api/screenings` — normalized/enriched screenings and facets. Direct API consumers can still use server-side `movie`, `theatre`, `format`, `start_after`, `start_before`, `end_by`, `preview=Chain:minutes`, `zip=`, `radius=`, and `date=` parameters; browser cookies take precedence for location/preview settings.
