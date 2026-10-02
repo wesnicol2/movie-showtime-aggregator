@@ -31,7 +31,7 @@ export interface ExperienceDeviation {
   label: string;
   category: string;
   polarity: "positive" | "negative";
-  score_delta: 1 | -1;
+  score_delta: number;
 }
 
 export interface Screening {
@@ -189,6 +189,15 @@ export interface ProviderUsage {
   provider_rate_limit?: ProviderRateLimit | null;
 }
 
+export interface ExperienceDeviationSetting {
+  id: string;
+  label: string;
+  category: string;
+  enabled: boolean;
+  score_delta: number;
+  default_score_delta: number;
+}
+
 export interface SharedSettings extends PublicPreferences {
   home_address: string;
   home_display_name: string;
@@ -196,6 +205,7 @@ export interface SharedSettings extends PublicPreferences {
     omdb?: ProviderUsage;
     amc?: ProviderUsage;
   };
+  experience_deviations: ExperienceDeviationSetting[];
 }
 
 export interface SharedSettingsChanges {
@@ -205,4 +215,5 @@ export interface SharedSettingsChanges {
   omdb_api_key?: string;
   clear_amc_vendor_key?: boolean;
   clear_omdb_api_key?: boolean;
+  experience_deviations?: ExperienceDeviationSetting[];
 }

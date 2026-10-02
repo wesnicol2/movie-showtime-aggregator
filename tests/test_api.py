@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import pytest
 
 import movie_showtime_aggregator.api as api
+from movie_showtime_aggregator.experience import ExperienceDeviation
 from movie_showtime_aggregator.location import GeoPoint
 from movie_showtime_aggregator.models import Screening
 from movie_showtime_aggregator.provider_cache import ProviderCache
@@ -420,3 +421,78 @@ def test_invalid_time_is_400(monkeypatch):
 
     assert code == 400
     assert "Invalid time" in payload["error"]
+
+
+def test_experience_deviation_settings_persist_and_apply_to_screenings(monkeypatch):
+    imax = replace(
+        sample_screening(movie="Premium", format_name="IMAX"),
+        experience_deviations=(
+            ExperienceDeviation(
+                id="format:imax",
+                label="IMAX",
+                category="presentation",
+                polarity="positive",
+                score_delta=1,
+            ),
+        ),
+    )
+    monkeypatch.setattr(api, "_SERVICE", StubService([imax]))
+
+    code, settings = call(
+        "/api/settings",
+        method="POST",
+        json_body={
+            "experience_deviations": [
+                {"id": "format:imax", "enabled": True, "score_delta": 3},
+            ]
+        },
+    )
+
+    assert code == 200
+    imax_setting = next(
+        item for item in settings["experience_deviations"] if item["id"] == "format:imax"
+    )
+    assert imax_setting["enabled"] is True
+    assert imax_setting["score_delta"] == 3
+    assert api._STORE.load().experience_deviation_impacts["format:imax"] == 3
+
+    code, payload = call("/api/screenings", query="date=2026-09-04&enrich=0")
+    assert code == 200
+    assert payload["screenings"][0]["experience_score_adjustment"] == 3
+    assert payload["screenings"][0]["experience_deviations"][0]["score_delta"] == 3
+
+    class NoTravelRouter:
+        def travel_matrix(self, points):
+            return {}
+
+    monkeypatch.setattr(api, "_ROUTER", NoTravelRouter())
+    code, movie_day = call(
+        "/api/movie-day",
+        method="POST",
+        json_body={
+            "date": "2026-09-04",
+            "movies": ["Premium"],
+            "showtime_ids": ["1"],
+            "sort_by": "want",
+        },
+    )
+    assert code == 200
+    assert movie_day["itineraries"][0]["base_want_score"] == 1
+    assert movie_day["itineraries"][0]["experience_adjustment"] == 3
+    assert movie_day["itineraries"][0]["want_score"] == 4
+
+    code, _ = call(
+        "/api/settings",
+        method="POST",
+        json_body={
+            "experience_deviations": [
+                {"id": "format:imax", "enabled": False, "score_delta": 3},
+            ]
+        },
+    )
+    assert code == 200
+
+    code, payload = call("/api/screenings", query="date=2026-09-04&enrich=0")
+    assert code == 200
+    assert payload["screenings"][0]["experience_score_adjustment"] == 0
+    assert payload["screenings"][0]["experience_deviations"] == []
