@@ -1,10 +1,12 @@
 # movie-showtime-aggregator
 
-A React-based movie-going decision workstation built around three tightly synchronized views:
+A React-based movie-planning app built around one primary loop:
 
-- an Excel-style screening table where every displayed column can be sorted or filtered from its header;
-- a poster-first **Movie Selection** page where the whole poster tile acts as the checkbox for the table's Movie filter.
-- a **Movie Day** planner that optimizes feasible itineraries from a selected pool of movies, time bounds, and theater/showing constraints.
+- an infinite-scroll **Calendar** that opens the app and shows locked itineraries;
+- a date-specific, poster-first **Movie Selection** step;
+- a **Movie Day** itinerary optimizer that defaults to one movie and keeps advanced controls available without putting them in the novice path.
+
+The spreadsheet-style **Showtimes** table and **Settings** remain available as secondary power-user surfaces.
 
 The app discovers theaters around a configured ZIP code and radius, applies user-known preview times, and can optionally enrich screenings with movie ratings/posters, rough home travel times, and official AMC pricing/seating data. The Python backend remains authoritative for screening data, provider semantics, calculations, and enrichment; the React frontend consumes typed API contracts and performs only already-loaded interaction such as table sorting/filtering.
 
@@ -12,9 +14,15 @@ The app discovers theaters around a configured ZIP code and radius, applies user
 > [docs/new-repo-checklist.md](docs/new-repo-checklist.md) first. It covers the
 > handful of things GitHub does not copy when you click *Use this template*.
 
+## Calendar
+
+The app opens on an infinite-scroll future calendar. Pick a day to choose movies available on that date. Locked itineraries are displayed directly on the day, and locking an itinerary returns to the same calendar position.
+
+The browser-persistent want list is always accounted for: a wanted title is either in a current/future locked plan, in the active date-planning draft, or counted in the calendar's compact **still unplanned** warning. Historical plans do not satisfy that warning.
+
 ## Screening table
 
-Click a column name to sort it. Click the dropdown at the right side of any column header to filter that column. Every column supports exact-value checkboxes. Text columns add contains/equals-style rules, time columns add before/after rules, and numeric columns add less-than/greater-than rules.
+Open **Showtimes** or `/showtimes`. Click a column name to sort it. Click the dropdown at the right side of any column header to filter that column. Every column supports exact-value checkboxes. Text columns add contains/equals-style rules, time columns add before/after rules, and numeric columns add less-than/greater-than rules.
 
 Current first-class columns include movie, IMDb, Rotten Tomatoes, Metacritic, theater, distance, seats left, ticket price, chain, listed start, actual start, leave-home time, end, back-home time, and format.
 
@@ -36,19 +44,23 @@ Known external values are source links:
 
 ## Movie Selection
 
-Open `/movies` or use **Movies** in the application navigation. The page is a dark, poster-first grid inspired by a theater-app Now Playing screen. The poster itself is the selection control; selecting or deselecting a movie immediately updates the browser-persistent Movie filter used by the screening table.
+Choose a day from the calendar to open the poster-first movie grid for that date. Only movies with screenings on the selected date are shown.
 
-Movie Selection has local filters for title, minimum IMDb/Rotten Tomatoes/Metacritic ratings, and initial release date, plus multi-value checkbox filters for selection state, theater, chain, format, and listed showtime window (matinee, afternoon, evening, late night). Those controls are collapsed by default behind the **Filters** button so the poster grid remains primary; the button keeps an active-filter count visible while collapsed. Each checkbox filter opens the same **All** / **None** / per-value checkbox menu the screening table uses, and reads `All` until you narrow it.
+The app keeps two intentionally separate concepts:
 
-Theater, chain, format, and listed-time checkboxes describe screenings rather than movies, so a movie stays visible while at least one of its screenings matches every active screening filter — selecting `AMC Center 8` and a late-night window keeps only movies that actually play late at that theater. Listed showtime windows come from the provider's listed start time, not the calculated actual start, so they never depend on configured preview minutes.
+- **Wanted movies** are browser-persistent intent. Adding a previously unwatched title to a day also adds it to the want list.
+- **This day's candidates** are the temporary movies being considered for the selected date. Removing a wanted movie from one day does not remove it from the want list.
 
-Movie Selection can sort in either direction by title, initial release date, IMDb, Rotten Tomatoes, or Metacritic. The active sort field and value are shown under every title so the current ordering is visible without opening a detail view.
+Wanted movies that are available and not already planned on another current/future date are preselected for the day. Movies already planned elsewhere remain visible with their planned date but are not silently added to the new day. When editing an existing day, currently planned movies can be removed from the replacement draft.
 
-Posters, ratings, and initial release date require an OMDb API key configured in Settings. The backend normalizes OMDb's `Released` value for the release-date sort/filter; unavailable values remain `Unknown`. The page and the core showtime table still work when that metadata is unavailable.
+Movie filters stay collapsed behind **Filters**. Sort and saved-view controls are secondary. Saved views never overwrite the persistent want list or the current date draft.
 
+Posters, ratings, and initial release date require an OMDb API key configured in Settings. Missing metadata remains `Unknown` and never blocks base showtimes.
 ## Movie Day planner
 
-Open `/plan` to define the day from one compact control surface. **Movies** is a searchable checkbox pool synchronized with `/movies` and the screening table, so titles can be added or removed without leaving the planner. Theater, chain, format, and listed-time checkbox filters continue to narrow candidate showings on top of any active Screening column filters, but stay collapsed behind the Movie Day **Filters** button until needed; an active-filter count remains visible when the panel is closed. Core planning controls such as Movies, Watch, Start, End, Sort, Secondary sort, transfer buffer, and Find combinations remain visible. An optional transfer buffer reserves extra time beyond the static drive estimate.
+The normal flow reaches the planner after confirming a date-specific movie draft. It defaults to **1 movie** so a first-time user has one obvious decision: choose how many movies to watch, then **Find itineraries**.
+
+The existing power-user controls are preserved behind **Advanced options**: candidate movies, Start, Home by, primary/secondary sort, transfer buffer, saved views, and showing filters for theater, chain, format, and listed-time window. Removing a movie from the priority list removes it only from this day's draft; it remains wanted globally.
 
 **Watch** can require every selected movie or an exact smaller count. If five movies are selected and Watch is set to three, the backend evaluates feasible three-movie paths across the whole five-movie pool; different results may omit different titles. The planner currently accepts up to 10 selected movie candidates so the exact combinatorial search stays bounded.
 
@@ -229,9 +241,10 @@ A deployed Test environment remains the integration gate for real upstream crede
 
 ## Endpoints
 
-- `/` — spreadsheet-style screening workstation.
-- `/movies` — poster-first Movie Selection page.
-- `/plan` — Movie Day optimizer with editable/ranked movie pool, pins, exact watch count, time bounds, collapsible showing filters, and global primary/secondary itinerary sorting.
+- `/` — infinite-scroll movie calendar and locked itineraries.
+- `/movies` — date-specific poster selection and want-list entry step.
+- `/plan` — Movie Day optimizer; one-movie default with advanced planning controls available on demand.
+- `/showtimes` — spreadsheet-style screening workstation.
 - `/settings` — browser settings plus shared server settings/integration credentials and provider usage/cache status.
 - `/api/settings` — GET public settings/provider-usage state; POST shared settings. Secret values are never returned.
 - `/api/screenings` — normalized/enriched screenings and facets. Direct API consumers can still use server-side `movie`, `theatre`, `format`, `start_after`, `start_before`, `end_by`, `preview=Chain:minutes`, `zip=`, `radius=`, and `date=` parameters; browser cookies take precedence for location/preview settings.
