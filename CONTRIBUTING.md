@@ -58,13 +58,20 @@ Naming: `feature/kebab-case-name`, `dev/kebab-case-name`. No other prefixes.
 
 1. Cut a `dev/` branch from the relevant `feature/` branch. If there isn't one
    for this work yet, cut the `feature/` branch from `main` first.
-2. Make the change. After editing Python, run `bash scripts/fix`; do not manually
-   predict Ruff's formatting. Before pushing, run `bash scripts/verify`. This is
-   the exact verification gate CI runs, covering Ruff linting/formatting, syntax,
-   and unit tests. Do not use CI as the first lint/test feedback loop.
-3. Push. CI reruns `bash scripts/verify`; nothing deploys from a `dev/` branch. A
-   red check here is a hard stop and should normally indicate an environment or
-   dependency difference, not a formatting failure first discovered remotely.
+2. Make the change. Run `bash scripts/fix` after edits and use
+   `bash scripts/verify` for the fast deterministic source gate. For browser/UI
+   work, reproduce affected behavior with `bash scripts/verify-browser <test>
+   --project=<project>`; inspect the retained Playwright trace/screenshot before
+   changing code or assertions. Once the intended changes are committed, run
+   `bash scripts/prepush`. It requires a clean `dev/*` branch, reruns the fixer,
+   refuses to continue if the fixer changes tracked files, then runs the complete
+   source and browser gates. Do not use CI as the first lint/test/browser feedback
+   loop.
+3. Push only after `bash scripts/prepush` is green. CI reruns the same
+   `scripts/verify` and `scripts/verify-browser` contracts; nothing deploys
+   from a `dev/` branch. A red check here is a hard stop and should normally
+   indicate an environment difference or a genuinely new integration issue, not
+   formatting or a browser failure first discovered remotely.
 4. Open a PR `dev/*` → its feature branch. Merging publishes `:test` and
    auto-deploys to **Test**. Delete the `dev/` branch as soon as it is merged.
 5. Exercise Test for at least one real session. This is the only place a change
@@ -109,13 +116,17 @@ the one thing they cannot: what to actually go and look at.
 plus `on: pull_request` and a manual `workflow_dispatch`. It derives the image
 tag from `github.ref`, then calls two reusable stages:
 
-1. **`verify.yml`** — `actions/checkout@v4` and `actions/setup-python@v5`, installs
-   the runtime and development dependencies, then runs `bash scripts/verify`.
-   That repository-owned script is the single verification contract for both
-   agents and CI: `ruff check`, `ruff format --check`, syntax compilation of
-   tracked Python files, and `python -m pytest tests/ -q`. Ruff is the whole
-   linting story: no ESLint, no mypy. Ruff is exactly pinned in `pyproject.toml`
-   so a forgotten repo does not silently acquire different formatter behavior.
+1. **`verify.yml`** — installs the pinned Node/Python dependencies, then delegates
+   to the repo-owned `scripts/verify` and `scripts/verify-browser` commands.
+   `scripts/verify` covers Biome, strict TypeScript, the Vite production build,
+   Ruff lint/format, Python syntax compilation, and pytest. `scripts/verify-browser`
+   builds and boots the production Docker image, waits for its health check, installs
+   the pinned Playwright Chromium runtime, and runs the desktop/mobile browser suite
+   against that exact image. Browser failures retain traces, screenshots, and
+   container logs under `test-results/`; CI uploads that directory as a failure
+   artifact. Ruff is the whole Python linting story: no ESLint, no mypy. Ruff is
+   exactly pinned in `pyproject.toml` so a forgotten repo does not silently acquire
+   different formatter behavior.
 2. **`publish.yml`** — `docker/setup-buildx-action@v3`, `docker/login-action@v3`,
    `docker/metadata-action@v5`, `docker/build-push-action@v6`. Pushes to
    `ghcr.io/<owner>/<repo>` under the derived tag (`feature/**` → `:test`,
