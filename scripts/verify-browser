@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+IMAGE_TAG="${VERIFY_BROWSER_IMAGE_TAG:-movie-showtime-smoke:verify}"
+CONTAINER_NAME="${VERIFY_BROWSER_CONTAINER_NAME:-movie-showtime-smoke-$$}"
+HOST_PORT="${VERIFY_BROWSER_PORT:-8000}"
+BASE_URL="http://127.0.0.1:${HOST_PORT}"
+
+cleanup() {
+  status=$?
+  trap - EXIT
+
+  if docker ps -a --format '{{.Names}}' | grep -Fxq "$CONTAINER_NAME"; then
+    if (( status != 0 )); then
+      mkdir -p test-results
+      docker logs "$CONTAINER_NAME" >test-results/container.log 2>&1 || true
+      cat test-results/container.log >&2 || true
+    fi
+    docker rm --force "$CONTAINER_NAME" >/dev/null 2>&1 || true
+  fi
+
+  exit "$status"
+}
+trap cleanup EXIT
+
+docker build --tag "$IMAGE_TAG" .
+docker run --detach --rm \
+  --name "$CONTAINER_NAME" \
+  --publish "127.0.0.1:${HOST_PORT}:8000" \
+  "$IMAGE_TAG" >/dev/null
+
+for attempt in $(seq 1 30); do
+  if curl --fail --silent "${BASE_URL}/health" >/dev/null; then
+    break
+  fi
+  if (( attempt == 30 )); then
+    echo "Production container did not become healthy at ${BASE_URL}." >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+# Keep browser/runtime setup inside the repo-owned contract so local verification
+# and CI execute the same Playwright version and system dependency setup.
+npx playwright install --with-deps chromium
+
+PLAYWRIGHT_BASE_URL="$BASE_URL" npm run test:e2e -- "$@"

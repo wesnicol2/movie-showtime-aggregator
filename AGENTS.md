@@ -16,14 +16,30 @@ After editing frontend or Python code, run:
 bash scripts/fix
 ```
 
-Before every push, run:
+Use the fast source gate while iterating:
 
 ```bash
-npm ci
 bash scripts/verify
 ```
 
-The repo pins the frontend toolchain and Ruff. CI invokes the same repo-owned verification script, so Biome, strict TypeScript, Vite production build, Ruff, syntax checks, and pytest are deterministic local gates. CI is confirmation, not the preferred place to discover deterministic failures. A deployed Test environment is still required for behavior involving containers, credentials, upstream services, networking, or persistent volumes.
+For browser/UI changes, reproduce the affected behavior locally against the built production container before broadening the test run. `scripts/verify-browser` forwards arguments to Playwright, so a single failure can be reproduced directly:
+
+```bash
+bash scripts/verify-browser frontend/e2e/filter-none.spec.ts --project=desktop-chromium
+bash scripts/verify-browser frontend/e2e/filter-none.spec.ts --project=mobile-chromium
+```
+
+When a browser test fails, inspect the retained trace and failure screenshot under `test-results/` before changing code or assertions. Do not infer the cause from the CI log alone. Fix based on the observed DOM/state, rerun that exact test on desktop and mobile, then run the full browser suite.
+
+Before every push, commit the intended changes and run:
+
+```bash
+bash scripts/prepush
+```
+
+`scripts/prepush` only runs on `dev/*`, requires a clean tree, installs the pinned frontend dependencies, runs `scripts/fix`, fails if the fixer changes tracked files, then runs both `scripts/verify` and `scripts/verify-browser`. CI calls the same two repo-owned verification scripts. CI is confirmation, not an interactive debugger.
+
+Never commit directly to `feature/*` or `main` while iterating. If the current environment cannot run Docker/Playwright and therefore cannot complete `scripts/prepush`, stop and report that limitation instead of substituting CI as the first browser-test loop. A deployed Test environment is still required for behavior involving real containers, credentials, upstream services, networking, or persistent volumes.
 
 ---
 
