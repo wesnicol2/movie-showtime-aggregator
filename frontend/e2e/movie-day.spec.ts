@@ -171,6 +171,7 @@ test("selected movies become a travel-aware movie-day itinerary", async ({ page 
   await expect(page.getByRole("button", { name: "Show showing filters" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Filter by theater" })).toHaveCount(0);
   await page.getByLabel("Extra transfer buffer").fill("10");
+  await page.getByLabel("Number of movies").selectOption("all");
   await page.getByRole("button", { name: "Find itineraries" }).click();
 
   await expect(page.getByText("1 feasible 2-movie itineraries")).toBeVisible();
