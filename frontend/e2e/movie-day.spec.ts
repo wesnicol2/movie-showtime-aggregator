@@ -185,6 +185,7 @@ test("showing filters are collapsed and narrow the showings a plan may use", asy
   await mockApi(page);
   await page.goto("/plan");
   await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByText("How this plan is scored", { exact: true }).click();
   await expect(page.getByText("2 candidate showings")).toBeVisible();
   await expect(page.getByText("0 active showing filters")).toBeVisible();
   await page.getByLabel("Number of movies").selectOption("all");
