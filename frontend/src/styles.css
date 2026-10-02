@@ -731,7 +731,6 @@ a:hover {
   font-variant-numeric: tabular-nums;
 }
 
-
 @media (max-width: 900px) {
   .screening-layout.with-inspector {
     display: block;
