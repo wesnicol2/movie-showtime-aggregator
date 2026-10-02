@@ -127,8 +127,8 @@ export function PlannerPage({
     0,
   );
   const plannedMovieNames = useMemo(
-    () => new Set(plans.flatMap((plan) => plan.itinerary.movies)),
-    [plans],
+    () => new Set(futurePlans.flatMap((plan) => plan.itinerary.movies)),
+    [futurePlans],
   );
   const unplannedWantedMovies = wantedMovies.filter((movie) => !plannedMovieNames.has(movie));
 
