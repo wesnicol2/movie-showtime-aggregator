@@ -167,7 +167,7 @@ test("selected movies become a travel-aware movie-day itinerary", async ({ page 
   await page.getByText("Advanced options", { exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "Build your itinerary" })).toBeVisible();
-  await expect(page.getByText("2 selected movies")).toBeVisible();
+  await expect(page.getByText("2 candidates", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Show showing filters" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Filter by theater" })).toHaveCount(0);
   await page.getByLabel("Extra transfer buffer").fill("10");
@@ -226,7 +226,7 @@ test("showing filters are collapsed and narrow the showings a plan may use", asy
     });
   });
   await page.getByRole("button", { name: "Find itineraries" }).click();
-  await expect(page.getByText(/Only 1 selected movie has an eligible showing/)).toBeVisible();
+  await expect(page.getByText(/Only 1 candidate movie has an eligible showing/)).toBeVisible();
 
   await page.getByRole("button", { name: "Show showing filters" }).click();
   await page.getByRole("button", { name: "Clear showing filters" }).click();
@@ -244,10 +244,10 @@ test("planner sends exact count, time bounds, primary sort, and secondary sort",
   await page.getByRole("button", { name: "Filter by movies" }).click();
   const movieMenu = page.getByRole("dialog", { name: "Movies filter" });
   await movieMenu.getByRole("checkbox", { name: "Beta", exact: true }).uncheck();
-  await expect(page.getByText("1 selected movies")).toBeVisible();
+  await expect(page.getByText("1 candidate", { exact: true })).toBeVisible();
   await movieMenu.getByRole("checkbox", { name: "Beta", exact: true }).check();
   await movieMenu.getByRole("button", { name: "Close movies filter" }).click();
-  await expect(page.getByText("2 selected movies")).toBeVisible();
+  await expect(page.getByText("2 candidates", { exact: true })).toBeVisible();
 
   await page.getByLabel("Number of movies").selectOption("1");
   await page.getByLabel("Movie day start").fill("09:00");
