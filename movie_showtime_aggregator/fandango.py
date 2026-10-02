@@ -197,20 +197,23 @@ def _market_movie_titles(theaters: list[object]) -> list[str]:
 
 _EVENT_TITLE_PREFIXES = (re.compile(r"^blumfest\s+presents\s*:\s*", re.IGNORECASE),)
 _EVENT_TITLE_SUFFIXES = (
-    re.compile(r"\s*[-:]?\s*fan\s+event\s+screening\s*$", re.IGNORECASE),
+    re.compile(r"\s*[-:]?\s*fan\s+event\s+screenings?\s*$", re.IGNORECASE),
     re.compile(r"\s*[-:]?\s*fan\s+event\s*$", re.IGNORECASE),
 )
 
 
 def _canonical_event_title(source_title: str, sibling_titles: list[str]) -> str:
-    candidate = source_title
+    candidate, year_suffix = _split_title_year_suffix(source_title)
     for pattern in _EVENT_TITLE_PREFIXES:
         candidate = pattern.sub("", candidate).strip()
     for pattern in _EVENT_TITLE_SUFFIXES:
         candidate = pattern.sub("", candidate).strip()
 
-    if candidate == source_title or not candidate:
+    if candidate == _split_title_year_suffix(source_title)[0] or not candidate:
         return source_title
+
+    if year_suffix:
+        candidate = f"{candidate} {year_suffix}"
 
     candidate_identity = _movie_title_identity(candidate)
     if not candidate_identity:
@@ -222,6 +225,13 @@ def _canonical_event_title(source_title: str, sibling_titles: list[str]) -> str:
         if _movie_title_identity(sibling) == candidate_identity:
             return sibling
     return source_title
+
+
+def _split_title_year_suffix(title: str) -> tuple[str, str]:
+    match = re.search(r"(\s*\(\d{4}\)\s*)$", title)
+    if match is None:
+        return title, ""
+    return title[: match.start()].strip(), match.group(1).strip()
 
 
 def _movie_title_identity(title: str) -> str:
