@@ -129,21 +129,23 @@ async function mockApi(page: Page): Promise<() => number> {
   return () => screeningRequests;
 }
 
-test("workstation navigation preserves shared loaded state", async ({ page }) => {
+test("calendar home and secondary navigation preserve loaded screening state", async ({ page }) => {
   const screeningRequestCount = await mockApi(page);
 
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Plan your movie week" })).toBeVisible();
+  expect(screeningRequestCount()).toBe(0);
+
+  await page.getByRole("button", { name: "Showtimes" }).click();
   await expect(page.getByRole("heading", { name: "Screenings" })).toBeVisible();
   await expect(page.getByText("2 of 2 screenings")).toBeVisible();
   await expect(page.getByText("Alpha", { exact: true }).first()).toBeVisible();
+  expect(screeningRequestCount()).toBe(1);
 
-  await page.getByRole("button", { name: "Movies" }).click();
-  await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
-  await page.getByRole("button", { name: "Select Alpha" }).click();
-  await expect(page.getByText("1 selected")).toBeVisible();
-
-  await page.getByRole("button", { name: "Screenings" }).click();
-  await expect(page.getByText("1 of 2 screenings")).toBeVisible();
+  await page.getByRole("button", { name: "Calendar" }).click();
+  await expect(page.getByRole("heading", { name: "Plan your movie week" })).toBeVisible();
+  await page.getByRole("button", { name: "Showtimes" }).click();
+  await expect(page.getByText("2 of 2 screenings")).toBeVisible();
   expect(screeningRequestCount()).toBe(1);
 
   await page.getByRole("button", { name: "Settings" }).click();
