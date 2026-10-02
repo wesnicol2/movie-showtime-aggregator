@@ -449,7 +449,9 @@ def test_experience_deviation_settings_persist_and_apply_to_screenings(monkeypat
     )
 
     assert code == 200
-    imax_setting = next(item for item in settings["experience_deviations"] if item["id"] == "format:imax")
+    imax_setting = next(
+        item for item in settings["experience_deviations"] if item["id"] == "format:imax"
+    )
     assert imax_setting["enabled"] is True
     assert imax_setting["score_delta"] == 3
     assert api._STORE.load().experience_deviation_impacts["format:imax"] == 3
