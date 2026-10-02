@@ -66,10 +66,7 @@ export function MoviesPage({ onBack, onContinue }: Props) {
   const screenings = useMemo(() => response?.screenings ?? [], [response]);
   const allMovies = useMemo(() => buildMovieOptions(screenings), [screenings]);
   const plannedThisDate = useMemo(
-    () =>
-      new Set(
-        plans.find((plan) => plan.date === selectedDate)?.itinerary.movies ?? [],
-      ),
+    () => new Set(plans.find((plan) => plan.date === selectedDate)?.itinerary.movies ?? []),
     [plans, selectedDate],
   );
   const plannedOnOtherDates = useMemo(() => {
@@ -183,9 +180,7 @@ export function MoviesPage({ onBack, onContinue }: Props) {
       <div className="result-strip movie-selection-summary" aria-live="polite">
         <strong>{selectedMovies.length}</strong> wanted overall
         <span>·</span>
-        <span>
-          Only movies playing on {formatShortDate(selectedDate)} are shown here
-        </span>
+        <span>Only movies playing on {formatShortDate(selectedDate)} are shown here</span>
         {plannedOnOtherDates.size > 0 ? (
           <>
             <span>·</span>
