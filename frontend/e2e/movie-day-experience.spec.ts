@@ -200,7 +200,7 @@ test("itinerary hides standard experience and highlights only scored deviations"
 }) => {
   await mockExperienceApi(page);
   await page.goto("/plan");
-  await page.getByRole("button", { name: "Find combinations" }).click();
+  await page.getByRole("button", { name: "Find itineraries" }).click();
 
   await expect(page.getByText("Want score 7 (+1 experience)")).toBeVisible();
   const alphaRow = page.locator(".showing-line", { hasText: "Alpha" });
