@@ -195,9 +195,7 @@ def _market_movie_titles(theaters: list[object]) -> list[str]:
     return list(dict.fromkeys(titles))
 
 
-_EVENT_TITLE_PREFIXES = (
-    re.compile(r"^blumfest\s+presents\s*:\s*", re.IGNORECASE),
-)
+_EVENT_TITLE_PREFIXES = (re.compile(r"^blumfest\s+presents\s*:\s*", re.IGNORECASE),)
 _EVENT_TITLE_SUFFIXES = (
     re.compile(r"\s*[-:]?\s*fan\s+event\s+screening\s*$", re.IGNORECASE),
     re.compile(r"\s*[-:]?\s*fan\s+event\s*$", re.IGNORECASE),
