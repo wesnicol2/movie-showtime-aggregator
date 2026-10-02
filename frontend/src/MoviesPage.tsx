@@ -132,9 +132,7 @@ export function MoviesPage({ onBack, onContinue }: Props) {
   function toggleMovieForDay(movie: string): void {
     if (plannedOnOtherDates.has(movie)) return;
     const current =
-      planningDraftDate === selectedDate && planningDraftMovies !== null
-        ? planningDraftMovies
-        : [];
+      planningDraftDate === selectedDate && planningDraftMovies !== null ? planningDraftMovies : [];
     if (current.includes(movie)) {
       setPlanningDraft(
         selectedDate,
