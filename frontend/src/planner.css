@@ -266,3 +266,13 @@
     border-radius: 5px;
   }
 }
+
+.planner-unplanned-warning {
+  color: #e8c57d !important;
+  font-weight: 700;
+}
+
+.planner-all-planned {
+  color: var(--success) !important;
+  font-weight: 700;
+}
