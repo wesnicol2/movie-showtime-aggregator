@@ -194,46 +194,34 @@ async function mockPlannerApi(page: Page): Promise<void> {
   });
 }
 
-test("Movie Day hides unavailable selected movies, deselects saved movies, and restores them when replanning", async ({
+test("calendar-first flow keeps wanted movies and returns to the planned day after locking", async ({
   page,
 }) => {
   await mockPlannerApi(page);
-  await page.goto("/plan");
+  await page.goto("/");
 
-  const priorityRows = page.locator("[data-movie-priority-row]");
-  await expect(priorityRows).toHaveCount(2);
-  await expect(priorityRows.filter({ hasText: "Alpha" })).toHaveCount(1);
-  await expect(priorityRows.filter({ hasText: "Beta" })).toHaveCount(1);
-  await expect(priorityRows.filter({ hasText: "Gamma" })).toHaveCount(0);
-  await expect(page.getByLabel("Sort itineraries", { exact: true })).toHaveValue("want");
-  await expect(page.getByLabel("Secondary sort itineraries")).toHaveValue("elapsed");
-
-  await page.getByRole("button", { name: "Find combinations" }).click();
-  await page.getByRole("button", { name: "Save option 1 to Planner" }).click();
-
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        JSON.parse(localStorage.getItem("movie-showtime-aggregator.selected-movies.v1") ?? "[]"),
-      ),
-    )
-    .toEqual(["Gamma"]);
-
-  await page.getByRole("button", { name: "Planner", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Movie planner" })).toBeVisible();
-  await expect(page.getByText("1 planned day")).toBeVisible();
-  await expect(page.getByText("2 planned movies")).toBeVisible();
-  await expect(page.getByText("Showtimes still available")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Plan your movie week" })).toBeVisible();
+  await expect(page.getByText("3 wanted movies still unplanned")).toBeVisible();
 
   const today = page.locator(`[data-date="${isoDate()}"]`);
-  await expect(today.getByText("Alpha", { exact: true })).toBeVisible();
-  await expect(today.getByText("Beta", { exact: true })).toBeVisible();
-  const savedEvent = today.locator(".experience-deviation.positive", { hasText: "Fan Event" });
-  await expect(savedEvent).toContainText("+");
+  await today.getByRole("button", { name: "Choose movies" }).click();
 
-  await today.getByRole("button", { name: "Replan" }).click();
+  await expect(page).toHaveURL(/\/movies$/);
+  await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
+  await expect(page.locator(".movie-tile")).toHaveCount(2);
+  await expect(page.getByText("2 for this day")).toBeVisible();
+  await page.getByRole("button", { name: "Continue to planner" }).click();
+
   await expect(page).toHaveURL(/\/plan$/);
-  await expect(page.getByRole("heading", { name: "Plan a movie day" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Build your itinerary" })).toBeVisible();
+  await expect(page.getByLabel("Number of movies")).toHaveValue("1");
+
+  await page.getByLabel("Number of movies").selectOption("all");
+  await page.getByRole("button", { name: "Find itineraries" }).click();
+  await page.getByRole("button", { name: "Lock in option 1" }).click();
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "Plan your movie week" })).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -241,8 +229,19 @@ test("Movie Day hides unavailable selected movies, deselects saved movies, and r
       ),
     )
     .toEqual(["Alpha", "Beta", "Gamma"]);
-  await expect(priorityRows.filter({ hasText: "Alpha" })).toHaveCount(1);
-  await expect(priorityRows.filter({ hasText: "Beta" })).toHaveCount(1);
+
+  await expect(page.getByText("1 planned day")).toBeVisible();
+  await expect(page.getByText("2 planned movies")).toBeVisible();
+  await expect(page.getByText("1 wanted movie still unplanned")).toBeVisible();
+  await expect(today.getByText("Alpha", { exact: true })).toBeVisible();
+  await expect(today.getByText("Beta", { exact: true })).toBeVisible();
+  const savedEvent = today.locator(".experience-deviation.positive", { hasText: "Fan Event" });
+  await expect(savedEvent).toContainText("+");
+
+  await today.getByRole("button", { name: "Edit day" }).click();
+  await expect(page).toHaveURL(/\/movies$/);
+  await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
+  await expect(page.getByText("Planned this day").first()).toBeVisible();
 });
 
 test("Movie Day saved views restore planning controls without saving movie selection", async ({
@@ -250,6 +249,7 @@ test("Movie Day saved views restore planning controls without saving movie selec
 }) => {
   await mockPlannerApi(page);
   await page.goto("/plan");
+  await page.getByText("Advanced options", { exact: true }).click();
 
   await expect(page.getByLabel("Sort itineraries", { exact: true })).toHaveValue("want");
   await expect(page.getByLabel("Secondary sort itineraries")).toHaveValue("elapsed");
@@ -316,9 +316,9 @@ test("jumping far enough forward extends the timeline and hands the date to Movi
   await page.getByLabel("Jump to date").fill(target);
   const targetDay = page.locator(`[data-date="${target}"]`);
   await expect(targetDay).toBeVisible();
-  await targetDay.getByRole("button", { name: "Plan this day" }).click();
+  await targetDay.getByRole("button", { name: "Choose movies" }).click();
 
-  await expect(page).toHaveURL(/\/plan$/);
-  await expect(page.getByRole("heading", { name: "Plan a movie day" })).toBeVisible();
-  await expect(page.getByLabel("Show date")).toHaveValue(target);
+  await expect(page).toHaveURL(/\/movies$/);
+  await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
+  await expect(page.getByText("Alpha", { exact: true })).toBeVisible();
 });
