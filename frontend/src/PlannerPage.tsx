@@ -121,14 +121,14 @@ export function PlannerPage({
     [daysShown, today],
   );
   const planByDate = useMemo(() => new Map(plans.map((plan) => [plan.date, plan])), [plans]);
-  const futurePlans = plans.filter((plan) => plan.date >= today);
+  const futurePlans = useMemo(() => plans.filter((plan) => plan.date >= today), [plans, today]);
   const plannedMovieCount = futurePlans.reduce(
     (total, plan) => total + plan.itinerary.movies.length,
     0,
   );
   const plannedMovieNames = useMemo(
-    () => new Set(plans.flatMap((plan) => plan.itinerary.movies)),
-    [plans],
+    () => new Set(futurePlans.flatMap((plan) => plan.itinerary.movies)),
+    [futurePlans],
   );
   const unplannedWantedMovies = wantedMovies.filter((movie) => !plannedMovieNames.has(movie));
 
@@ -195,10 +195,13 @@ export function PlannerPage({
         <span>·</span>
         {unplannedWantedMovies.length > 0 ? (
           <>
-            <span className="planner-unplanned-warning" title={unplannedWantedMovies.join(", ")}>
-              {unplannedWantedMovies.length} wanted movie
-              {unplannedWantedMovies.length === 1 ? "" : "s"} still unplanned
-            </span>
+            <details className="planner-unplanned-details">
+              <summary>
+                {unplannedWantedMovies.length} wanted movie
+                {unplannedWantedMovies.length === 1 ? "" : "s"} still unplanned
+              </summary>
+              <div className="planner-unplanned-popover">{unplannedWantedMovies.join(", ")}</div>
+            </details>
             <span>·</span>
           </>
         ) : wantedMovies.length > 0 ? (

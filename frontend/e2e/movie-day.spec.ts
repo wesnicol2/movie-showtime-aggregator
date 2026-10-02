@@ -167,9 +167,10 @@ test("selected movies become a travel-aware movie-day itinerary", async ({ page 
   await page.getByText("Advanced options", { exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "Build your itinerary" })).toBeVisible();
-  await expect(page.getByText("2 selected movies")).toBeVisible();
+  await expect(page.getByText("2 candidates", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Show showing filters" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Filter by theater" })).toHaveCount(0);
+  await page.getByLabel("Number of movies").selectOption("all");
   await page.getByLabel("Extra transfer buffer").fill("10");
   await page.getByRole("button", { name: "Find itineraries" }).click();
 
@@ -184,8 +185,10 @@ test("showing filters are collapsed and narrow the showings a plan may use", asy
   await mockApi(page);
   await page.goto("/plan");
   await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByText("How this plan is scored", { exact: true }).click();
   await expect(page.getByText("2 candidate showings")).toBeVisible();
   await expect(page.getByText("0 active showing filters")).toBeVisible();
+  await page.getByLabel("Number of movies").selectOption("all");
 
   await page.getByRole("button", { name: "Show showing filters" }).click();
   await keepOnly(page, "Theater", ["AMC Center 8"]);
@@ -226,7 +229,7 @@ test("showing filters are collapsed and narrow the showings a plan may use", asy
     });
   });
   await page.getByRole("button", { name: "Find itineraries" }).click();
-  await expect(page.getByText(/Only 1 selected movie has an eligible showing/)).toBeVisible();
+  await expect(page.getByText(/Only 1 candidate movie has an eligible showing/)).toBeVisible();
 
   await page.getByRole("button", { name: "Show showing filters" }).click();
   await page.getByRole("button", { name: "Clear showing filters" }).click();
@@ -244,10 +247,10 @@ test("planner sends exact count, time bounds, primary sort, and secondary sort",
   await page.getByRole("button", { name: "Filter by movies" }).click();
   const movieMenu = page.getByRole("dialog", { name: "Movies filter" });
   await movieMenu.getByRole("checkbox", { name: "Beta", exact: true }).uncheck();
-  await expect(page.getByText("1 selected movies")).toBeVisible();
+  await expect(page.getByText("1 candidate", { exact: true })).toBeVisible();
   await movieMenu.getByRole("checkbox", { name: "Beta", exact: true }).check();
   await movieMenu.getByRole("button", { name: "Close movies filter" }).click();
-  await expect(page.getByText("2 selected movies")).toBeVisible();
+  await expect(page.getByText("2 candidates", { exact: true })).toBeVisible();
 
   await page.getByLabel("Number of movies").selectOption("1");
   await page.getByLabel("Movie day start").fill("09:00");
@@ -315,6 +318,7 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
   await mockApi(page);
   await page.goto("/plan");
   await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
 
   await page.getByRole("button", { name: "Move Beta up" }).click();
   await page.getByRole("button", { name: "Pin Beta" }).click();
@@ -384,10 +388,12 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
   await mockApi(page);
   await page.goto("/plan");
   await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
 
   const runtimeInput = page.getByLabel("Alpha runtime minutes");
   await expect(runtimeInput).toHaveAttribute("placeholder", "120");
   await runtimeInput.fill("95");
+  await page.getByText("How this plan is scored", { exact: true }).click();
   await expect(page.getByText("1 runtime overrides")).toBeVisible();
   await page.getByLabel("Number of movies").selectOption("1");
 
@@ -441,5 +447,6 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
   await expect(page.getByText("95 min · manual")).toBeVisible();
 
   await page.reload();
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
   await expect(page.getByLabel("Alpha runtime minutes")).toHaveValue("95");
 });

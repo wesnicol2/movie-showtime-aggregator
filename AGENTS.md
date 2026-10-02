@@ -20,10 +20,11 @@ Before every push, run:
 
 ```bash
 npm ci
+bash scripts/fix
 bash scripts/verify
 ```
 
-The repo pins the frontend toolchain and Ruff. CI invokes the same repo-owned verification script, so Biome, strict TypeScript, Vite production build, Ruff, syntax checks, and pytest are deterministic local gates. CI is confirmation, not the preferred place to discover deterministic failures. A deployed Test environment is still required for behavior involving containers, credentials, upstream services, networking, or persistent volumes.
+The repo pins the frontend toolchain and Ruff. CI invokes the same repo-owned verification script, so Biome, strict TypeScript, Vite production build, Ruff, syntax checks, and pytest are deterministic local gates. CI is confirmation, not the preferred place to discover deterministic failures. Do not commit directly to a `feature/*` branch while iterating: work on `dev/*`, verify there, and promote only green work. If the current tool environment cannot create a checkout and run the repo-owned commands, do not use a `feature/*` or `main` write as a substitute verification loop; keep the work isolated on `dev/*` until a verification-capable environment is available. A deployed Test environment is still required for behavior involving containers, credentials, upstream services, networking, or persistent volumes.
 
 ---
 
@@ -49,11 +50,17 @@ Keep component boundaries clear. Avoid monolithic page files and avoid using mod
 
 ## Product surfaces
 
-The product has four intentional user-facing surfaces.
+The product has one primary planning workflow plus secondary inspection/settings surfaces. Preserve the orientation model: **Calendar → Movie Selection → Movie Day → Calendar**. A first-time user should not need to understand internal feature names or visit the showtime table to make a plan.
 
-### Screening table
+### Calendar
 
-The home page is one large spreadsheet-style table. Do not recreate standalone filtering panels. Every displayed column is a first-class sort/filter dimension:
+`/` is the infinite-scroll future calendar and the application home. It is the source of orientation: choosing a day sets the shared date and opens Movie Selection; locking an itinerary returns to the calendar focused on that same date. Saved current/future plans render inline on their dates.
+
+The browser-local movie set is a durable **want list**, not a temporary table filter or a basket that is emptied after saving a plan. A wanted movie must always be explainable as planned on a current/future saved day, a candidate for the day currently being planned, or still unplanned. The calendar must surface unplanned wanted movies rather than silently losing them. Past plans do not satisfy the current/future planned invariant.
+
+### Showtimes table
+
+`/showtimes` is the spreadsheet-style power-user inspection surface. Do not recreate standalone filtering panels. Every displayed column is a first-class sort/filter dimension:
 
 - click the column label to sort;
 - click the dropdown side of the header to filter;
@@ -74,13 +81,13 @@ Discrete dimensions on this page are multi-value checkbox filters (selection sta
 
 Listed showtime windows bucket the provider's listed start, never the calculated actual start, so they stay defined when preview minutes are unconfigured. New movie-page dimensions should normally become another checkbox filter over base screening facts rather than a bespoke control.
 
-The selected movie titles live in browser local storage and are also the source of truth for the table's Movie exact-value filter. Changes from either surface should stay synchronized. This is browser convenience state, not an account/profile system.
+Wanted movie titles live in browser local storage independently from the Screening table's Movie filter. Do not couple the want list back to table filter state: clearing or loading Screening filters must never erase movie intent. This is browser convenience state, not an account/profile system.
 
 ### Movie Day
 
-`/plan` consumes the browser's selected movie pool and the already-loaded screenings that survive the current table column filters. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
+`/plan` is the final step of the calendar workflow. It consumes wanted movies that are available on the selected date while excluding movies already scheduled on another current/future day. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
 
-Movie Day keeps its core planning controls together in one compact control grid. The searchable **Movies** checkbox menu edits the same browser-persistent selection used by `/movies` and the table. Exact **Watch** count, Start, End, primary Sort, **Secondary sort**, transfer buffer, and the planning action stay immediately visible because they define the optimization request itself. Theater, chain, format, and listed-time controls are optional checkbox-only showing facets from `screening-facets.ts`; they narrow candidate showings in addition to the table's richer column filters rather than replacing them, and are collapsed by default behind the Movie Day **Filters** button. Keep their active count visible while collapsed and close any open facet submenu when collapsing the panel. The adjacent **Movie Priority** list is the deliberate exception because ranking and pinning need title-by-title controls; do not scatter those controls across result cards or unrelated surfaces.
+The novice surface intentionally exposes only **How many movies?** (default **1**) and **Find itineraries**. Start/Home by, candidate editing, primary/secondary sort, transfer buffer, saved views, and showing facets belong under **Advanced options**. Ranking, pins, and runtime overrides belong under **Movie priorities & runtimes**. Keep the optimization power available, but do not make a first-time user parse it before producing a valid one-movie plan. Locking an itinerary preserves the want list and returns directly to the calendar.
 
 Movie Day priority/pin state is browser-local planner preference state, separate from the shared selected-movie set. Preserve the user's ordering as selected titles are added or removed. The ranked movie array is submitted to the backend in priority order. With `N` selected movies, rank #1 is worth `N` points, rank #2 is worth `N-1`, down to one point for the last-ranked movie; an itinerary's want score is the sum of its included movies. Pins are submitted separately as `required_movies`.
 

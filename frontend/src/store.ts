@@ -41,7 +41,10 @@ function persistMovieSelection(values: string[]): void {
 function migrateWantList(values: string[]): string[] {
   if (localStorage.getItem(WANT_LIST_MIGRATION_KEY) === "1") return values;
 
-  const plannedMovies = readSavedMoviePlans().flatMap((plan) => plan.itinerary.movies);
+  const today = browserDate();
+  const plannedMovies = readSavedMoviePlans()
+    .filter((plan) => plan.date >= today)
+    .flatMap((plan) => plan.itinerary.movies);
   const migrated = [...new Set([...values, ...plannedMovies])].sort();
   persistMovieSelection(migrated);
   localStorage.setItem(WANT_LIST_MIGRATION_KEY, "1");

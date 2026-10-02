@@ -13,6 +13,7 @@ import {
   type ScreeningFacets,
 } from "./screening-facets";
 import { filterAndSort, isFilterActive } from "./screenings";
+import { browserDate } from "./show-date";
 import { useAppStore } from "./store";
 import type {
   MovieDayItinerary,
@@ -73,8 +74,9 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   );
   const plannedElsewhere = useMemo(() => {
     const movies = new Set<string>();
+    const today = browserDate();
     for (const savedPlan of savedPlans) {
-      if (savedPlan.date === responseDate) continue;
+      if (savedPlan.date < today || savedPlan.date === responseDate) continue;
       for (const movie of savedPlan.itinerary.movies) movies.add(movie);
     }
     return movies;
@@ -166,7 +168,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
     if (
       status === "ready" &&
       typeof targetMovieCount === "number" &&
-      targetMovieCount >= availableSelectedMovies.length
+      targetMovieCount > availableSelectedMovies.length
     ) {
       setTargetMovieCount(null);
     }
@@ -368,16 +370,19 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
         </div>
       ) : null}
 
-      <MoviePriorityEditor
-        movies={rankedMovies}
-        pinnedMovies={pinnedMovies}
-        defaultRuntimeByMovie={defaultRuntimeByMovie}
-        runtimeOverrides={runtimeOverrides}
-        onMove={moveMovie}
-        onTogglePinned={togglePinned}
-        onRemoveMovie={removeMovie}
-        onRuntimeOverrideChange={setRuntimeOverride}
-      />
+      <details className="movie-day-priority-advanced">
+        <summary className="movie-day-detail-summary">Movie priorities & runtimes</summary>
+        <MoviePriorityEditor
+          movies={rankedMovies}
+          pinnedMovies={pinnedMovies}
+          defaultRuntimeByMovie={defaultRuntimeByMovie}
+          runtimeOverrides={runtimeOverrides}
+          onMove={moveMovie}
+          onTogglePinned={togglePinned}
+          onRemoveMovie={removeMovie}
+          onRuntimeOverrideChange={setRuntimeOverride}
+        />
+      </details>
 
       {status === "loading" ? (
         <div className="status-strip">Loading today’s screenings…</div>
@@ -388,10 +393,11 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
         </div>
       ) : null}
       {response ? (
-        <div className="planner-context">
+        <details className="planner-context movie-day-explanation">
+          <summary className="movie-day-detail-summary">How this plan is scored</summary>
           <div className="planner-facts">
             <span>{formatDate(response.date)}</span>
-            <span>{availableSelectedMovies.length} selected movies</span>
+            <span>{availableSelectedMovies.length} candidate movies</span>
             <span>{targetCount === "any" ? "Any valid count" : `${targetCount} to watch`}</span>
             <span>{pinnedMovies.length} pinned</span>
             <span>{Object.keys(runtimeOverrides).length} runtime overrides</span>
@@ -401,14 +407,14 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
             {bounds.endNextDay ? <span>End time is next day</span> : null}
           </div>
           <p>
-            Rank selected movies from most to least wanted. With N selected movies, #1 is worth N
+            Rank candidate movies from most to least wanted. With N candidate movies, #1 is worth N
             points, #2 is worth N−1, and so on; pinned movies are mandatory. Each positive screening
             experience deviation adds one want point and each negative deviation removes one. Manual
             runtimes replace fetched runtimes when calculating end times and itinerary feasibility.
             Watch “Any” mixes every feasible movie count under the same filters. Results are
             globally ranked by the chosen primary objective and use Secondary sort to break ties.
           </p>
-        </div>
+        </details>
       ) : null}
 
       {plan ? (
@@ -439,14 +445,14 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
           ) : typeof plan.target_movie_count === "number" &&
             plan.plannable_movie_count < plan.target_movie_count ? (
             <p className="empty-state">
-              Only {plan.plannable_movie_count} selected movie
+              Only {plan.plannable_movie_count} candidate movie
               {plan.plannable_movie_count === 1 ? " has" : "s have"} an eligible showing, but this
               day asks for {plan.target_movie_count}.
               {plan.missing_movies.length ? ` Unavailable: ${plan.missing_movies.join(", ")}.` : ""}
             </p>
           ) : plan.missing_movies.length ? (
             <div className="status-strip" role="status">
-              Some selected movies have no eligible showing and can only be skipped:{" "}
+              Some candidate movies have no eligible showing and can only be skipped:{" "}
               {plan.missing_movies.join(", ")}.
             </div>
           ) : null}

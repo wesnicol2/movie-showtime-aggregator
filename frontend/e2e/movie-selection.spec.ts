@@ -210,10 +210,14 @@ test("movie selection supports filtering and release-date sorting", async ({ pag
 
   await page.getByLabel("Sort movies").selectOption("initial_release_date");
   await expect(
-    page.getByRole("button", { name: "Add Alpha to want list" }).getByText("Initial release · Aug 15, 2026"),
+    page
+      .getByRole("button", { name: "Add Alpha to want list" })
+      .getByText("Initial release · Aug 15, 2026"),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Add Beta to want list" }).getByText("Initial release · Jan 10, 1999"),
+    page
+      .getByRole("button", { name: "Add Beta to want list" })
+      .getByText("Initial release · Jan 10, 1999"),
   ).toBeVisible();
   await expect(page.locator(".movie-tile").first()).toHaveAttribute(
     "aria-label",

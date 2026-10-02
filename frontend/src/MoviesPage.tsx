@@ -22,6 +22,7 @@ import {
 } from "./movies";
 import { readSavedMoviePlans } from "./planner";
 import { readDefaultSavedView, writeDefaultSavedView } from "./saved-view-defaults";
+import { browserDate } from "./show-date";
 import { useAppStore } from "./store";
 import { useScreenings } from "./useScreenings";
 
@@ -71,8 +72,9 @@ export function MoviesPage({ onBack, onContinue }: Props) {
   );
   const plannedOnOtherDates = useMemo(() => {
     const dates = new Map<string, string>();
+    const today = browserDate();
     for (const plan of plans) {
-      if (plan.date === selectedDate) continue;
+      if (plan.date < today || plan.date === selectedDate) continue;
       for (const movie of plan.itinerary.movies) {
         if (!dates.has(movie)) dates.set(movie, plan.date);
       }

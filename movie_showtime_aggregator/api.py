@@ -34,7 +34,7 @@ JSON_HEADERS = [("Content-Type", "application/json; charset=utf-8")]
 STATIC_DIR = Path(__file__).with_name("static")
 SOURCE_STATIC_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 STATIC_ROOTS = (STATIC_DIR, SOURCE_STATIC_DIR)
-SPA_ROUTES = {"/", "/movies", "/plan", "/settings"}
+SPA_ROUTES = {"/", "/movies", "/plan", "/showtimes", "/settings"}
 PREVIEW_COOKIE = "movie_preview_minutes"
 LOCATION_COOKIE = "movie_location"
 
