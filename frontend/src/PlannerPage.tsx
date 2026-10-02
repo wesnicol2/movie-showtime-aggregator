@@ -126,10 +126,7 @@ export function PlannerPage({
     (total, plan) => total + plan.itinerary.movies.length,
     0,
   );
-  const plannedMovieNames = useMemo(
-    () => new Set(plans.flatMap((plan) => plan.itinerary.movies)),
-    [plans],
-  );
+  const plannedMovieNames = new Set(futurePlans.flatMap((plan) => plan.itinerary.movies));
   const unplannedWantedMovies = wantedMovies.filter((movie) => !plannedMovieNames.has(movie));
 
   useEffect(() => {
