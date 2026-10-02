@@ -564,9 +564,7 @@ def _make_itinerary(
     included_movies = tuple(screening.movie for screening in selected)
     included = set(included_movies)
     base_want_score = sum(movie_scores[movie] for movie in included_movies)
-    experience_adjustment = sum(
-        screening.experience_score_adjustment for screening in selected
-    )
+    experience_adjustment = sum(screening.experience_score_adjustment for screening in selected)
     return MovieDayItinerary(
         showtime_ids=tuple(screening.showtime_id for screening in selected),
         movies=included_movies,
