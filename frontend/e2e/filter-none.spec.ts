@@ -50,7 +50,7 @@ test("column filters stay usable after selecting None", async ({ page }) => {
     await route.fulfill({ json: screeningsPayload });
   });
 
-  await page.goto("/");
+  await page.goto("/showtimes");
   await expect(page.getByText("1 of 1 screenings")).toBeVisible();
 
   await page.getByRole("button", { name: "Filter RT" }).click();

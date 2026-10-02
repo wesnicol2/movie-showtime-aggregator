@@ -391,5 +391,5 @@ test("jumping far enough forward extends the timeline and hands the date to Movi
 
   await expect(page).toHaveURL(/\/movies$/);
   await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
-  await expect(page.getByText("Alpha", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove Alpha from want list" })).toBeVisible();
 });

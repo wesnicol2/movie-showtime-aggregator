@@ -111,9 +111,10 @@ def test_spa_routes_serve_the_same_react_shell():
     movies_code, movies_body = call("/movies")
     settings_code, settings_body = call("/settings")
     plan_code, plan_body = call("/plan")
+    showtimes_code, showtimes_body = call("/showtimes")
 
-    assert root_code == movies_code == settings_code == plan_code == 200
-    assert root_body == movies_body == settings_body == plan_body
+    assert root_code == movies_code == settings_code == plan_code == showtimes_code == 200
+    assert root_body == movies_body == settings_body == plan_body == showtimes_body
     assert '<div id="root"></div>' in root_body
     assert "/assets/" in root_body
     assert "movie decision workstation" not in root_body.lower()
