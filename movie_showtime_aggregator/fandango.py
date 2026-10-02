@@ -159,6 +159,7 @@ def flatten_market_showtimes(payload: dict[str, object]) -> list[dict[str, objec
                                 "showDateTimeLocal": ticketing_date.replace("+", "T", 1),
                                 "runTime": runtime,
                                 "premiumFormat": _showtime_format(showtime, format_name),
+                                "attributes": _experience_attributes(header, group, showtime),
                                 "purchaseUrl": showtime.get("ticketingJumpPageURL") or "",
                                 "isCanceled": False,
                                 "isSoldOut": bool(showtime.get("isSoldOut"))
@@ -220,6 +221,44 @@ def _showtime_format(showtime: dict[str, object], fallback: str) -> str:
                 texts.append(str(entry))
     specific = _canonical_format(" ".join(texts))
     return specific if specific != "Standard" else fallback
+
+
+def _experience_attributes(
+    header: str,
+    group: dict[str, object],
+    showtime: dict[str, object],
+) -> list[str]:
+    texts: list[str] = []
+    if header.strip():
+        texts.append(header.strip())
+
+    amenities = group.get("amenities")
+    if isinstance(amenities, list):
+        for amenity in amenities:
+            if isinstance(amenity, dict):
+                for key in ("name", "description", "code"):
+                    text = str(amenity.get(key) or "").strip()
+                    if text:
+                        texts.append(text)
+            else:
+                text = str(amenity).strip()
+                if text:
+                    texts.append(text)
+
+    film_format = showtime.get("filmFormat")
+    if isinstance(film_format, list):
+        for entry in film_format:
+            if isinstance(entry, dict):
+                for key in ("filterName", "name", "code"):
+                    text = str(entry.get(key) or "").strip()
+                    if text:
+                        texts.append(text)
+            else:
+                text = str(entry).strip()
+                if text:
+                    texts.append(text)
+
+    return list(dict.fromkeys(texts))
 
 
 def _format_name(header: str, group: dict[str, object]) -> str:
