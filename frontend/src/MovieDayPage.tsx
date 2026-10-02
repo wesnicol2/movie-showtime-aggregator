@@ -13,6 +13,7 @@ import {
   type ScreeningFacets,
 } from "./screening-facets";
 import { filterAndSort, isFilterActive } from "./screenings";
+import { browserDate } from "./show-date";
 import { useAppStore } from "./store";
 import type {
   MovieDayItinerary,
@@ -73,8 +74,9 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   );
   const plannedElsewhere = useMemo(() => {
     const movies = new Set<string>();
+    const today = browserDate();
     for (const savedPlan of savedPlans) {
-      if (savedPlan.date === responseDate) continue;
+      if (savedPlan.date < today || savedPlan.date === responseDate) continue;
       for (const movie of savedPlan.itinerary.movies) movies.add(movie);
     }
     return movies;
