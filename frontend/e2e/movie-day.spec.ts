@@ -170,6 +170,7 @@ test("selected movies become a travel-aware movie-day itinerary", async ({ page 
   await expect(page.getByText("2 candidates", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Show showing filters" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Filter by theater" })).toHaveCount(0);
+  await page.getByLabel("Number of movies").selectOption("all");
   await page.getByLabel("Extra transfer buffer").fill("10");
   await page.getByRole("button", { name: "Find itineraries" }).click();
 
@@ -186,6 +187,7 @@ test("showing filters are collapsed and narrow the showings a plan may use", asy
   await page.getByText("Advanced options", { exact: true }).click();
   await expect(page.getByText("2 candidate showings")).toBeVisible();
   await expect(page.getByText("0 active showing filters")).toBeVisible();
+  await page.getByLabel("Number of movies").selectOption("all");
 
   await page.getByRole("button", { name: "Show showing filters" }).click();
   await keepOnly(page, "Theater", ["AMC Center 8"]);
