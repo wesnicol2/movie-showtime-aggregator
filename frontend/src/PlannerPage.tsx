@@ -200,7 +200,7 @@ export function PlannerPage({
                 {unplannedWantedMovies.length} wanted movie
                 {unplannedWantedMovies.length === 1 ? "" : "s"} still unplanned
               </summary>
-              <div>{unplannedWantedMovies.join(", ")}</div>
+              <div className="planner-unplanned-popover">{unplannedWantedMovies.join(", ")}</div>
             </details>
             <span>·</span>
           </>
