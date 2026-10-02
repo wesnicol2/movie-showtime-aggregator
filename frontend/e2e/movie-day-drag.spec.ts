@@ -145,6 +145,8 @@ test("Movie Day reorder requires a hold and floats the dragged movie into positi
 }) => {
   await mockScreenings(page);
   await page.goto("/plan");
+  await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
 
   await expect(page.getByText("Home by", { exact: true })).toBeVisible();
 
