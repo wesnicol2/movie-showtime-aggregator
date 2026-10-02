@@ -229,7 +229,7 @@ export function MovieDayControlBar({
               );
             }}
           >
-            <option value="all">All selected ({selectedCount})</option>
+            <option value="all">All candidates ({selectedCount})</option>
             <option value="any">Any valid count</option>
             {Array.from({ length: selectedCount }, (_, index) => index + 1)
               .filter((count) => count >= minimumWatchCount)
