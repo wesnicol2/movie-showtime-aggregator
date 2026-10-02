@@ -215,7 +215,10 @@ test("movie selection supports filtering and release-date sorting", async ({ pag
   await expect(
     page.getByRole("button", { name: "Add Beta to want list" }).getByText("Initial release · Jan 10, 1999"),
   ).toBeVisible();
-  await expect(page.locator(".movie-tile").first()).toHaveAttribute("aria-label", "Add Alpha to want list");
+  await expect(page.locator(".movie-tile").first()).toHaveAttribute(
+    "aria-label",
+    "Add Alpha to want list",
+  );
 
   await page.getByLabel("Filter titles").fill("Beta");
   await expect(page.getByRole("button", { name: "Add Beta to want list" })).toBeVisible();
