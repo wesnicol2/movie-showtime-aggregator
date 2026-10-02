@@ -195,10 +195,7 @@ export function PlannerPage({
         <span>·</span>
         {unplannedWantedMovies.length > 0 ? (
           <>
-            <span
-              className="planner-unplanned-warning"
-              title={unplannedWantedMovies.join(", ")}
-            >
+            <span className="planner-unplanned-warning" title={unplannedWantedMovies.join(", ")}>
               {unplannedWantedMovies.length} wanted movie
               {unplannedWantedMovies.length === 1 ? "" : "s"} still unplanned
             </span>
