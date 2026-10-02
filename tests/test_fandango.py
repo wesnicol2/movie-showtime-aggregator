@@ -174,6 +174,7 @@ def test_fan_event_title_is_grouped_with_base_movie_and_preserves_event_deviatio
     event_movie["id"] = "other-mommy-event"
     event_movie["title"] = "BlumFest Presents: OTHER MOMMY Fan Event Screening"
     event_movie["variants"][0]["filmFormatHeader"] = "Laser at AMC"
+    event_movie["variants"][0]["amenityGroups"][0]["isDolby"] = False
     event_movie["variants"][0]["amenityGroups"][0]["showtimes"][0].update(
         {
             "id": "desert-ridge-fan-event",
