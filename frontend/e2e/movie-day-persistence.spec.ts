@@ -153,31 +153,39 @@ async function mockApi(page: Page): Promise<() => number> {
   return () => movieDayRequests;
 }
 
-test("Movie Day keeps in-progress controls and results across app navigation", async ({ page }) => {
+test("each itinerary session starts simple while the want list persists", async ({ page }) => {
   const movieDayRequestCount = await mockApi(page);
   await page.goto("/plan");
 
-  await page.getByLabel("Number of movies").selectOption("1");
+  await expect(page.getByLabel("Number of movies")).toHaveValue("1");
+  await page.getByText("Advanced options", { exact: true }).click();
   await page.getByLabel("Movie day start").fill("09:00");
   await page.getByLabel("Movie day end").fill("14:00");
   await page.getByLabel("Sort itineraries", { exact: true }).selectOption("driving");
   await page.getByLabel("Extra transfer buffer").fill("10");
-  await page.getByRole("button", { name: "Find combinations" }).click();
+  await page.getByRole("button", { name: "Find itineraries" }).click();
 
   await expect(page.getByText("1 feasible 1-movie itineraries")).toBeVisible();
   expect(movieDayRequestCount()).toBe(1);
 
-  await page.getByRole("button", { name: "Movies", exact: true }).click();
+  await page.getByRole("button", { name: "Change movies" }).click();
   await expect(page).toHaveURL(/\/movies$/);
-  await page.getByRole("button", { name: "Movie Day", exact: true }).click();
+  await expect(page.getByText("2 for this day")).toBeVisible();
+  await page.getByRole("button", { name: "Continue to planner" }).click();
   await expect(page).toHaveURL(/\/plan$/);
 
   await expect(page.getByLabel("Number of movies")).toHaveValue("1");
-  await expect(page.getByLabel("Movie day start")).toHaveValue("09:00");
-  await expect(page.getByLabel("Movie day end")).toHaveValue("14:00");
-  await expect(page.getByLabel("Sort itineraries", { exact: true })).toHaveValue("driving");
-  await expect(page.getByLabel("Extra transfer buffer")).toHaveValue("10");
-  await expect(page.getByText("1 feasible 1-movie itineraries")).toBeVisible();
-  await expect(page.getByText("OPTION 1")).toBeVisible();
+  await page.getByText("Advanced options", { exact: true }).click();
+  await expect(page.getByLabel("Movie day start")).toHaveValue("");
+  await expect(page.getByLabel("Movie day end")).toHaveValue("");
+  await expect(page.getByLabel("Sort itineraries", { exact: true })).toHaveValue("want");
+  await expect(page.getByLabel("Extra transfer buffer")).toHaveValue("0");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem("movie-showtime-aggregator.selected-movies.v1") ?? "[]"),
+      ),
+    )
+    .toEqual(["Alpha", "Beta"]);
   expect(movieDayRequestCount()).toBe(1);
 });
