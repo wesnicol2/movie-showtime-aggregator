@@ -49,11 +49,17 @@ Keep component boundaries clear. Avoid monolithic page files and avoid using mod
 
 ## Product surfaces
 
-The product has four intentional user-facing surfaces.
+The product has five intentional user-facing surfaces organized around one primary workflow: Calendar → Movie Selection → Movie Day → Calendar. Showtimes and Settings are secondary tools.
+
+### Calendar
+
+`/` is the product home. It is an infinite-scroll future timeline of days and locked itineraries. Selecting a day starts a date-specific planning draft. Locking an itinerary returns to the calendar and focuses the planned date.
+
+The durable want list and current/future locked plans form a product invariant: every wanted movie is either already planned, in the active date draft, or represented by the calendar's unplanned count. Historical plans must not satisfy that invariant.
 
 ### Screening table
 
-The home page is one large spreadsheet-style table. Do not recreate standalone filtering panels. Every displayed column is a first-class sort/filter dimension:
+`/showtimes` is the spreadsheet-style power-user table. Do not recreate standalone filtering panels. Every displayed column is a first-class sort/filter dimension:
 
 - click the column label to sort;
 - click the dropdown side of the header to filter;
@@ -74,13 +80,13 @@ Discrete dimensions on this page are multi-value checkbox filters (selection sta
 
 Listed showtime windows bucket the provider's listed start, never the calculated actual start, so they stay defined when preview minutes are unconfigured. New movie-page dimensions should normally become another checkbox filter over base screening facts rather than a bespoke control.
 
-The selected movie titles live in browser local storage and are also the source of truth for the table's Movie exact-value filter. Changes from either surface should stay synchronized. This is browser convenience state, not an account/profile system.
+Wanted movie titles live in browser local storage as durable intent. They are deliberately not the screening table's Movie filter. The active date-planning draft is separate Zustand state: initialize it from wanted, available, not-already-planned titles plus any movies already locked on the edited date. Removing a title from one day's draft must not remove it from the want list. Adding a previously not-wanted title to a day also makes it wanted. This is browser convenience state, not an account/profile system.
 
 ### Movie Day
 
-`/plan` consumes the browser's selected movie pool and the already-loaded screenings that survive the current table column filters. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
+`/plan` consumes the active date-specific planning draft and the already-loaded screenings that survive current table filters. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
 
-Movie Day keeps its core planning controls together in one compact control grid. The searchable **Movies** checkbox menu edits the same browser-persistent selection used by `/movies` and the table. Exact **Watch** count, Start, End, primary Sort, **Secondary sort**, transfer buffer, and the planning action stay immediately visible because they define the optimization request itself. Theater, chain, format, and listed-time controls are optional checkbox-only showing facets from `screening-facets.ts`; they narrow candidate showings in addition to the table's richer column filters rather than replacing them, and are collapsed by default behind the Movie Day **Filters** button. Keep their active count visible while collapsed and close any open facet submenu when collapsing the panel. The adjacent **Movie Priority** list is the deliberate exception because ranking and pinning need title-by-title controls; do not scatter those controls across result cards or unrelated surfaces.
+The novice-facing planner exposes only **How many movies?** and **Find itineraries**, defaulting to one movie. The searchable Movies picker, Start, Home by, primary/secondary sort, transfer buffer, saved views, and theater/chain/format/listed-time showing facets live behind **Advanced options**. The adjacent Movie Priority list remains visible because ranking and pinning need title-by-title controls. Removing a title there changes only the active date draft, never the durable want list.
 
 Movie Day priority/pin state is browser-local planner preference state, separate from the shared selected-movie set. Preserve the user's ordering as selected titles are added or removed. The ranked movie array is submitted to the backend in priority order. With `N` selected movies, rank #1 is worth `N` points, rank #2 is worth `N-1`, down to one point for the last-ranked movie; an itinerary's want score is the sum of its included movies. Pins are submitted separately as `required_movies`.
 
@@ -189,7 +195,7 @@ Unknown values stay plain text. Never manufacture a source link solely to make t
 
 The browser fetches the complete normalized radius result once and performs table sort/filter changes client-side for immediate spreadsheet-like interaction. The Python server retains server-side filter helpers for direct API consumers and independent testing.
 
-Saved Views remain browser-local table state only. They deliberately exclude the exact selected-movie set: saving strips it, loading preserves the current Movie Selection, and older stored views are migrated by stripping any saved exact selection. Non-selection Movie-column rules may still be saved. Application Settings are not part of a Saved View.
+Saved Views remain browser-local filter/sort state only. They deliberately exclude durable wanted-movie state and the active date draft. Older stored views are migrated by stripping any saved exact Movie selection. Non-selection Movie-column rules may still be saved. Application Settings are not part of a Saved View.
 
 ## Frontend production assets
 
@@ -215,6 +221,7 @@ See `CONTRIBUTING.md` for the full promotion contract.
 - Preview configuration briefly lived inside the Chain filter menu. It was intentionally moved out.
 - The first UI used standalone filter panels. Product direction changed to an Excel-style table where headers own sorting/filtering.
 - Movie Selection and Movie Day optional filter facets were later collapsed behind compact Filters buttons so filters remain available without dominating the primary selection/planning surfaces.
+- The planning UX later became Calendar → Movie Selection → Movie Day → Calendar. Persistent wanted movies and the active date draft are intentionally separate so excluding a movie from one day never erases durable intent, and the calendar can truthfully identify wanted movies that remain unplanned.
 - Movie Day originally required every selected movie and enumerated in graph order. It intentionally became a cardinality-constrained optimizer so a user can ask for `K` of `N` movies, rank those candidates by personal priority, pin mandatory titles, and globally sort feasible paths by elapsed time, theater-to-theater driving, or want score. Secondary sort now makes the previously implicit tie-break objective explicit while retaining the old defaults.
 - Time filtering once compared clock values and broke next-day rows. Always compare full datetimes.
 - Ratings/posters are enrichment, not a dependency of screening retrieval.
