@@ -395,7 +395,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
           <summary className="movie-day-detail-summary">How this plan is scored</summary>
           <div className="planner-facts">
             <span>{formatDate(response.date)}</span>
-            <span>{availableSelectedMovies.length} selected movies</span>
+            <span>{availableSelectedMovies.length} candidate movies</span>
             <span>{targetCount === "any" ? "Any valid count" : `${targetCount} to watch`}</span>
             <span>{pinnedMovies.length} pinned</span>
             <span>{Object.keys(runtimeOverrides).length} runtime overrides</span>
@@ -405,7 +405,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
             {bounds.endNextDay ? <span>End time is next day</span> : null}
           </div>
           <p>
-            Rank selected movies from most to least wanted. With N selected movies, #1 is worth N
+            Rank candidate movies from most to least wanted. With N candidate movies, #1 is worth N
             points, #2 is worth N−1, and so on; pinned movies are mandatory. Each positive screening
             experience deviation adds one want point and each negative deviation removes one. Manual
             runtimes replace fetched runtimes when calculating end times and itinerary feasibility.
@@ -443,14 +443,14 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
           ) : typeof plan.target_movie_count === "number" &&
             plan.plannable_movie_count < plan.target_movie_count ? (
             <p className="empty-state">
-              Only {plan.plannable_movie_count} selected movie
+              Only {plan.plannable_movie_count} candidate movie
               {plan.plannable_movie_count === 1 ? " has" : "s have"} an eligible showing, but this
               day asks for {plan.target_movie_count}.
               {plan.missing_movies.length ? ` Unavailable: ${plan.missing_movies.join(", ")}.` : ""}
             </p>
           ) : plan.missing_movies.length ? (
             <div className="status-strip" role="status">
-              Some selected movies have no eligible showing and can only be skipped:{" "}
+              Some candidate movies have no eligible showing and can only be skipped:{" "}
               {plan.missing_movies.join(", ")}.
             </div>
           ) : null}
