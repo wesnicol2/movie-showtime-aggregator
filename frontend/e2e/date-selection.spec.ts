@@ -32,32 +32,31 @@ async function mockScreenings(page: Page): Promise<string[]> {
   return requestedDates;
 }
 
-test("a specific show date refetches the shared screening dataset", async ({ page }) => {
+function isoDate(daysFromToday: number): string {
+  const value = new Date();
+  value.setHours(12, 0, 0, 0);
+  value.setDate(value.getDate() + daysFromToday);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+test("selecting a calendar day loads that date's movie dataset", async ({ page }) => {
   const requestedDates = await mockScreenings(page);
   await page.goto("/");
 
-  const dateInput = page.getByLabel("Show date");
-  await expect(dateInput).toBeVisible();
-  await expect.poll(() => requestedDates.length).toBeGreaterThan(0);
+  await expect(page.getByRole("heading", { name: "Plan your movie week" })).toBeVisible();
+  const futureDate = isoDate(3);
+  const targetDay = page.locator(`[data-date="${futureDate}"]`);
+  await expect(targetDay).toBeVisible();
+  await targetDay.getByRole("button", { name: "Choose movies" }).click();
 
-  const futureDate = await page.evaluate(() => {
-    const value = new Date();
-    value.setDate(value.getDate() + 3);
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, "0");
-    const day = String(value.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  });
-
-  await dateInput.fill(futureDate);
+  await expect(page).toHaveURL(/\/movies$/);
+  await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
   await expect.poll(() => requestedDates.at(-1)).toBe(futureDate);
-  await expect(dateInput).toHaveValue(futureDate);
-  await expect(page.getByRole("button", { name: "Today" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Movies" }).click();
-  await expect(page.getByLabel("Show date")).toHaveValue(futureDate);
-
-  await page.getByRole("button", { name: "Today" }).click();
-  await expect(page.getByRole("button", { name: "Today" })).toHaveCount(0);
-  await expect.poll(() => requestedDates.at(-1)).not.toBe(futureDate);
+  await page.getByRole("button", { name: "Calendar", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator(`[data-date="${futureDate}"]`)).toBeVisible();
 });
