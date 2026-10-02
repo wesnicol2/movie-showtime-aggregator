@@ -369,7 +369,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
       ) : null}
 
       <details className="movie-day-priority-advanced">
-        <summary>Movie priorities & runtimes</summary>
+        <summary className="movie-day-detail-summary">Movie priorities & runtimes</summary>
         <MoviePriorityEditor
           movies={rankedMovies}
           pinnedMovies={pinnedMovies}
@@ -392,7 +392,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
       ) : null}
       {response ? (
         <details className="planner-context movie-day-explanation">
-          <summary>How this plan is scored</summary>
+          <summary className="movie-day-detail-summary">How this plan is scored</summary>
           <div className="planner-facts">
             <span>{formatDate(response.date)}</span>
             <span>{availableSelectedMovies.length} selected movies</span>
