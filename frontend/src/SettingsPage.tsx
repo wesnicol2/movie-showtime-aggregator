@@ -2,11 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { fetchScreenings, fetchSharedSettings, saveSharedSettings } from "./api";
 import { useAppStore } from "./store";
-import type {
-  ExperienceDeviationSetting,
-  ProviderUsage,
-  SharedSettings,
-} from "./types";
+import type { ExperienceDeviationSetting, ProviderUsage, SharedSettings } from "./types";
 
 const SETTINGS_KEY = "movie-showtime-aggregator.settings.v1";
 const PREVIEW_COOKIE = "movie_preview_minutes";
@@ -95,9 +91,9 @@ export function SettingsPage() {
   const [amcKey, setAmcKey] = useState("");
   const [omdbKey, setOmdbKey] = useState("");
   const [aList, setAList] = useState(false);
-  const [experienceDeviations, setExperienceDeviations] = useState<
-    ExperienceDeviationSetting[]
-  >([]);
+  const [experienceDeviations, setExperienceDeviations] = useState<ExperienceDeviationSetting[]>(
+    [],
+  );
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
 
