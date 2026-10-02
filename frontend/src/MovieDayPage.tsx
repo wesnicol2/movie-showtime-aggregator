@@ -5,7 +5,7 @@ import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips"
 import { MovieDayControlBar } from "./components/MovieDayControlBar";
 import { MoviePriorityEditor } from "./components/MoviePriorityEditor";
 import "./movie-day.css";
-import { savedMoviePlanForDate, saveMoviePlan } from "./planner";
+import { readSavedMoviePlans, savedMoviePlanForDate, saveMoviePlan } from "./planner";
 import {
   activeFacetCount,
   EMPTY_SCREENING_FACETS,
@@ -32,7 +32,12 @@ interface MovieDayPreferences {
   runtimeOverrides: Record<string, number>;
 }
 
-export function MovieDayPage() {
+interface Props {
+  onBack: () => void;
+  onLocked: () => void;
+}
+
+export function MovieDayPage({ onBack, onLocked }: Props) {
   useScreenings();
   const response = useAppStore((state) => state.response);
   const status = useAppStore((state) => state.status);
@@ -43,7 +48,7 @@ export function MovieDayPage() {
   const setMovieSelection = useAppStore((state) => state.setMovieSelection);
   const [minimumBuffer, setMinimumBuffer] = useState(0);
   const [facets, setFacets] = useState<ScreeningFacets>(EMPTY_SCREENING_FACETS);
-  const [targetMovieCount, setTargetMovieCount] = useState<MovieDayTargetCount | null>(null);
+  const [targetMovieCount, setTargetMovieCount] = useState<MovieDayTargetCount | null>(1);
   const [earliestTime, setEarliestTime] = useState("");
   const [latestTime, setLatestTime] = useState("");
   const [sortBy, setSortBy] = useState<MovieDaySort>("want");
@@ -56,11 +61,32 @@ export function MovieDayPage() {
   const [planning, setPlanning] = useState(false);
   const [savedItineraryKey, setSavedItineraryKey] = useState<string | null>(null);
 
+  const responseDate = response?.date ?? "";
   const allScreenings = useMemo(() => response?.screenings ?? [], [response]);
+  const savedPlans = useMemo(() => readSavedMoviePlans(), [responseDate]);
+  const currentPlanMovies = useMemo(
+    () =>
+      new Set(
+        savedPlans.find((savedPlan) => savedPlan.date === responseDate)?.itinerary.movies ?? [],
+      ),
+    [responseDate, savedPlans],
+  );
+  const plannedElsewhere = useMemo(() => {
+    const movies = new Set<string>();
+    for (const savedPlan of savedPlans) {
+      if (savedPlan.date === responseDate) continue;
+      for (const movie of savedPlan.itinerary.movies) movies.add(movie);
+    }
+    return movies;
+  }, [responseDate, savedPlans]);
   const availableSelectedMovies = useMemo(() => {
     const showingMovies = new Set(allScreenings.map((screening) => screening.movie));
-    return selectedMovies.filter((movie) => showingMovies.has(movie));
-  }, [allScreenings, selectedMovies]);
+    const candidates = [...new Set([...selectedMovies, ...currentPlanMovies])];
+    return candidates.filter(
+      (movie) =>
+        showingMovies.has(movie) && (!plannedElsewhere.has(movie) || currentPlanMovies.has(movie)),
+    );
+  }, [allScreenings, currentPlanMovies, plannedElsewhere, selectedMovies]);
   const rankedMovies = useMemo(
     () => reconcileMovieRanking(moviePreferences.ranking, availableSelectedMovies),
     [availableSelectedMovies, moviePreferences.ranking],
@@ -101,7 +127,6 @@ export function MovieDayPage() {
   const activeShowingFilters = activeFacetCount(facets);
   const homeConfigured = response?.preferences.home_configured === true;
   const targetCount: MovieDayTargetCount = targetMovieCount ?? availableSelectedMovies.length;
-  const responseDate = response?.date ?? "";
   const bounds = response
     ? dayBounds(response.date, earliestTime, latestTime)
     : { earliestStart: null, latestEnd: null, endNextDay: false };
@@ -204,7 +229,7 @@ export function MovieDayPage() {
 
   function removeMovie(movie: string): void {
     if (!selectedMovies.includes(movie)) return;
-    if (!window.confirm(`Remove “${movie}” from your selected movies?`)) return;
+    if (!window.confirm(`Remove “${movie}” from your want list?`)) return;
     setMovieSelection(selectedMovies.filter((selected) => selected !== movie));
   }
 
@@ -220,9 +245,9 @@ export function MovieDayPage() {
   }
 
   function setAvailableMovieSelection(movies: string[]): void {
-    const showingMovies = new Set(allScreenings.map((screening) => screening.movie));
-    const unavailableSelectedMovies = selectedMovies.filter((movie) => !showingMovies.has(movie));
-    setMovieSelection([...unavailableSelectedMovies, ...movies]);
+    const mutableCandidates = new Set(availableSelectedMovies);
+    const retainedWantedMovies = selectedMovies.filter((movie) => !mutableCandidates.has(movie));
+    setMovieSelection([...retainedWantedMovies, ...movies]);
   }
 
   function changeSortBy(value: MovieDaySort): void {
@@ -287,18 +312,27 @@ export function MovieDayPage() {
       screenings: structuredClone(screenings),
       runtimeOverrides: { ...runtimeOverrides },
     });
-    const plannedMovies = new Set(itinerary.movies);
-    setMovieSelection(selectedMovies.filter((movie) => !plannedMovies.has(movie)));
     setPlanError(null);
     setSavedItineraryKey(nextKey);
+    onLocked();
   }
 
   return (
     <section className="workspace movie-day-workspace" aria-labelledby="movie-day-heading">
-      <div className="workspace-bar movie-day-bar">
+      <div className="workspace-bar movie-day-bar workflow-bar">
         <div>
-          <p className="eyebrow">TIME-WINDOW ROUTE PLANNER</p>
-          <h1 id="movie-day-heading">Plan a movie day</h1>
+          <p className="eyebrow">STEP 3 OF 3</p>
+          <h1 id="movie-day-heading">Build your itinerary</h1>
+          {response ? <p className="workflow-subtitle">{formatDate(response.date)}</p> : null}
+        </div>
+        <div className="workflow-actions">
+          <button type="button" onClick={onBack}>
+            Change movies
+          </button>
+          <strong>
+            {availableSelectedMovies.length} candidate
+            {availableSelectedMovies.length === 1 ? "" : "s"}
+          </strong>
         </div>
       </div>
 
@@ -515,8 +549,8 @@ function ItineraryCard({
           <span>Home at {itinerary.home_at ? formatTime(itinerary.home_at) : "not available"}</span>
           <span>{itinerary.travel_minutes} min driving</span>
           <span>{itinerary.waiting_minutes} min free</span>
-          <button type="button" onClick={onSave} aria-label={`Save option ${number} to Planner`}>
-            {saved ? "Saved to Planner" : "Save to Planner"}
+          <button type="button" onClick={onSave} aria-label={`Lock in option ${number}`}>
+            {saved ? "Locked in" : "Lock in itinerary"}
           </button>
         </div>
       </header>
