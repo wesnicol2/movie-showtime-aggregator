@@ -287,7 +287,7 @@
   cursor: pointer;
 }
 
-.planner-unplanned-details > div {
+.planner-unplanned-details .planner-unplanned-popover {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
