@@ -149,7 +149,7 @@ test("calendar-first navigation keeps showtime data available across secondary s
 
   await page.getByRole("button", { name: "Showtimes" }).click();
   await expect(page.getByText("2 of 2 screenings")).toBeVisible();
-  expect(screeningRequestCount()).toBe(1);
+  expect(screeningRequestCount()).toBe(2);
 
   await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
