@@ -244,8 +244,7 @@ export function MoviePriorityEditor({
         the movie lifts, then drag it into place; use Top to jump a movie to #1. Pin a movie to
         require it in every itinerary. Use × to remove a movie from this day's candidates; it stays
         on your want list. Runtime overrides replace the fetched runtime for Movie Day planning;
-        clear an override to use the
-        fetched value again.
+        clear an override to use the fetched value again.
       </p>
       <ol className="movie-priority-list" ref={listRef} aria-describedby="movie-priority-help">
         {movies.map((movie, index) => {
