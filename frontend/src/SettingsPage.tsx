@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 
 import { fetchScreenings, fetchSharedSettings, saveSharedSettings } from "./api";
 import { useAppStore } from "./store";
-import type { ProviderUsage, SharedSettings } from "./types";
+import type {
+  ExperienceDeviationSetting,
+  ProviderUsage,
+  SharedSettings,
+} from "./types";
 
 const SETTINGS_KEY = "movie-showtime-aggregator.settings.v1";
 const PREVIEW_COOKIE = "movie_preview_minutes";
@@ -91,6 +95,9 @@ export function SettingsPage() {
   const [amcKey, setAmcKey] = useState("");
   const [omdbKey, setOmdbKey] = useState("");
   const [aList, setAList] = useState(false);
+  const [experienceDeviations, setExperienceDeviations] = useState<
+    ExperienceDeviationSetting[]
+  >([]);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
 
@@ -107,6 +114,7 @@ export function SettingsPage() {
       setShared(sharedPayload);
       setHomeAddress(sharedPayload.home_address ?? "");
       setAList(sharedPayload.amc_a_list === true);
+      setExperienceDeviations(sharedPayload.experience_deviations ?? []);
       setChains(
         [...screeningPayload.facets.chains].sort((left, right) => left.localeCompare(right)),
       );
@@ -134,6 +142,7 @@ export function SettingsPage() {
       setShared(payload);
       setHomeAddress(payload.home_address ?? "");
       setAList(payload.amc_a_list === true);
+      setExperienceDeviations(payload.experience_deviations ?? []);
       setAmcKey("");
       setOmdbKey("");
       invalidateScreenings();
@@ -196,6 +205,44 @@ export function SettingsPage() {
     writeCookie(PREVIEW_COOKIE, {});
     invalidateScreenings();
     setStatus("Preview times cleared");
+  }
+
+  function updateExperienceDeviation(
+    id: string,
+    changes: Partial<Pick<ExperienceDeviationSetting, "enabled" | "score_delta">>,
+  ): void {
+    setExperienceDeviations((current) =>
+      current.map((item) => (item.id === id ? { ...item, ...changes } : item)),
+    );
+  }
+
+  async function saveExperienceDeviations(): Promise<void> {
+    const invalid = experienceDeviations.find(
+      (item) =>
+        !Number.isInteger(item.score_delta) ||
+        item.score_delta === 0 ||
+        item.score_delta < -10 ||
+        item.score_delta > 10,
+    );
+    if (invalid) {
+      setStatus(`${invalid.label} impact must be a non-zero whole number from -10 to 10.`);
+      return;
+    }
+    await persistShared(
+      { experience_deviations: experienceDeviations },
+      "Experience deviations saved",
+    );
+  }
+
+  function resetExperienceDefaults(): void {
+    setExperienceDeviations((current) =>
+      current.map((item) => ({
+        ...item,
+        enabled: true,
+        score_delta: item.default_score_delta,
+      })),
+    );
+    setStatus("Defaults loaded · save to apply");
   }
 
   return (
@@ -330,6 +377,74 @@ export function SettingsPage() {
           </button>
           <button type="button" onClick={clearPreviews}>
             Clear
+          </button>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <div className="settings-section-heading">
+          <div>
+            <h2>Experience deviations</h2>
+            <p>
+              Controls which non-standard screening experiences appear in itineraries and how much
+              they change want score. These settings are shared and persist across restarts and
+              application updates.
+            </p>
+          </div>
+          <span className="scope-badge shared">Shared server</span>
+        </div>
+        <div className="experience-settings-list">
+          <div className="experience-settings-header" aria-hidden="true">
+            <span>Use</span>
+            <span>Deviation</span>
+            <span>Type</span>
+            <span>Impact</span>
+          </div>
+          {experienceDeviations.map((item) => (
+            <div className="experience-settings-row" key={item.id}>
+              <input
+                type="checkbox"
+                checked={item.enabled}
+                aria-label={`Enable ${item.label}`}
+                onChange={(event) =>
+                  updateExperienceDeviation(item.id, { enabled: event.target.checked })
+                }
+              />
+              <div>
+                <strong>{item.label}</strong>
+                <small>{item.id}</small>
+              </div>
+              <span className="experience-settings-category">{item.category}</span>
+              <label className="experience-impact-field">
+                <span className="sr-only">{item.label} want-score impact</span>
+                <input
+                  type="number"
+                  min={-10}
+                  max={10}
+                  step={1}
+                  value={item.score_delta}
+                  disabled={!item.enabled}
+                  onChange={(event) =>
+                    updateExperienceDeviation(item.id, {
+                      score_delta: Number(event.target.value),
+                    })
+                  }
+                />
+                <span>pts</span>
+              </label>
+            </div>
+          ))}
+        </div>
+        <p className="settings-note">
+          Positive values increase itinerary want score; negative values reduce it. Disable a rule
+          to hide it and remove its score impact entirely.
+        </p>
+        <div className="settings-actions">
+          <button className="primary" type="button" onClick={() => void saveExperienceDeviations()}>
+            Save experience deviations
+          </button>
+          <button type="button" onClick={resetExperienceDefaults}>
+            Reset defaults
           </button>
         </div>
       </div>
