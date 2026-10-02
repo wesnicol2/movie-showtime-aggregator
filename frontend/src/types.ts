@@ -31,7 +31,7 @@ export interface ExperienceDeviation {
   label: string;
   category: string;
   polarity: "positive" | "negative";
-  score_delta: 1 | -1;
+  score_delta: number;
 }
 
 export interface Screening {
