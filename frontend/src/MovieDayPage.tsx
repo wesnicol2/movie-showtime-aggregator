@@ -166,7 +166,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
     if (
       status === "ready" &&
       typeof targetMovieCount === "number" &&
-      targetMovieCount >= availableSelectedMovies.length
+      targetMovieCount > availableSelectedMovies.length
     ) {
       setTargetMovieCount(null);
     }
@@ -368,16 +368,19 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
         </div>
       ) : null}
 
-      <MoviePriorityEditor
-        movies={rankedMovies}
-        pinnedMovies={pinnedMovies}
-        defaultRuntimeByMovie={defaultRuntimeByMovie}
-        runtimeOverrides={runtimeOverrides}
-        onMove={moveMovie}
-        onTogglePinned={togglePinned}
-        onRemoveMovie={removeMovie}
-        onRuntimeOverrideChange={setRuntimeOverride}
-      />
+      <details className="movie-day-priority-advanced">
+        <summary>Movie priorities & runtimes</summary>
+        <MoviePriorityEditor
+          movies={rankedMovies}
+          pinnedMovies={pinnedMovies}
+          defaultRuntimeByMovie={defaultRuntimeByMovie}
+          runtimeOverrides={runtimeOverrides}
+          onMove={moveMovie}
+          onTogglePinned={togglePinned}
+          onRemoveMovie={removeMovie}
+          onRuntimeOverrideChange={setRuntimeOverride}
+        />
+      </details>
 
       {status === "loading" ? (
         <div className="status-strip">Loading today’s screenings…</div>
@@ -388,7 +391,8 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
         </div>
       ) : null}
       {response ? (
-        <div className="planner-context">
+        <details className="planner-context movie-day-explanation">
+          <summary>How this plan is scored</summary>
           <div className="planner-facts">
             <span>{formatDate(response.date)}</span>
             <span>{availableSelectedMovies.length} selected movies</span>
@@ -408,7 +412,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
             Watch “Any” mixes every feasible movie count under the same filters. Results are
             globally ranked by the chosen primary objective and use Secondary sort to break ties.
           </p>
-        </div>
+        </details>
       ) : null}
 
       {plan ? (
