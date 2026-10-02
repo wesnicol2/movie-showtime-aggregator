@@ -1,4 +1,7 @@
+from copy import deepcopy
+
 from movie_showtime_aggregator.fandango import flatten_market_showtimes
+from movie_showtime_aggregator.models import normalize_showtime
 
 
 def market_payload():
@@ -157,3 +160,51 @@ def test_fan_event_amenity_is_preserved_for_experience_classification():
     flattened = flatten_market_showtimes(payload)[0]
 
     assert "Opening Night Fan Event" in flattened["attributes"]
+
+
+def test_fan_event_title_is_grouped_with_base_movie_and_preserves_event_deviation():
+    payload = market_payload()
+    theater = payload["theaters"][0]
+    base_movie = theater["movies"][0]
+    base_movie["title"] = "Other Mommy (2026)"
+    base_movie["runtime"] = 93
+    base_movie["id"] = "other-mommy-base"
+
+    event_movie = deepcopy(base_movie)
+    event_movie["id"] = "other-mommy-event"
+    event_movie["title"] = "BlumFest Presents: OTHER MOMMY Fan Event Screening"
+    event_movie["variants"][0]["filmFormatHeader"] = "Laser at AMC"
+    event_movie["variants"][0]["amenityGroups"][0]["isDolby"] = False
+    event_movie["variants"][0]["amenityGroups"][0]["showtimes"][0].update(
+        {
+            "id": "desert-ridge-fan-event",
+            "ticketingDate": "2026-10-08+18:00",
+        }
+    )
+    theater["movies"].append(event_movie)
+
+    rows = flatten_market_showtimes(payload)
+    event_row = next(row for row in rows if row["id"] == "desert-ridge-fan-event")
+
+    assert event_row["movieName"] == "Other Mommy (2026)"
+    assert "BlumFest Presents: OTHER MOMMY Fan Event Screening" in event_row["attributes"]
+
+    screening = normalize_showtime(event_row)
+    assert screening is not None
+    assert screening.movie == "Other Mommy (2026)"
+    assert screening.advertised_start.hour == 18
+    assert screening.format == "Laser"
+    assert any(
+        deviation.id == "event:fan-event" and deviation.label == "Fan Event"
+        for deviation in screening.experience_deviations
+    )
+
+
+def test_wrapped_event_title_is_not_rewritten_without_matching_base_movie():
+    payload = market_payload()
+    movie = payload["theaters"][0]["movies"][0]
+    movie["title"] = "BlumFest Presents: UNKNOWN MOVIE Fan Event Screening"
+
+    row = flatten_market_showtimes(payload)[0]
+
+    assert row["movieName"] == "BlumFest Presents: UNKNOWN MOVIE Fan Event Screening"
