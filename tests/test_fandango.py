@@ -208,3 +208,36 @@ def test_wrapped_event_title_is_not_rewritten_without_matching_base_movie():
     row = flatten_market_showtimes(payload)[0]
 
     assert row["movieName"] == "BlumFest Presents: UNKNOWN MOVIE Fan Event Screening"
+
+
+def test_plural_fan_event_title_with_year_groups_with_base_movie():
+    payload = market_payload()
+    theater = payload["theaters"][0]
+    base_movie = theater["movies"][0]
+    base_movie["title"] = "Other Mommy (2026)"
+    base_movie["id"] = "other-mommy-base"
+
+    event_movie = deepcopy(base_movie)
+    event_movie["id"] = "other-mommy-fan-event"
+    event_movie["title"] = "Other Mommy Fan Event Screenings (2026)"
+    event_movie["variants"][0]["filmFormatHeader"] = "Laser at AMC"
+    event_movie["variants"][0]["amenityGroups"][0]["isDolby"] = False
+    event_movie["variants"][0]["amenityGroups"][0]["showtimes"][0].update(
+        {
+            "id": "other-mommy-fan-event-1800",
+            "ticketingDate": "2026-10-08+18:00",
+        }
+    )
+    theater["movies"].append(event_movie)
+
+    rows = flatten_market_showtimes(payload)
+    event_row = next(row for row in rows if row["id"] == "other-mommy-fan-event-1800")
+
+    assert event_row["movieName"] == "Other Mommy (2026)"
+    assert "Other Mommy Fan Event Screenings (2026)" in event_row["attributes"]
+
+    screening = normalize_showtime(event_row)
+    assert screening is not None
+    assert screening.movie == "Other Mommy (2026)"
+    assert screening.advertised_start.hour == 18
+    assert any(deviation.id == "event:fan-event" for deviation in screening.experience_deviations)
