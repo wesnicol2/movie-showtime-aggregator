@@ -20,10 +20,11 @@ Before every push, run:
 
 ```bash
 npm ci
+bash scripts/fix
 bash scripts/verify
 ```
 
-The repo pins the frontend toolchain and Ruff. CI invokes the same repo-owned verification script, so Biome, strict TypeScript, Vite production build, Ruff, syntax checks, and pytest are deterministic local gates. CI is confirmation, not the preferred place to discover deterministic failures. A deployed Test environment is still required for behavior involving containers, credentials, upstream services, networking, or persistent volumes.
+The repo pins the frontend toolchain and Ruff. CI invokes the same repo-owned verification script, so Biome, strict TypeScript, Vite production build, Ruff, syntax checks, and pytest are deterministic local gates. CI is confirmation, not the preferred place to discover deterministic failures. Do not commit directly to a `feature/*` branch while iterating: work on `dev/*`, verify there, and promote only green work. If the current tool environment cannot create a checkout and run the repo-owned commands, do not use a `feature/*` or `main` write as a substitute verification loop; keep the work isolated on `dev/*` until a verification-capable environment is available. A deployed Test environment is still required for behavior involving containers, credentials, upstream services, networking, or persistent volumes.
 
 ---
 
