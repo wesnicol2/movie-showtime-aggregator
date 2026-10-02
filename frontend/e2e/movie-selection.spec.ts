@@ -203,27 +203,28 @@ async function openMovieFilters(page: Page): Promise<void> {
 test("movie selection supports filtering and release-date sorting", async ({ page }) => {
   await mockApi(page);
   await page.goto("/movies");
+  await page.getByText("Sort & saved views", { exact: true }).click();
 
   await expect(page.getByLabel("Filter titles")).toHaveCount(0);
   await openMovieFilters(page);
 
   await page.getByLabel("Sort movies").selectOption("initial_release_date");
   await expect(
-    page.getByRole("button", { name: "Select Alpha" }).getByText("Initial release · Aug 15, 2026"),
+    page.getByRole("button", { name: "Add Alpha to want list" }).getByText("Initial release · Aug 15, 2026"),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Select Beta" }).getByText("Initial release · Jan 10, 1999"),
+    page.getByRole("button", { name: "Add Beta to want list" }).getByText("Initial release · Jan 10, 1999"),
   ).toBeVisible();
-  await expect(page.locator(".movie-tile").first()).toHaveAttribute("aria-label", "Select Alpha");
+  await expect(page.locator(".movie-tile").first()).toHaveAttribute("aria-label", "Add Alpha to want list");
 
   await page.getByLabel("Filter titles").fill("Beta");
-  await expect(page.getByRole("button", { name: "Select Beta" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Select Alpha" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add Beta to want list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add Alpha to want list" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Clear filters" }).click();
   await page.getByLabel("Minimum IMDb").fill("8");
-  await expect(page.getByRole("button", { name: "Select Alpha" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Select Beta" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add Alpha to want list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add Beta to want list" })).toHaveCount(0);
 });
 
 test("movie selection filters by actual theater and chain availability", async ({ page }) => {
@@ -232,17 +233,17 @@ test("movie selection filters by actual theater and chain availability", async (
   await openMovieFilters(page);
 
   await keepOnly(page, "Theater", ["AMC Center 8"]);
-  await expect(page.getByRole("button", { name: "Select Alpha" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Select Beta" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add Alpha to want list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add Beta to want list" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Clear filters" }).click();
   await keepOnly(page, "Chain", ["Harkins Theatres"]);
-  await expect(page.getByRole("button", { name: "Select Alpha" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Select Beta" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add Alpha to want list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add Beta to want list" })).toBeVisible();
 
   await keepOnly(page, "Theater", ["AMC Center 8"]);
-  await expect(page.getByRole("button", { name: "Select Alpha" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Select Beta" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add Alpha to want list" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add Beta to want list" })).toHaveCount(0);
 });
 
 test("movie selection checkbox filters cover format, listed time, and selection", async ({
@@ -253,46 +254,44 @@ test("movie selection checkbox filters cover format, listed time, and selection"
   await openMovieFilters(page);
 
   await keepOnly(page, "Format", ["IMAX"]);
-  await expect(page.getByRole("button", { name: "Select Alpha" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Select Beta" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add Alpha to want list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add Beta to want list" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Clear filters" }).click();
   await keepOnly(page, "Listed time", ["Matinee · before 12pm"]);
-  await expect(page.getByRole("button", { name: "Select Beta" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Select Alpha" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add Beta to want list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add Alpha to want list" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Clear filters" }).click();
-  await page.getByRole("button", { name: "Select Alpha" }).click();
-  await keepOnly(page, "Selection", ["Selected"]);
-  await expect(page.getByRole("button", { name: "Deselect Alpha" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Select Beta" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Add Alpha to want list" }).click();
+  await keepOnly(page, "Selection", ["Wanted"]);
+  await expect(page.getByRole("button", { name: "Remove Alpha from want list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add Beta to want list" })).toHaveCount(0);
 
-  await keepOnly(page, "Selection", ["Unselected"]);
-  await expect(page.getByRole("button", { name: "Select Beta" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Deselect Alpha" })).toHaveCount(0);
+  await keepOnly(page, "Selection", ["Not wanted"]);
+  await expect(page.getByRole("button", { name: "Add Beta to want list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove Alpha from want list" })).toHaveCount(0);
 
   await expect(page.getByText("1 active filters")).toBeVisible();
 });
 
-test("saved views preserve the current movie selection instead of restoring a saved one", async ({
-  page,
-}) => {
+test("screening saved views do not overwrite the persistent want list", async ({ page }) => {
   await mockApi(page);
   await page.goto("/movies");
-  await page.getByRole("button", { name: "Select Alpha" }).click();
+  await page.getByRole("button", { name: "Add Alpha to want list" }).click();
 
-  await page.getByRole("button", { name: "Screenings" }).click();
-  page.once("dialog", async (dialog) => dialog.accept("No movie selection"));
+  await page.goto("/showtimes");
+  page.once("dialog", async (dialog) => dialog.accept("No want-list coupling"));
   await page.getByRole("button", { name: "Save view" }).click();
 
-  await page.getByRole("button", { name: "Movies" }).click();
-  await page.getByRole("button", { name: "Deselect Alpha" }).click();
-  await page.getByRole("button", { name: "Select Beta" }).click();
+  await page.goto("/movies");
+  await page.getByRole("button", { name: "Remove Alpha from want list" }).click();
+  await page.getByRole("button", { name: "Add Beta to want list" }).click();
 
-  await page.getByRole("button", { name: "Screenings" }).click();
-  await page.getByRole("combobox").first().selectOption({ label: "No movie selection" });
-  await page.getByRole("button", { name: "Movies" }).click();
+  await page.goto("/showtimes");
+  await page.getByRole("combobox").first().selectOption({ label: "No want-list coupling" });
+  await page.goto("/movies");
 
-  await expect(page.getByRole("button", { name: "Deselect Beta" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Select Alpha" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove Beta from want list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add Alpha to want list" })).toBeVisible();
 });
