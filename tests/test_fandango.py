@@ -197,3 +197,13 @@ def test_fan_event_title_is_grouped_with_base_movie_and_preserves_event_deviatio
         deviation.id == "event:fan-event" and deviation.label == "Fan Event"
         for deviation in screening.experience_deviations
     )
+
+
+def test_wrapped_event_title_is_not_rewritten_without_matching_base_movie():
+    payload = market_payload()
+    movie = payload["theaters"][0]["movies"][0]
+    movie["title"] = "BlumFest Presents: UNKNOWN MOVIE Fan Event Screening"
+
+    row = flatten_market_showtimes(payload)[0]
+
+    assert row["movieName"] == "BlumFest Presents: UNKNOWN MOVIE Fan Event Screening"
