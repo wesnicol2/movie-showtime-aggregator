@@ -553,3 +553,36 @@
     grid-template-columns: 1fr;
   }
 }
+
+.movie-day-priority-advanced,
+.movie-day-explanation {
+  margin: 8px 0 12px;
+}
+
+.movie-day-priority-advanced > summary,
+.movie-day-explanation > summary {
+  width: max-content;
+  padding: 8px 2px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.movie-day-priority-advanced[open] > summary,
+.movie-day-explanation[open] > summary {
+  color: var(--text);
+}
+
+.movie-day-priority-advanced .movie-priority-panel {
+  margin-bottom: 0;
+}
+
+.movie-day-explanation.planner-context {
+  display: block;
+}
+
+.movie-day-explanation .planner-facts,
+.movie-day-explanation p {
+  margin-top: 10px;
+}
