@@ -241,7 +241,7 @@ test("calendar-first flow keeps wanted movies and returns to the planned day aft
   await today.getByRole("button", { name: "Edit day" }).click();
   await expect(page).toHaveURL(/\/movies$/);
   await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
-  await expect(page.getByText("Planned this day").first()).toBeVisible();
+  await expect(page.getByText("Currently planned").first()).toBeVisible();
 });
 
 test("Movie Day saved views restore planning controls without saving movie selection", async ({
