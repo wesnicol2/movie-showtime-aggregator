@@ -268,11 +268,11 @@
 }
 
 .planner-unplanned-warning {
-  color: #e8c57d !important;
+  color: #e8c57d;
   font-weight: 700;
 }
 
 .planner-all-planned {
-  color: var(--success) !important;
+  color: var(--success);
   font-weight: 700;
 }
