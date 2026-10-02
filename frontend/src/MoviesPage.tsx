@@ -20,15 +20,22 @@ import {
   sortDirectionLabel,
   sortValueLabel,
 } from "./movies";
+import { readSavedMoviePlans } from "./planner";
 import { readDefaultSavedView, writeDefaultSavedView } from "./saved-view-defaults";
 import { useAppStore } from "./store";
 import { useScreenings } from "./useScreenings";
 
-export function MoviesPage() {
+interface Props {
+  onBack: () => void;
+  onContinue: () => void;
+}
+
+export function MoviesPage({ onBack, onContinue }: Props) {
   useScreenings();
   const response = useAppStore((state) => state.response);
   const status = useAppStore((state) => state.status);
   const error = useAppStore((state) => state.error);
+  const selectedDate = useAppStore((state) => state.selectedDate);
   const selectedMovies = useAppStore((state) => state.selectedMovies);
   const toggleMovie = useAppStore((state) => state.toggleMovie);
   const [sort, setSort] = useState<MovieSort>("title");
@@ -38,6 +45,7 @@ export function MoviesPage() {
   const [selectedView, setSelectedView] = useState("");
   const [defaultView, setDefaultView] = useState(() => readDefaultSavedView("movies"));
   const defaultAppliedRef = useRef(false);
+  const plans = useMemo(readSavedMoviePlans, []);
 
   useEffect(() => {
     if (defaultAppliedRef.current) return;
@@ -57,6 +65,34 @@ export function MoviesPage() {
 
   const screenings = useMemo(() => response?.screenings ?? [], [response]);
   const allMovies = useMemo(() => buildMovieOptions(screenings), [screenings]);
+  const plannedThisDate = useMemo(
+    () =>
+      new Set(
+        plans.find((plan) => plan.date === selectedDate)?.itinerary.movies ?? [],
+      ),
+    [plans, selectedDate],
+  );
+  const plannedOnOtherDates = useMemo(() => {
+    const dates = new Map<string, string>();
+    for (const plan of plans) {
+      if (plan.date === selectedDate) continue;
+      for (const movie of plan.itinerary.movies) {
+        if (!dates.has(movie)) dates.set(movie, plan.date);
+      }
+    }
+    return dates;
+  }, [plans, selectedDate]);
+  const planningMovies = useMemo(() => {
+    const available = new Set(allMovies.map((movie) => movie.representative.movie));
+    const candidates = new Set<string>();
+    for (const movie of selectedMovies) {
+      if (available.has(movie) && !plannedOnOtherDates.has(movie)) candidates.add(movie);
+    }
+    for (const movie of plannedThisDate) {
+      if (available.has(movie)) candidates.add(movie);
+    }
+    return candidates;
+  }, [allMovies, plannedOnOtherDates, plannedThisDate, selectedMovies]);
 
   const movies = useMemo(
     () =>
@@ -122,11 +158,46 @@ export function MoviesPage() {
 
   return (
     <section className="workspace movie-workspace" aria-labelledby="movies-heading">
-      <div className="workspace-bar movie-bar">
+      <div className="workspace-bar movie-bar workflow-bar">
         <div>
-          <p className="eyebrow">NOW PLAYING</p>
+          <p className="eyebrow">STEP 2 OF 3</p>
           <h1 id="movies-heading">Choose movies</h1>
+          <p className="workflow-subtitle">{formatDate(selectedDate)}</p>
         </div>
+        <div className="workflow-actions">
+          <button type="button" onClick={onBack}>
+            Calendar
+          </button>
+          <strong>{planningMovies.size} for this day</strong>
+          <button
+            className="primary-action"
+            type="button"
+            disabled={status !== "ready" || planningMovies.size === 0}
+            onClick={onContinue}
+          >
+            Continue to planner →
+          </button>
+        </div>
+      </div>
+
+      <div className="result-strip movie-selection-summary" aria-live="polite">
+        <strong>{selectedMovies.length}</strong> wanted overall
+        <span>·</span>
+        <span>
+          Only movies playing on {formatShortDate(selectedDate)} are shown here
+        </span>
+        {plannedOnOtherDates.size > 0 ? (
+          <>
+            <span>·</span>
+            <span>Already-planned movies are kept out of this day automatically</span>
+          </>
+        ) : null}
+      </div>
+
+      <MovieFilterBar filters={filters} screenings={screenings} onChange={setFilters} />
+
+      <details className="movie-advanced-controls">
+        <summary>Sort & saved views</summary>
         <div className="workspace-actions">
           <label className="select-label">
             <span className="sr-only">Movie saved view</span>
@@ -180,11 +251,8 @@ export function MoviesPage() {
           >
             {sortDirectionLabel(sort, sortDirection)}
           </button>
-          <strong className="selection-count">{selectedMovies.length} selected</strong>
         </div>
-      </div>
-
-      <MovieFilterBar filters={filters} screenings={screenings} onChange={setFilters} />
+      </details>
 
       {status === "loading" ? <div className="status-strip">Loading posters…</div> : null}
       {error ? (
@@ -218,14 +286,31 @@ export function MoviesPage() {
       <div className="movie-grid" aria-live="polite">
         {movies.map((movie) => {
           const screening = movie.representative;
-          const selected = selectedMovies.includes(screening.movie);
+          const wanted = selectedMovies.includes(screening.movie);
+          const plannedHere = plannedThisDate.has(screening.movie);
+          const plannedElsewhere = plannedOnOtherDates.get(screening.movie);
+          const selectedForDay = planningMovies.has(screening.movie);
+          const locked = plannedHere || plannedElsewhere !== undefined;
+          const statusLabel = plannedHere
+            ? "Planned this day"
+            : plannedElsewhere
+              ? `Planned ${formatShortDate(plannedElsewhere)}`
+              : wanted
+                ? "Wanted"
+                : "Not wanted";
+
           return (
             <button
               key={screening.movie}
               type="button"
-              className={`movie-tile ${selected ? "selected" : ""}`}
-              aria-pressed={selected}
-              aria-label={`${selected ? "Deselect" : "Select"} ${screening.movie}`}
+              className={`movie-tile ${selectedForDay ? "selected" : ""} ${locked ? "planned" : ""}`}
+              aria-pressed={selectedForDay}
+              aria-label={
+                locked
+                  ? `${screening.movie}: ${statusLabel}`
+                  : `${wanted ? "Remove" : "Add"} ${screening.movie} ${wanted ? "from" : "to"} want list`
+              }
+              disabled={locked}
               onClick={() => toggleMovie(screening.movie)}
             >
               <span className="poster-frame">
@@ -241,6 +326,7 @@ export function MoviesPage() {
                 <span className="poster-check" aria-hidden="true">
                   ✓
                 </span>
+                <span className={`poster-status ${locked ? "planned" : ""}`}>{statusLabel}</span>
               </span>
               <span className="movie-title">{screening.movie}</span>
               <span className="movie-sort-value">{sortValueLabel(screening, sort)}</span>
@@ -250,4 +336,19 @@ export function MoviesPage() {
       </div>
     </section>
   );
+}
+
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(`${value}T12:00:00`));
+}
+
+function formatShortDate(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(`${value}T12:00:00`));
 }
