@@ -245,7 +245,7 @@ test("calendar-first flow keeps wanted movies and returns to the planned day aft
   await today.getByRole("button", { name: "Edit day" }).click();
   await expect(page).toHaveURL(/\/movies$/);
   await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
-  await expect(page.getByText("Planned this day").first()).toBeVisible();
+  await expect(page.getByText("Currently planned").first()).toBeVisible();
 });
 
 test("a past plan does not hide a wanted movie from the unplanned warning", async ({ page }) => {
@@ -391,5 +391,5 @@ test("jumping far enough forward extends the timeline and hands the date to Movi
 
   await expect(page).toHaveURL(/\/movies$/);
   await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Remove Alpha from want list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove Alpha from this day" })).toBeVisible();
 });
