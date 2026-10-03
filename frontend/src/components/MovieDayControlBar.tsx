@@ -19,6 +19,7 @@ const MOVIE_DAY_SAVED_VIEWS_KEY = "movie-showtime-aggregator.movie-day-saved-vie
 const SORT_OPTIONS: readonly { value: MovieDaySort; label: string }[] = [
   { value: "elapsed", label: "Minimum time" },
   { value: "driving", label: "Minimum driving" },
+  { value: "home", label: "Earliest home" },
   { value: "want", label: "Highest want score" },
 ];
 
@@ -469,7 +470,7 @@ function isMovieDaySavedView(value: unknown): value is MovieDaySavedView {
 }
 
 function isMovieDaySort(value: unknown): value is MovieDaySort {
-  return value === "elapsed" || value === "driving" || value === "want";
+  return value === "elapsed" || value === "driving" || value === "home" || value === "want";
 }
 
 function movieOptions(screenings: readonly Screening[]): CheckboxOption[] {

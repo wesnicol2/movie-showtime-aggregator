@@ -103,7 +103,7 @@ export interface ScreeningsResponse {
   screenings: Screening[];
 }
 
-export type MovieDaySort = "elapsed" | "driving" | "want";
+export type MovieDaySort = "elapsed" | "driving" | "home" | "want";
 export type MovieDayTargetCount = number | "any";
 
 export interface MovieDayLeg {

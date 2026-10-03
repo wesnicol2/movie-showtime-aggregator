@@ -255,7 +255,7 @@ test("planner sends exact count, time bounds, primary sort, and secondary sort",
   await page.getByLabel("Number of movies").selectOption("1");
   await page.getByLabel("Movie day start").fill("09:00");
   await page.getByLabel("Movie day end").fill("14:00");
-  await page.getByLabel("Sort itineraries", { exact: true }).selectOption("driving");
+  await page.getByLabel("Sort itineraries", { exact: true }).selectOption("home");
   await page.getByLabel("Secondary sort itineraries").selectOption("want");
 
   await page.route("**/api/movie-day", async (route) => {
@@ -264,7 +264,7 @@ test("planner sends exact count, time bounds, primary sort, and secondary sort",
     expect(request.required_movies).toEqual([]);
     expect(request.runtime_overrides).toEqual({});
     expect(request.target_movie_count).toBe(1);
-    expect(request.sort_by).toBe("driving");
+    expect(request.sort_by).toBe("home");
     expect(request.secondary_sort_by).toBe("want");
     expect(request.earliest_start).toBe("2026-09-10T09:00:00");
     expect(request.latest_end).toBe("2026-09-10T14:00:00");
@@ -276,7 +276,7 @@ test("planner sends exact count, time bounds, primary sort, and secondary sort",
         runtime_overrides: {},
         target_movie_count: 1,
         plannable_movie_count: 2,
-        sort_by: "driving",
+        sort_by: "home",
         secondary_sort_by: "want",
         earliest_start: request.earliest_start,
         latest_end: request.latest_end,
@@ -311,7 +311,7 @@ test("planner sends exact count, time bounds, primary sort, and secondary sort",
 
   await page.getByRole("button", { name: "Find itineraries" }).click();
   await expect(page.getByText("Skipped: Beta")).toBeVisible();
-  await expect(page.getByText("Minimum driving first; ties by highest want score")).toBeVisible();
+  await expect(page.getByText("Earliest home first; ties by highest want score")).toBeVisible();
 });
 
 test("movie priorities and pins are sent as hard planner constraints", async ({ page }) => {

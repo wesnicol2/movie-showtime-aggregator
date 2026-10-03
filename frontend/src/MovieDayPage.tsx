@@ -47,6 +47,9 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   const sort = useAppStore((state) => state.sort);
   const selectedMovies = useAppStore((state) => state.selectedMovies);
   const setMovieSelection = useAppStore((state) => state.setMovieSelection);
+  const planningDraftDate = useAppStore((state) => state.planningDraftDate);
+  const planningDraftMovies = useAppStore((state) => state.planningDraftMovies);
+  const setPlanningDraft = useAppStore((state) => state.setPlanningDraft);
   const [minimumBuffer, setMinimumBuffer] = useState(0);
   const [facets, setFacets] = useState<ScreeningFacets>(EMPTY_SCREENING_FACETS);
   const [targetMovieCount, setTargetMovieCount] = useState<MovieDayTargetCount | null>(1);
@@ -83,12 +86,24 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   }, [responseDate, savedPlans]);
   const availableSelectedMovies = useMemo(() => {
     const showingMovies = new Set(allScreenings.map((screening) => screening.movie));
-    const candidates = [...new Set([...selectedMovies, ...currentPlanMovies])];
+    const draftMovies =
+      planningDraftDate === responseDate && planningDraftMovies !== null
+        ? planningDraftMovies
+        : null;
+    const candidates = draftMovies ?? [...new Set([...selectedMovies, ...currentPlanMovies])];
     return candidates.filter(
       (movie) =>
         showingMovies.has(movie) && (!plannedElsewhere.has(movie) || currentPlanMovies.has(movie)),
     );
-  }, [allScreenings, currentPlanMovies, plannedElsewhere, selectedMovies]);
+  }, [
+    allScreenings,
+    currentPlanMovies,
+    plannedElsewhere,
+    planningDraftDate,
+    planningDraftMovies,
+    responseDate,
+    selectedMovies,
+  ]);
   const rankedMovies = useMemo(
     () => reconcileMovieRanking(moviePreferences.ranking, availableSelectedMovies),
     [availableSelectedMovies, moviePreferences.ranking],
@@ -230,9 +245,11 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   }
 
   function removeMovie(movie: string): void {
-    if (!selectedMovies.includes(movie)) return;
-    if (!window.confirm(`Remove “${movie}” from your want list?`)) return;
-    setMovieSelection(selectedMovies.filter((selected) => selected !== movie));
+    if (!responseDate || !availableSelectedMovies.includes(movie)) return;
+    setPlanningDraft(
+      responseDate,
+      availableSelectedMovies.filter((selected) => selected !== movie),
+    );
   }
 
   function setRuntimeOverride(movie: string, minutes: number | null): void {
@@ -247,9 +264,12 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   }
 
   function setAvailableMovieSelection(movies: string[]): void {
-    const mutableCandidates = new Set(availableSelectedMovies);
-    const retainedWantedMovies = selectedMovies.filter((movie) => !mutableCandidates.has(movie));
-    setMovieSelection([...retainedWantedMovies, ...movies]);
+    if (!responseDate) return;
+    const newWantedMovies = movies.filter((movie) => !selectedMovies.includes(movie));
+    if (newWantedMovies.length > 0) {
+      setMovieSelection([...selectedMovies, ...newWantedMovies]);
+    }
+    setPlanningDraft(responseDate, movies);
   }
 
   function changeSortBy(value: MovieDaySort): void {
@@ -687,6 +707,7 @@ function sortDescription(sortBy: MovieDaySort, secondarySortBy: MovieDaySort): s
 
 function sortLabel(sortBy: MovieDaySort): string {
   if (sortBy === "driving") return "Minimum driving";
+  if (sortBy === "home") return "Earliest home";
   if (sortBy === "want") return "Highest want score";
   return "Minimum time";
 }
