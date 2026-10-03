@@ -242,7 +242,7 @@ export function MoviePriorityEditor({
       <p className="movie-priority-help" id="movie-priority-help">
         Higher-ranked movies are worth more want points. Press and hold the three-line handle until
         the movie lifts, then drag it into place; use Top to jump a movie to #1. Pin a movie to
-        require it in every itinerary. Use × to remove a movie from your want list. Runtime
+        require it in every itinerary. Use × to remove a movie from this day. Runtime
         overrides replace the fetched runtime for Movie Day planning; clear an override to use the
         fetched value again.
       </p>
@@ -355,8 +355,8 @@ export function MoviePriorityEditor({
                 <button
                   type="button"
                   className="movie-priority-remove"
-                  aria-label={`Remove ${movie} from want list`}
-                  title="Remove from want list"
+                  aria-label={`Remove ${movie} from this day`}
+                  title="Remove from this day"
                   onClick={() => onRemoveMovie(movie)}
                 >
                   ×
