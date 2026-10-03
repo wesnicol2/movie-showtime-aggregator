@@ -115,6 +115,30 @@ def test_minimum_driving_sort_can_prefer_a_longer_same_theater_day():
     assert plan.itineraries[0].elapsed_minutes > plan.itineraries[1].elapsed_minutes
 
 
+def test_earliest_home_sort_can_prefer_a_longer_itinerary_that_finishes_earlier():
+    early_long = replace(screening("early-long", "Alpha", 8, 0, 120), drive_home_minutes=30)
+    late_short = screening("late-short", "Beta", 10, 0, 60)
+
+    elapsed = plan_movie_day(
+        [early_long, late_short],
+        ["Alpha", "Beta"],
+        {},
+        target_movie_count=1,
+        sort_by="elapsed",
+    )
+    earliest_home = plan_movie_day(
+        [early_long, late_short],
+        ["Alpha", "Beta"],
+        {},
+        target_movie_count=1,
+        sort_by="home",
+    )
+
+    assert elapsed.itineraries[0].showtime_ids == ("late-short",)
+    assert earliest_home.itineraries[0].showtime_ids == ("early-long",)
+    assert earliest_home.itineraries[0].home_at == datetime(2026, 9, 10, 10, 30)
+
+
 def test_target_movie_count_allows_each_itinerary_to_drop_different_movies():
     screenings = [
         screening("a", "Alpha", 9, 0, 60),
