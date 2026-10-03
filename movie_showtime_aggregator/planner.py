@@ -127,9 +127,7 @@ def theatre_points(screenings: list[Screening]) -> list[GeoPoint]:
 
 
 def default_secondary_sort(sort_by: str) -> str:
-    if sort_by == SORT_DRIVING:
-        return SORT_ELAPSED
-    if sort_by == SORT_WANT:
+    if sort_by in {SORT_DRIVING, SORT_HOME, SORT_WANT}:
         return SORT_ELAPSED
     return SORT_DRIVING
 
