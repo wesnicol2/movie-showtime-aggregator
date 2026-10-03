@@ -11,8 +11,9 @@ from .routing import route_source_url
 
 SORT_ELAPSED = "elapsed"
 SORT_DRIVING = "driving"
+SORT_HOME = "home"
 SORT_WANT = "want"
-SORT_MODES = {SORT_ELAPSED, SORT_DRIVING, SORT_WANT}
+SORT_MODES = {SORT_ELAPSED, SORT_DRIVING, SORT_HOME, SORT_WANT}
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,12 +166,12 @@ def plan_movie_day(
     if len(required) > target:
         raise ValueError("required_movies cannot exceed target_movie_count")
     if sort_by not in SORT_MODES:
-        raise ValueError("sort_by must be 'elapsed', 'driving', or 'want'")
+        raise ValueError("sort_by must be 'elapsed', 'driving', 'home', or 'want'")
     secondary_sort = (
         default_secondary_sort(sort_by) if secondary_sort_by is None else secondary_sort_by
     )
     if secondary_sort not in SORT_MODES:
-        raise ValueError("secondary_sort_by must be 'elapsed', 'driving', or 'want'")
+        raise ValueError("secondary_sort_by must be 'elapsed', 'driving', 'home', or 'want'")
     if secondary_sort == sort_by:
         raise ValueError("secondary_sort_by must differ from sort_by")
     if earliest_start is not None and latest_end is not None and latest_end < earliest_start:
@@ -365,6 +366,7 @@ def _ranked_itineraries(
                     score_upper_bounds=score_upper_bounds,
                     visited_mask=visited_mask,
                     target=target,
+                    home_configured=home_configured,
                 ),
                 index,
                 visited_mask,
@@ -415,6 +417,7 @@ def _ranked_itineraries(
                         score_upper_bounds=score_upper_bounds,
                         visited_mask=next_mask,
                         target=target,
+                        home_configured=home_configured,
                     ),
                     target_index,
                     next_mask,
@@ -438,6 +441,7 @@ def _path_priority(
     score_upper_bounds: dict[str, int],
     visited_mask: int,
     target: int,
+    home_configured: bool,
 ) -> tuple[object, ...]:
     first = candidates[path[0][0]]
     current = candidates[path[-1][0]]
@@ -465,9 +469,15 @@ def _path_priority(
         reverse=True,
     )
     score_upper_bound = current_score + sum(remaining_scores[:remaining_slots])
+    home_priority = _home_sort_value(
+        current,
+        is_complete=is_complete,
+        home_configured=home_configured,
+    )
     priorities = {
         SORT_ELAPSED: total_elapsed_minutes,
         SORT_DRIVING: total_drive_minutes,
+        SORT_HOME: home_priority,
         SORT_WANT: -score_upper_bound,
     }
     priority: list[object] = [priorities[sort_by], priorities[secondary_sort_by]]
@@ -475,6 +485,20 @@ def _path_priority(
         priority.append(priorities[SORT_DRIVING])
     showtime_ids = tuple(candidates[index].showtime_id for index, _ in path)
     return (*priority, starts_at, showtime_ids)
+
+
+def _home_sort_value(
+    screening: Screening,
+    *,
+    is_complete: bool,
+    home_configured: bool,
+) -> tuple[int, datetime]:
+    if screening.estimated_end is None:
+        raise ValueError("ranked path contains unknown timing")
+    if not is_complete or not home_configured:
+        return (0, screening.estimated_end)
+    home_at = _estimated_home_arrival(screening)
+    return (0, home_at) if home_at is not None else (1, screening.estimated_end)
 
 
 def _arrives_home_by(
