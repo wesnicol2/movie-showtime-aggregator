@@ -707,6 +707,7 @@ function sortDescription(sortBy: MovieDaySort, secondarySortBy: MovieDaySort): s
 
 function sortLabel(sortBy: MovieDaySort): string {
   if (sortBy === "driving") return "Minimum driving";
+  if (sortBy === "home") return "Earliest home";
   if (sortBy === "want") return "Highest want score";
   return "Minimum time";
 }
