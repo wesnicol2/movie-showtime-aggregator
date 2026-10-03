@@ -159,6 +159,9 @@ test("direct SPA routes render from the production container", async ({ page }) 
   await page.goto("/movies");
   await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
 
+  await page.goto("/planner");
+  await expect(page.getByRole("heading", { name: "Plan your movie week" })).toBeVisible();
+
   await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(page.getByText("Shared server").first()).toBeVisible();
