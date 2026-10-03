@@ -122,7 +122,7 @@ test("Movie Day shows the expected home arrival for each itinerary option", asyn
   });
 
   await page.goto("/plan");
-  await page.getByRole("button", { name: "Find combinations" }).click();
+  await page.getByRole("button", { name: "Find itineraries" }).click();
 
   await expect(page.getByText("Home at 10:20 AM")).toBeVisible();
 });

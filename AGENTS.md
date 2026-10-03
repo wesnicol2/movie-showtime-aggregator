@@ -43,6 +43,8 @@ Never commit directly to `feature/*` or `main` while iterating. If the current e
 
 ---
 
+---
+
 ## Frontend architecture
 
 The user interface is React 19 + TypeScript + Vite. Keep TypeScript strict. Biome is the only JS/TS formatter and linter. Zustand owns the small amount of explicit shared application state used to synchronize screenings, filters, Saved Views, movie selection, and inspection state.
@@ -65,11 +67,17 @@ Keep component boundaries clear. Avoid monolithic page files and avoid using mod
 
 ## Product surfaces
 
-The product has four intentional user-facing surfaces.
+The product has one primary planning workflow plus secondary inspection/settings surfaces. Preserve the orientation model: **Calendar → Movie Selection → Movie Day → Calendar**. A first-time user should not need to understand internal feature names or visit the showtime table to make a plan.
 
-### Screening table
+### Calendar
 
-The home page is one large spreadsheet-style table. Do not recreate standalone filtering panels. Every displayed column is a first-class sort/filter dimension:
+`/` is the infinite-scroll future calendar and the application home. It is the source of orientation: choosing a day sets the shared date and opens Movie Selection; locking an itinerary returns to the calendar focused on that same date. Saved current/future plans render inline on their dates.
+
+The browser-local movie set is a durable **want list**, not a temporary table filter or a basket that is emptied after saving a plan. A wanted movie must always be explainable as planned on a current/future saved day, a candidate for the day currently being planned, or still unplanned. The calendar must surface unplanned wanted movies rather than silently losing them. Past plans do not satisfy the current/future planned invariant.
+
+### Showtimes table
+
+`/showtimes` is the spreadsheet-style power-user inspection surface. Do not recreate standalone filtering panels. Every displayed column is a first-class sort/filter dimension:
 
 - click the column label to sort;
 - click the dropdown side of the header to filter;
@@ -90,13 +98,13 @@ Discrete dimensions on this page are multi-value checkbox filters (selection sta
 
 Listed showtime windows bucket the provider's listed start, never the calculated actual start, so they stay defined when preview minutes are unconfigured. New movie-page dimensions should normally become another checkbox filter over base screening facts rather than a bespoke control.
 
-The selected movie titles live in browser local storage and are also the source of truth for the table's Movie exact-value filter. Changes from either surface should stay synchronized. This is browser convenience state, not an account/profile system.
+Wanted movie titles live in browser local storage independently from the Screening table's Movie filter. Do not couple the want list back to table filter state: clearing or loading Screening filters must never erase movie intent. This is browser convenience state, not an account/profile system.
 
 ### Movie Day
 
-`/plan` consumes the browser's selected movie pool and the already-loaded screenings that survive the current table column filters. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
+`/plan` is the final step of the calendar workflow. It consumes wanted movies that are available on the selected date while excluding movies already scheduled on another current/future day. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
 
-Movie Day keeps its core planning controls together in one compact control grid. The searchable **Movies** checkbox menu edits the same browser-persistent selection used by `/movies` and the table. Exact **Watch** count, Start, End, primary Sort, **Secondary sort**, transfer buffer, and the planning action stay immediately visible because they define the optimization request itself. Theater, chain, format, and listed-time controls are optional checkbox-only showing facets from `screening-facets.ts`; they narrow candidate showings in addition to the table's richer column filters rather than replacing them, and are collapsed by default behind the Movie Day **Filters** button. Keep their active count visible while collapsed and close any open facet submenu when collapsing the panel. The adjacent **Movie Priority** list is the deliberate exception because ranking and pinning need title-by-title controls; do not scatter those controls across result cards or unrelated surfaces.
+The novice surface intentionally exposes only **How many movies?** (default **1**) and **Find itineraries**. Start/Home by, candidate editing, primary/secondary sort, transfer buffer, saved views, and showing facets belong under **Advanced options**. Ranking, pins, and runtime overrides belong under **Movie priorities & runtimes**. Keep the optimization power available, but do not make a first-time user parse it before producing a valid one-movie plan. Locking an itinerary preserves the want list and returns directly to the calendar.
 
 Movie Day priority/pin state is browser-local planner preference state, separate from the shared selected-movie set. Preserve the user's ordering as selected titles are added or removed. The ranked movie array is submitted to the backend in priority order. With `N` selected movies, rank #1 is worth `N` points, rank #2 is worth `N-1`, down to one point for the last-ranked movie; an itinerary's want score is the sum of its included movies. Pins are submitted separately as `required_movies`.
 
@@ -106,7 +114,7 @@ The larger mathematical problem is a cardinality-constrained time-window routing
 
 Start and End are planner constraints over canonical calculated timing: a used showing's actual start cannot precede Start, and its calculated end cannot exceed End. The UI may interpret an End clock time at or before a supplied Start as the following date, but the API accepts complete local datetimes and the backend compares those complete datetimes. Do not regress this to clock-only comparisons.
 
-Dynamic programming counts exact feasible completions from `(showing, visited-movie-mask)` states and prunes paths that cannot reach the requested cardinality or still cover all required movie bits. Pins must be enforced in this completion state, not post-filtered after pagination/counting. Result ordering is a separate backend responsibility: best-first traversal uses monotone lower bounds (and the optimistic want-score upper bound) so the **primary sort and Secondary sort are applied globally before pagination**, never to only the browser's current page. The selectable objectives are full door-to-door **Minimum time**, full round-trip **Minimum driving**, and **Highest want score**. Secondary sort must differ from the primary objective. When the primary objective changes, the UI resets Secondary sort to the historical implicit tie-breaker so existing behavior is preserved by default: elapsed → driving, driving → elapsed, want → elapsed. The legacy want-score order still uses driving after equal score and equal elapsed time. API callers that omit `secondary_sort_by` receive those same defaults. A caller that explicitly chooses another secondary objective changes only the tie-break order after the primary metric; deterministic start/showtime identity remains after the requested ordering.
+Dynamic programming counts exact feasible completions from `(showing, visited-movie-mask)` states and prunes paths that cannot reach the requested cardinality or still cover all required movie bits. Pins must be enforced in this completion state, not post-filtered after pagination/counting. Result ordering is a separate backend responsibility: best-first traversal uses monotone lower bounds (and the optimistic want-score upper bound) so the **primary sort and Secondary sort are applied globally before pagination**, never to only the browser's current page. The selectable objectives are full door-to-door **Minimum time**, full round-trip **Minimum driving**, absolute **Earliest home**, and **Highest want score**. Earliest home ranks by final movie end plus the return-home estimate; without a configured home it falls back to final movie end, and unknown return routes sort after known home arrivals. Secondary sort must differ from the primary objective. When the primary objective changes, the UI resets Secondary sort to the historical implicit tie-breaker so existing behavior is preserved by default: elapsed → driving; driving, home, and want → elapsed. The legacy want-score order still uses driving after equal score and equal elapsed time. API callers that omit `secondary_sort_by` receive those same defaults. A caller that explicitly chooses another secondary objective changes only the tie-break order after the primary metric; deterministic start/showtime identity remains after the requested ordering.
 
 Same-theater transitions take zero minutes. Different-theater transitions use directional OSRM drive time and require coordinates/routes. Unknown preview or runtime makes that showing unplannable; missing cross-theater routing makes that transition infeasible. When Watch is smaller than the selected pool, missing/unplannable unpinned movies are not fatal unless fewer than `K` distinct movies remain. A missing/unplannable pinned movie is a hard conflict and must be reported explicitly. Each returned itinerary identifies which unpinned selected movies it omitted and includes its want score.
 

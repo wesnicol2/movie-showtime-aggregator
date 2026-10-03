@@ -1,10 +1,12 @@
 import { create } from "zustand";
 
+import { readSavedMoviePlans } from "./planner";
 import { type ColumnFilter, createEmptyFilters, type Filters, type SortState } from "./screenings";
 import { browserDate } from "./show-date";
 import type { ColumnKey, ScreeningsResponse } from "./types";
 
 const MOVIE_SELECTION_KEY = "movie-showtime-aggregator.selected-movies.v1";
+const WANT_LIST_MIGRATION_KEY = "movie-showtime-aggregator.want-list-migration.v1";
 const SAVED_VIEWS_KEY = "movie-showtime-aggregator.saved-views.v1";
 
 export interface SavedView {
@@ -34,6 +36,19 @@ function persistMovieSelection(values: string[]): void {
     return;
   }
   localStorage.setItem(MOVIE_SELECTION_KEY, JSON.stringify([...values].sort()));
+}
+
+function migrateWantList(values: string[]): string[] {
+  if (localStorage.getItem(WANT_LIST_MIGRATION_KEY) === "1") return values;
+
+  const today = browserDate();
+  const plannedMovies = readSavedMoviePlans()
+    .filter((plan) => plan.date >= today)
+    .flatMap((plan) => plan.itinerary.movies);
+  const migrated = [...new Set([...values, ...plannedMovies])].sort();
+  persistMovieSelection(migrated);
+  localStorage.setItem(WANT_LIST_MIGRATION_KEY, "1");
+  return migrated;
 }
 
 function withoutMovieSelection(view: SavedView): SavedView {
@@ -70,11 +85,8 @@ export function writeSavedViews(views: Record<string, SavedView>): void {
   localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(sanitized));
 }
 
-const initialSelection = readMovieSelection();
+const initialSelection = migrateWantList(readMovieSelection());
 const initialFilters = createEmptyFilters();
-if (initialSelection.length > 0) {
-  initialFilters.movie.selected = [...initialSelection];
-}
 
 interface AppState {
   response: ScreeningsResponse | null;
@@ -84,6 +96,8 @@ interface AppState {
   filters: Filters;
   sort: SortState;
   selectedMovies: string[];
+  planningDraftDate: string | null;
+  planningDraftMovies: string[] | null;
   inspectedShowtimeId: string | null;
   setLoading: () => void;
   setResponse: (response: ScreeningsResponse) => void;
@@ -96,6 +110,8 @@ interface AppState {
   toggleMovie: (movie: string) => void;
   setMovieSelection: (movies: string[]) => void;
   syncMovieSelection: () => void;
+  setPlanningDraft: (date: string, movies: string[] | null) => void;
+  clearPlanningDraft: () => void;
   setInspectedShowtimeId: (showtimeId: string | null) => void;
   applySavedView: (view: SavedView) => void;
 }
@@ -108,6 +124,8 @@ export const useAppStore = create<AppState>((set) => ({
   filters: initialFilters,
   sort: { key: "advertised_start", direction: "asc" },
   selectedMovies: initialSelection,
+  planningDraftDate: null,
+  planningDraftMovies: null,
   inspectedShowtimeId: null,
 
   setLoading: () => set({ status: "loading", error: null }),
@@ -137,17 +155,10 @@ export const useAppStore = create<AppState>((set) => ({
   updateFilter: (key, patch) =>
     set((state) => {
       const nextFilter = { ...state.filters[key], ...patch };
-      const filters = { ...state.filters, [key]: nextFilter };
-      if (key !== "movie" || patch.selected === undefined) return { filters };
-      const selectedMovies = patch.selected ?? [];
-      persistMovieSelection(selectedMovies);
-      return { filters, selectedMovies };
+      return { filters: { ...state.filters, [key]: nextFilter } };
     }),
 
-  clearAllFilters: () => {
-    persistMovieSelection([]);
-    set({ filters: createEmptyFilters(), selectedMovies: [] });
-  },
+  clearAllFilters: () => set({ filters: createEmptyFilters() }),
 
   toggleMovie: (movie) =>
     set((state) => {
@@ -155,62 +166,32 @@ export const useAppStore = create<AppState>((set) => ({
         ? state.selectedMovies.filter((value) => value !== movie)
         : [...state.selectedMovies, movie].sort();
       persistMovieSelection(selectedMovies);
-      return {
-        selectedMovies,
-        filters: {
-          ...state.filters,
-          movie: {
-            ...state.filters.movie,
-            selected: selectedMovies.length > 0 ? selectedMovies : null,
-          },
-        },
-      };
+      return { selectedMovies };
     }),
 
   setMovieSelection: (movies: string[]) =>
-    set((state) => {
+    set(() => {
       const selectedMovies = [...new Set(movies)].sort();
       persistMovieSelection(selectedMovies);
-      return {
-        selectedMovies,
-        filters: {
-          ...state.filters,
-          movie: {
-            ...state.filters.movie,
-            selected: selectedMovies.length > 0 ? selectedMovies : null,
-          },
-        },
-      };
+      return { selectedMovies };
     }),
 
-  syncMovieSelection: () =>
-    set((state) => {
-      const selectedMovies = readMovieSelection();
-      return {
-        selectedMovies,
-        filters: {
-          ...state.filters,
-          movie: {
-            ...state.filters.movie,
-            selected: selectedMovies.length > 0 ? selectedMovies : null,
-          },
-        },
-      };
+  syncMovieSelection: () => set({ selectedMovies: readMovieSelection() }),
+
+  setPlanningDraft: (planningDraftDate, movies) =>
+    set({
+      planningDraftDate,
+      planningDraftMovies: movies === null ? null : [...new Set(movies)].sort(),
     }),
+
+  clearPlanningDraft: () => set({ planningDraftDate: null, planningDraftMovies: null }),
 
   setInspectedShowtimeId: (inspectedShowtimeId) => set({ inspectedShowtimeId }),
 
   applySavedView: (view) =>
-    set((state) => {
-      const filters = structuredClone(view.filters);
-      filters.movie = {
-        ...filters.movie,
-        selected: state.filters.movie.selected,
-      };
-      return {
-        sort: { ...view.sort },
-        filters,
-        inspectedShowtimeId: null,
-      };
-    }),
+    set(() => ({
+      sort: { ...view.sort },
+      filters: structuredClone(view.filters),
+      inspectedShowtimeId: null,
+    })),
 }));

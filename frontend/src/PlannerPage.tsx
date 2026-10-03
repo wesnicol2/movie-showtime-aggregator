@@ -11,6 +11,7 @@ import {
 } from "./planner";
 import "./planner.css";
 import { browserDate } from "./show-date";
+import { useAppStore } from "./store";
 import type { Screening } from "./types";
 
 const INITIAL_DAY_COUNT = 35;
@@ -22,10 +23,17 @@ type VerificationState =
   | { status: "changed"; missingMovies: string[] }
   | { status: "unavailable" };
 
-type PlanDateHandler = (date: string, movies?: readonly string[]) => void;
+type ChooseDateHandler = (date: string) => void;
 
-export function PlannerPage({ onPlanDate }: { onPlanDate: PlanDateHandler }) {
+export function PlannerPage({
+  onChooseDate,
+  focusDate,
+}: {
+  onChooseDate: ChooseDateHandler;
+  focusDate?: string | null;
+}) {
   const today = browserDate();
+  const wantedMovies = useAppStore((state) => state.selectedMovies);
   const [plans, setPlans] = useState(readSavedMoviePlans);
   const [daysShown, setDaysShown] = useState(INITIAL_DAY_COUNT);
   const [jumpDate, setJumpDate] = useState(today);
@@ -113,11 +121,25 @@ export function PlannerPage({ onPlanDate }: { onPlanDate: PlanDateHandler }) {
     [daysShown, today],
   );
   const planByDate = useMemo(() => new Map(plans.map((plan) => [plan.date, plan])), [plans]);
-  const futurePlans = plans.filter((plan) => plan.date >= today);
-  const plannedMovies = futurePlans.reduce(
+  const futurePlans = useMemo(() => plans.filter((plan) => plan.date >= today), [plans, today]);
+  const plannedMovieCount = futurePlans.reduce(
     (total, plan) => total + plan.itinerary.movies.length,
     0,
   );
+  const plannedMovieNames = useMemo(
+    () => new Set(futurePlans.flatMap((plan) => plan.itinerary.movies)),
+    [futurePlans],
+  );
+  const unplannedWantedMovies = wantedMovies.filter((movie) => !plannedMovieNames.has(movie));
+
+  useEffect(() => {
+    if (!focusDate) return;
+    const normalized = focusDate < today ? today : focusDate;
+    setJumpDate(normalized);
+    const dayIndex = daysBetween(today, normalized);
+    setDaysShown((current) => Math.max(current, dayIndex + 14));
+    setPendingJump(normalized);
+  }, [focusDate, today]);
 
   useEffect(() => {
     if (!pendingJump) return;
@@ -147,8 +169,8 @@ export function PlannerPage({ onPlanDate }: { onPlanDate: PlanDateHandler }) {
     <section className="workspace planner-workspace" aria-labelledby="planner-heading">
       <div className="workspace-bar planner-workspace-bar">
         <div>
-          <p className="eyebrow">CONTINUOUS FUTURE TIMELINE</p>
-          <h1 id="planner-heading">Movie planner</h1>
+          <p className="eyebrow">YOUR MOVIE CALENDAR</p>
+          <h1 id="planner-heading">Plan your movie week</h1>
         </div>
         <div className="planner-jump-controls">
           <button type="button" onClick={() => jumpTo(today)}>
@@ -169,9 +191,26 @@ export function PlannerPage({ onPlanDate }: { onPlanDate: PlanDateHandler }) {
       <div className="result-strip planner-overview" aria-live="polite">
         <strong>{futurePlans.length}</strong> planned day{futurePlans.length === 1 ? "" : "s"}
         <span>·</span>
-        <span>{plannedMovies} planned movies</span>
+        <span>{plannedMovieCount} planned movies</span>
         <span>·</span>
-        <span>Scroll down to move farther into the future</span>
+        {unplannedWantedMovies.length > 0 ? (
+          <>
+            <details className="planner-unplanned-details">
+              <summary>
+                {unplannedWantedMovies.length} wanted movie
+                {unplannedWantedMovies.length === 1 ? "" : "s"} still unplanned
+              </summary>
+              <div className="planner-unplanned-popover">{unplannedWantedMovies.join(", ")}</div>
+            </details>
+            <span>·</span>
+          </>
+        ) : wantedMovies.length > 0 ? (
+          <>
+            <span className="planner-all-planned">All wanted movies are planned</span>
+            <span>·</span>
+          </>
+        ) : null}
+        <span>Pick a day to choose what you want to see</span>
       </div>
 
       <div className="planner-timeline">
@@ -185,7 +224,7 @@ export function PlannerPage({ onPlanDate }: { onPlanDate: PlanDateHandler }) {
                 date={date}
                 plan={plan}
                 verification={verificationByDate[date]}
-                onPlanDate={onPlanDate}
+                onChooseDate={onChooseDate}
                 onDelete={removePlan}
               />
             </div>
@@ -205,13 +244,13 @@ function DayRow({
   date,
   plan,
   verification,
-  onPlanDate,
+  onChooseDate,
   onDelete,
 }: {
   date: string;
   plan: SavedMoviePlan | undefined;
   verification: VerificationState | undefined;
-  onPlanDate: PlanDateHandler;
+  onChooseDate: ChooseDateHandler;
   onDelete: (plan: SavedMoviePlan) => void;
 }) {
   return (
@@ -227,16 +266,16 @@ function DayRow({
         </div>
         {plan ? (
           <div className="planner-day-actions">
-            <button type="button" onClick={() => onPlanDate(date, plan.itinerary.movies)}>
-              Replan
+            <button type="button" onClick={() => onChooseDate(date)}>
+              Edit day
             </button>
             <button className="danger-quiet" type="button" onClick={() => onDelete(plan)}>
               Remove
             </button>
           </div>
         ) : (
-          <button className="planner-plan-day" type="button" onClick={() => onPlanDate(date)}>
-            Plan this day →
+          <button className="planner-plan-day" type="button" onClick={() => onChooseDate(date)}>
+            Choose movies →
           </button>
         )}
       </header>

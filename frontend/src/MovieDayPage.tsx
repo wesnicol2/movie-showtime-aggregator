@@ -5,7 +5,7 @@ import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips"
 import { MovieDayControlBar } from "./components/MovieDayControlBar";
 import { MoviePriorityEditor } from "./components/MoviePriorityEditor";
 import "./movie-day.css";
-import { savedMoviePlanForDate, saveMoviePlan } from "./planner";
+import { readSavedMoviePlans, savedMoviePlanForDate, saveMoviePlan } from "./planner";
 import {
   activeFacetCount,
   EMPTY_SCREENING_FACETS,
@@ -13,6 +13,7 @@ import {
   type ScreeningFacets,
 } from "./screening-facets";
 import { filterAndSort, isFilterActive } from "./screenings";
+import { browserDate } from "./show-date";
 import { useAppStore } from "./store";
 import type {
   MovieDayItinerary,
@@ -32,7 +33,12 @@ interface MovieDayPreferences {
   runtimeOverrides: Record<string, number>;
 }
 
-export function MovieDayPage() {
+interface Props {
+  onBack: () => void;
+  onLocked: () => void;
+}
+
+export function MovieDayPage({ onBack, onLocked }: Props) {
   useScreenings();
   const response = useAppStore((state) => state.response);
   const status = useAppStore((state) => state.status);
@@ -41,9 +47,12 @@ export function MovieDayPage() {
   const sort = useAppStore((state) => state.sort);
   const selectedMovies = useAppStore((state) => state.selectedMovies);
   const setMovieSelection = useAppStore((state) => state.setMovieSelection);
+  const planningDraftDate = useAppStore((state) => state.planningDraftDate);
+  const planningDraftMovies = useAppStore((state) => state.planningDraftMovies);
+  const setPlanningDraft = useAppStore((state) => state.setPlanningDraft);
   const [minimumBuffer, setMinimumBuffer] = useState(0);
   const [facets, setFacets] = useState<ScreeningFacets>(EMPTY_SCREENING_FACETS);
-  const [targetMovieCount, setTargetMovieCount] = useState<MovieDayTargetCount | null>(null);
+  const [targetMovieCount, setTargetMovieCount] = useState<MovieDayTargetCount | null>(1);
   const [earliestTime, setEarliestTime] = useState("");
   const [latestTime, setLatestTime] = useState("");
   const [sortBy, setSortBy] = useState<MovieDaySort>("want");
@@ -56,11 +65,45 @@ export function MovieDayPage() {
   const [planning, setPlanning] = useState(false);
   const [savedItineraryKey, setSavedItineraryKey] = useState<string | null>(null);
 
+  const responseDate = response?.date ?? "";
   const allScreenings = useMemo(() => response?.screenings ?? [], [response]);
+  const savedPlans = useMemo(() => readSavedMoviePlans(), []);
+  const currentPlanMovies = useMemo(
+    () =>
+      new Set(
+        savedPlans.find((savedPlan) => savedPlan.date === responseDate)?.itinerary.movies ?? [],
+      ),
+    [responseDate, savedPlans],
+  );
+  const plannedElsewhere = useMemo(() => {
+    const movies = new Set<string>();
+    const today = browserDate();
+    for (const savedPlan of savedPlans) {
+      if (savedPlan.date < today || savedPlan.date === responseDate) continue;
+      for (const movie of savedPlan.itinerary.movies) movies.add(movie);
+    }
+    return movies;
+  }, [responseDate, savedPlans]);
   const availableSelectedMovies = useMemo(() => {
     const showingMovies = new Set(allScreenings.map((screening) => screening.movie));
-    return selectedMovies.filter((movie) => showingMovies.has(movie));
-  }, [allScreenings, selectedMovies]);
+    const draftMovies =
+      planningDraftDate === responseDate && planningDraftMovies !== null
+        ? planningDraftMovies
+        : null;
+    const candidates = draftMovies ?? [...new Set([...selectedMovies, ...currentPlanMovies])];
+    return candidates.filter(
+      (movie) =>
+        showingMovies.has(movie) && (!plannedElsewhere.has(movie) || currentPlanMovies.has(movie)),
+    );
+  }, [
+    allScreenings,
+    currentPlanMovies,
+    plannedElsewhere,
+    planningDraftDate,
+    planningDraftMovies,
+    responseDate,
+    selectedMovies,
+  ]);
   const rankedMovies = useMemo(
     () => reconcileMovieRanking(moviePreferences.ranking, availableSelectedMovies),
     [availableSelectedMovies, moviePreferences.ranking],
@@ -101,7 +144,6 @@ export function MovieDayPage() {
   const activeShowingFilters = activeFacetCount(facets);
   const homeConfigured = response?.preferences.home_configured === true;
   const targetCount: MovieDayTargetCount = targetMovieCount ?? availableSelectedMovies.length;
-  const responseDate = response?.date ?? "";
   const bounds = response
     ? dayBounds(response.date, earliestTime, latestTime)
     : { earliestStart: null, latestEnd: null, endNextDay: false };
@@ -141,7 +183,7 @@ export function MovieDayPage() {
     if (
       status === "ready" &&
       typeof targetMovieCount === "number" &&
-      targetMovieCount >= availableSelectedMovies.length
+      targetMovieCount > availableSelectedMovies.length
     ) {
       setTargetMovieCount(null);
     }
@@ -203,9 +245,11 @@ export function MovieDayPage() {
   }
 
   function removeMovie(movie: string): void {
-    if (!selectedMovies.includes(movie)) return;
-    if (!window.confirm(`Remove “${movie}” from your selected movies?`)) return;
-    setMovieSelection(selectedMovies.filter((selected) => selected !== movie));
+    if (!responseDate || !availableSelectedMovies.includes(movie)) return;
+    setPlanningDraft(
+      responseDate,
+      availableSelectedMovies.filter((selected) => selected !== movie),
+    );
   }
 
   function setRuntimeOverride(movie: string, minutes: number | null): void {
@@ -220,9 +264,12 @@ export function MovieDayPage() {
   }
 
   function setAvailableMovieSelection(movies: string[]): void {
-    const showingMovies = new Set(allScreenings.map((screening) => screening.movie));
-    const unavailableSelectedMovies = selectedMovies.filter((movie) => !showingMovies.has(movie));
-    setMovieSelection([...unavailableSelectedMovies, ...movies]);
+    if (!responseDate) return;
+    const newWantedMovies = movies.filter((movie) => !selectedMovies.includes(movie));
+    if (newWantedMovies.length > 0) {
+      setMovieSelection([...selectedMovies, ...newWantedMovies]);
+    }
+    setPlanningDraft(responseDate, movies);
   }
 
   function changeSortBy(value: MovieDaySort): void {
@@ -287,18 +334,27 @@ export function MovieDayPage() {
       screenings: structuredClone(screenings),
       runtimeOverrides: { ...runtimeOverrides },
     });
-    const plannedMovies = new Set(itinerary.movies);
-    setMovieSelection(selectedMovies.filter((movie) => !plannedMovies.has(movie)));
     setPlanError(null);
     setSavedItineraryKey(nextKey);
+    onLocked();
   }
 
   return (
     <section className="workspace movie-day-workspace" aria-labelledby="movie-day-heading">
-      <div className="workspace-bar movie-day-bar">
+      <div className="workspace-bar movie-day-bar workflow-bar">
         <div>
-          <p className="eyebrow">TIME-WINDOW ROUTE PLANNER</p>
-          <h1 id="movie-day-heading">Plan a movie day</h1>
+          <p className="eyebrow">STEP 3 OF 3</p>
+          <h1 id="movie-day-heading">Build your itinerary</h1>
+          {response ? <p className="workflow-subtitle">{formatDate(response.date)}</p> : null}
+        </div>
+        <div className="workflow-actions">
+          <button type="button" onClick={onBack}>
+            Change movies
+          </button>
+          <strong>
+            {availableSelectedMovies.length} candidate
+            {availableSelectedMovies.length === 1 ? "" : "s"}
+          </strong>
         </div>
       </div>
 
@@ -334,16 +390,19 @@ export function MovieDayPage() {
         </div>
       ) : null}
 
-      <MoviePriorityEditor
-        movies={rankedMovies}
-        pinnedMovies={pinnedMovies}
-        defaultRuntimeByMovie={defaultRuntimeByMovie}
-        runtimeOverrides={runtimeOverrides}
-        onMove={moveMovie}
-        onTogglePinned={togglePinned}
-        onRemoveMovie={removeMovie}
-        onRuntimeOverrideChange={setRuntimeOverride}
-      />
+      <details className="movie-day-priority-advanced">
+        <summary className="movie-day-detail-summary">Movie priorities & runtimes</summary>
+        <MoviePriorityEditor
+          movies={rankedMovies}
+          pinnedMovies={pinnedMovies}
+          defaultRuntimeByMovie={defaultRuntimeByMovie}
+          runtimeOverrides={runtimeOverrides}
+          onMove={moveMovie}
+          onTogglePinned={togglePinned}
+          onRemoveMovie={removeMovie}
+          onRuntimeOverrideChange={setRuntimeOverride}
+        />
+      </details>
 
       {status === "loading" ? (
         <div className="status-strip">Loading today’s screenings…</div>
@@ -354,10 +413,11 @@ export function MovieDayPage() {
         </div>
       ) : null}
       {response ? (
-        <div className="planner-context">
+        <details className="planner-context movie-day-explanation">
+          <summary className="movie-day-detail-summary">How this plan is scored</summary>
           <div className="planner-facts">
             <span>{formatDate(response.date)}</span>
-            <span>{availableSelectedMovies.length} selected movies</span>
+            <span>{availableSelectedMovies.length} candidate movies</span>
             <span>{targetCount === "any" ? "Any valid count" : `${targetCount} to watch`}</span>
             <span>{pinnedMovies.length} pinned</span>
             <span>{Object.keys(runtimeOverrides).length} runtime overrides</span>
@@ -367,14 +427,14 @@ export function MovieDayPage() {
             {bounds.endNextDay ? <span>End time is next day</span> : null}
           </div>
           <p>
-            Rank selected movies from most to least wanted. With N selected movies, #1 is worth N
+            Rank candidate movies from most to least wanted. With N candidate movies, #1 is worth N
             points, #2 is worth N−1, and so on; pinned movies are mandatory. Each positive screening
             experience deviation adds one want point and each negative deviation removes one. Manual
             runtimes replace fetched runtimes when calculating end times and itinerary feasibility.
             Watch “Any” mixes every feasible movie count under the same filters. Results are
             globally ranked by the chosen primary objective and use Secondary sort to break ties.
           </p>
-        </div>
+        </details>
       ) : null}
 
       {plan ? (
@@ -405,14 +465,14 @@ export function MovieDayPage() {
           ) : typeof plan.target_movie_count === "number" &&
             plan.plannable_movie_count < plan.target_movie_count ? (
             <p className="empty-state">
-              Only {plan.plannable_movie_count} selected movie
+              Only {plan.plannable_movie_count} candidate movie
               {plan.plannable_movie_count === 1 ? " has" : "s have"} an eligible showing, but this
               day asks for {plan.target_movie_count}.
               {plan.missing_movies.length ? ` Unavailable: ${plan.missing_movies.join(", ")}.` : ""}
             </p>
           ) : plan.missing_movies.length ? (
             <div className="status-strip" role="status">
-              Some selected movies have no eligible showing and can only be skipped:{" "}
+              Some candidate movies have no eligible showing and can only be skipped:{" "}
               {plan.missing_movies.join(", ")}.
             </div>
           ) : null}
@@ -515,8 +575,8 @@ function ItineraryCard({
           <span>Home at {itinerary.home_at ? formatTime(itinerary.home_at) : "not available"}</span>
           <span>{itinerary.travel_minutes} min driving</span>
           <span>{itinerary.waiting_minutes} min free</span>
-          <button type="button" onClick={onSave} aria-label={`Save option ${number} to Planner`}>
-            {saved ? "Saved to Planner" : "Save to Planner"}
+          <button type="button" onClick={onSave} aria-label={`Lock in option ${number}`}>
+            {saved ? "Locked in" : "Lock in itinerary"}
           </button>
         </div>
       </header>
@@ -647,6 +707,7 @@ function sortDescription(sortBy: MovieDaySort, secondarySortBy: MovieDaySort): s
 
 function sortLabel(sortBy: MovieDaySort): string {
   if (sortBy === "driving") return "Minimum driving";
+  if (sortBy === "home") return "Earliest home";
   if (sortBy === "want") return "Highest want score";
   return "Minimum time";
 }

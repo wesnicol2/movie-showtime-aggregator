@@ -493,3 +493,96 @@
     flex-direction: column;
   }
 }
+
+.movie-day-controls {
+  display: block;
+}
+
+.movie-day-primary-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(220px, 1fr);
+  align-items: end;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.movie-day-watch-control select {
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.movie-day-find-action {
+  min-height: 40px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.movie-day-advanced {
+  border-top: 1px solid var(--line);
+}
+
+.movie-day-advanced > summary {
+  width: max-content;
+  padding: 10px 2px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.movie-day-advanced[open] > summary {
+  color: var(--text);
+}
+
+.movie-day-advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  gap: 8px;
+  padding-bottom: 14px;
+}
+
+.movie-day-advanced-grid .movie-day-action-row,
+.movie-day-advanced-grid .movie-day-showing-filters {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 520px) {
+  .movie-day-primary-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+.movie-day-priority-advanced,
+.movie-day-explanation {
+  margin: 8px 0 12px;
+}
+
+.movie-day-priority-advanced > .movie-day-detail-summary,
+.movie-day-explanation > .movie-day-detail-summary {
+  width: max-content;
+  padding: 8px 2px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.movie-day-priority-advanced[open] > .movie-day-detail-summary,
+.movie-day-explanation[open] > .movie-day-detail-summary {
+  color: var(--text);
+}
+
+.movie-day-priority-advanced .movie-priority-panel {
+  margin-bottom: 0;
+}
+
+.movie-day-explanation.planner-context {
+  display: block;
+}
+
+.movie-day-explanation .planner-facts,
+.movie-day-explanation p {
+  margin-top: 10px;
+}

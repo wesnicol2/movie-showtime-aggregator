@@ -843,3 +843,89 @@ a:hover {
     animation: none;
   }
 }
+
+.app-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-nav-secondary {
+  border-color: transparent;
+  background: transparent;
+}
+
+.workflow-bar {
+  align-items: center;
+}
+
+.workflow-subtitle {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.workflow-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.workflow-actions button {
+  min-height: 36px;
+  padding: 7px 11px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.workflow-actions strong {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.poster-status {
+  position: absolute;
+  inset: auto 6px 6px;
+  padding: 5px 7px;
+  border: 1px solid rgba(143, 184, 255, 0.45);
+  border-radius: 5px;
+  background: rgba(13, 16, 21, 0.9);
+  color: #dbe9ff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.poster-status.planned {
+  border-color: rgba(155, 214, 180, 0.45);
+  color: var(--success);
+}
+
+.movie-tile.planned:disabled {
+  cursor: default;
+  opacity: 0.78;
+}
+
+.movie-tile.planned.selected .poster-frame {
+  border-color: #54725f;
+  box-shadow: 0 0 0 1px #54725f;
+}
+
+@media (max-width: 680px) {
+  .app-header-tools {
+    width: 100%;
+  }
+
+  .workflow-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .workflow-actions strong {
+    flex: 1;
+    text-align: center;
+  }
+}

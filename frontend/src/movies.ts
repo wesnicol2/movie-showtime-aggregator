@@ -45,8 +45,8 @@ export const EMPTY_MOVIE_FILTERS: MovieFilters = {
 };
 
 export const SELECTION_OPTIONS: readonly CheckboxOption[] = [
-  { value: "selected", label: "Selected" },
-  { value: "unselected", label: "Unselected" },
+  { value: "selected", label: "Wanted" },
+  { value: "unselected", label: "Not wanted" },
 ];
 
 export function buildMovieOptions(screenings: readonly Screening[]): MovieOption[] {

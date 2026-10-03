@@ -19,6 +19,7 @@ const MOVIE_DAY_SAVED_VIEWS_KEY = "movie-showtime-aggregator.movie-day-saved-vie
 const SORT_OPTIONS: readonly { value: MovieDaySort; label: string }[] = [
   { value: "elapsed", label: "Minimum time" },
   { value: "driving", label: "Minimum driving" },
+  { value: "home", label: "Earliest home" },
   { value: "want", label: "Highest want score" },
 ];
 
@@ -215,205 +216,216 @@ export function MovieDayControlBar({
     <fieldset className="movie-day-controls">
       <legend className="sr-only">Movie Day planning controls</legend>
 
-      <CheckboxFilter
-        label="Movies"
-        options={movies}
-        selected={selectedMovieValues}
-        open={openControl === "movies"}
-        searchable
-        onOpenChange={(open) => setOpenControl(open ? "movies" : null)}
-        onChange={(selected) => onMovieSelectionChange(selected ?? allMovieValues)}
-      />
-
-      <label className="planner-control">
-        <span>Watch</span>
-        <select
-          aria-label="Number of movies"
-          value={targetMovieCount === null ? "all" : String(targetMovieCount)}
-          disabled={selectedCount === 0}
-          onChange={(event) => {
-            const value = event.target.value;
-            onTargetMovieCountChange(
-              value === "all" ? null : value === "any" ? "any" : Number(value),
-            );
-          }}
-        >
-          <option value="all">All selected ({selectedCount})</option>
-          <option value="any">Any valid count</option>
-          {Array.from({ length: Math.max(0, selectedCount - 1) }, (_, index) => index + 1)
-            .filter((count) => count >= minimumWatchCount)
-            .map((count) => (
-              <option key={count} value={count}>
-                {count} movie{count === 1 ? "" : "s"}
-              </option>
-            ))}
-        </select>
-      </label>
-
-      <label className="planner-control">
-        <span>Start</span>
-        <input
-          aria-label="Movie day start"
-          type="time"
-          value={earliestTime}
-          onChange={(event) => onEarliestTimeChange(event.target.value)}
-        />
-      </label>
-
-      <label className="planner-control">
-        <span>Home by</span>
-        <input
-          aria-label="Movie day end"
-          title="Latest time to arrive home after the final movie"
-          type="time"
-          value={latestTime}
-          onChange={(event) => onLatestTimeChange(event.target.value)}
-        />
-      </label>
-
-      <label className="planner-control">
-        <span>Sort</span>
-        <select
-          aria-label="Sort itineraries"
-          value={sortBy}
-          onChange={(event) => onSortByChange(event.target.value as MovieDaySort)}
-        >
-          {SORT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="planner-control">
-        <span>Secondary sort</span>
-        <select
-          aria-label="Secondary sort itineraries"
-          value={secondarySortBy}
-          onChange={(event) => onSecondarySortByChange(event.target.value as MovieDaySort)}
-        >
-          {SORT_OPTIONS.filter((option) => option.value !== sortBy).map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="planner-control">
-        <span>Transfer buffer</span>
-        <span className="buffer-input">
-          <input
-            aria-label="Extra transfer buffer"
-            type="number"
-            min="0"
-            max="180"
-            value={minimumBuffer}
-            onChange={(event) =>
-              onMinimumBufferChange(Math.max(0, Math.min(180, Number(event.target.value) || 0)))
-            }
-          />
-          min
-        </span>
-      </label>
-
-      <div className="movie-day-action-row">
-        <div className="workspace-actions">
-          <label className="select-label">
-            <span className="sr-only">Movie Day saved view</span>
-            <select
-              aria-label="Movie Day saved view"
-              value={selectedView}
-              onChange={(event) => loadView(event.target.value)}
-            >
-              <option value="">Saved views</option>
-              {Object.keys(savedViews)
-                .sort((left, right) => left.localeCompare(right))
-                .map((name) => (
-                  <option key={name} value={name}>
-                    {name === defaultView ? `${name} · default` : name}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <button type="button" onClick={saveView}>
-            Save view
-          </button>
-          <button
-            type="button"
-            disabled={!selectedView}
-            aria-pressed={Boolean(selectedView) && selectedView === defaultView}
-            onClick={toggleDefaultView}
+      <div className="movie-day-primary-controls">
+        <label className="planner-control movie-day-watch-control">
+          <span>How many movies?</span>
+          <select
+            aria-label="Number of movies"
+            value={targetMovieCount === null ? "all" : String(targetMovieCount)}
+            disabled={selectedCount === 0}
+            onChange={(event) => {
+              const value = event.target.value;
+              onTargetMovieCountChange(
+                value === "all" ? null : value === "any" ? "any" : Number(value),
+              );
+            }}
           >
-            {selectedView && selectedView === defaultView ? "Default ✓" : "Set default"}
-          </button>
-          <button type="button" disabled={!selectedView} onClick={deleteView}>
-            Delete
-          </button>
-          <button
-            type="button"
-            className="movie-day-filter-toggle"
-            aria-expanded={showingFiltersOpen}
-            aria-controls="movie-day-showing-filters"
-            aria-label={showingFiltersOpen ? "Hide showing filters" : "Show showing filters"}
-            onClick={toggleShowingFilters}
-          >
-            <svg
-              className="movie-day-filter-icon"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <path d="M4 5h16l-6.5 7.5v5L10.5 19v-6.5L4 5Z" />
-            </svg>
-            <span>Filters</span>
-            {activeShowingFilters > 0 ? (
-              <span className="movie-day-filter-count" aria-hidden="true">
-                {activeShowingFilters}
-              </span>
-            ) : null}
-          </button>
-        </div>
+            <option value="all">All candidates ({selectedCount})</option>
+            <option value="any">Any valid count</option>
+            {Array.from({ length: selectedCount }, (_, index) => index + 1)
+              .filter((count) => count >= minimumWatchCount)
+              .map((count) => (
+                <option key={count} value={count}>
+                  {count} movie{count === 1 ? "" : "s"}
+                </option>
+              ))}
+          </select>
+        </label>
+
         <button
-          className="primary-action"
+          className="primary-action movie-day-find-action"
           type="button"
           disabled={planning || disabled}
           onClick={onPlan}
         >
-          {planning ? "Planning…" : "Find combinations"}
+          {planning ? "Finding itineraries…" : "Find itineraries"}
         </button>
       </div>
 
-      {showingFiltersOpen ? (
-        <div id="movie-day-showing-filters" className="movie-day-showing-filters">
+      <details className="movie-day-advanced">
+        <summary>
+          Advanced options
+          {activeShowingFilters > 0 ? ` · ${activeShowingFilters} showing filters` : ""}
+        </summary>
+        <div className="movie-day-advanced-grid">
           <CheckboxFilter
-            label="Theater"
-            options={theaters}
+            label="Movies"
+            options={movies}
+            selected={selectedMovieValues}
+            open={openControl === "movies"}
             searchable
-            {...facetProps("theaters")}
+            onOpenChange={(open) => setOpenControl(open ? "movies" : null)}
+            onChange={(selected) => onMovieSelectionChange(selected ?? allMovieValues)}
           />
-          <CheckboxFilter label="Chain" options={chains} searchable {...facetProps("chains")} />
-          <CheckboxFilter label="Format" options={formats} {...facetProps("formats")} />
-          <CheckboxFilter
-            label="Listed time"
-            options={listedWindows}
-            {...facetProps("listedWindows")}
-          />
-          <div className="movie-day-filter-actions">
-            <button
-              type="button"
-              disabled={activeShowingFilters === 0}
-              onClick={() => {
-                setOpenControl(null);
-                onFacetsChange(EMPTY_SCREENING_FACETS);
-              }}
+
+          <label className="planner-control">
+            <span>Start</span>
+            <input
+              aria-label="Movie day start"
+              type="time"
+              value={earliestTime}
+              onChange={(event) => onEarliestTimeChange(event.target.value)}
+            />
+          </label>
+
+          <label className="planner-control">
+            <span>Home by</span>
+            <input
+              aria-label="Movie day end"
+              title="Latest time to arrive home after the final movie"
+              type="time"
+              value={latestTime}
+              onChange={(event) => onLatestTimeChange(event.target.value)}
+            />
+          </label>
+
+          <label className="planner-control">
+            <span>Sort</span>
+            <select
+              aria-label="Sort itineraries"
+              value={sortBy}
+              onChange={(event) => onSortByChange(event.target.value as MovieDaySort)}
             >
-              Clear showing filters
-            </button>
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="planner-control">
+            <span>Secondary sort</span>
+            <select
+              aria-label="Secondary sort itineraries"
+              value={secondarySortBy}
+              onChange={(event) => onSecondarySortByChange(event.target.value as MovieDaySort)}
+            >
+              {SORT_OPTIONS.filter((option) => option.value !== sortBy).map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="planner-control">
+            <span>Transfer buffer</span>
+            <span className="buffer-input">
+              <input
+                aria-label="Extra transfer buffer"
+                type="number"
+                min="0"
+                max="180"
+                value={minimumBuffer}
+                onChange={(event) =>
+                  onMinimumBufferChange(Math.max(0, Math.min(180, Number(event.target.value) || 0)))
+                }
+              />
+              min
+            </span>
+          </label>
+
+          <div className="movie-day-action-row">
+            <div className="workspace-actions">
+              <label className="select-label">
+                <span className="sr-only">Movie Day saved view</span>
+                <select
+                  aria-label="Movie Day saved view"
+                  value={selectedView}
+                  onChange={(event) => loadView(event.target.value)}
+                >
+                  <option value="">Saved views</option>
+                  {Object.keys(savedViews)
+                    .sort((left, right) => left.localeCompare(right))
+                    .map((name) => (
+                      <option key={name} value={name}>
+                        {name === defaultView ? `${name} · default` : name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <button type="button" onClick={saveView}>
+                Save view
+              </button>
+              <button
+                type="button"
+                disabled={!selectedView}
+                aria-pressed={Boolean(selectedView) && selectedView === defaultView}
+                onClick={toggleDefaultView}
+              >
+                {selectedView && selectedView === defaultView ? "Default ✓" : "Set default"}
+              </button>
+              <button type="button" disabled={!selectedView} onClick={deleteView}>
+                Delete
+              </button>
+              <button
+                type="button"
+                className="movie-day-filter-toggle"
+                aria-expanded={showingFiltersOpen}
+                aria-controls="movie-day-showing-filters"
+                aria-label={showingFiltersOpen ? "Hide showing filters" : "Show showing filters"}
+                onClick={toggleShowingFilters}
+              >
+                <svg
+                  className="movie-day-filter-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path d="M4 5h16l-6.5 7.5v5L10.5 19v-6.5L4 5Z" />
+                </svg>
+                <span>Showing filters</span>
+                {activeShowingFilters > 0 ? (
+                  <span className="movie-day-filter-count" aria-hidden="true">
+                    {activeShowingFilters}
+                  </span>
+                ) : null}
+              </button>
+            </div>
           </div>
+
+          {showingFiltersOpen ? (
+            <div id="movie-day-showing-filters" className="movie-day-showing-filters">
+              <CheckboxFilter
+                label="Theater"
+                options={theaters}
+                searchable
+                {...facetProps("theaters")}
+              />
+              <CheckboxFilter label="Chain" options={chains} searchable {...facetProps("chains")} />
+              <CheckboxFilter label="Format" options={formats} {...facetProps("formats")} />
+              <CheckboxFilter
+                label="Listed time"
+                options={listedWindows}
+                {...facetProps("listedWindows")}
+              />
+              <div className="movie-day-filter-actions">
+                <button
+                  type="button"
+                  disabled={activeShowingFilters === 0}
+                  onClick={() => {
+                    setOpenControl(null);
+                    onFacetsChange(EMPTY_SCREENING_FACETS);
+                  }}
+                >
+                  Clear showing filters
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
-      ) : null}
+      </details>
     </fieldset>
   );
 }
@@ -458,7 +470,7 @@ function isMovieDaySavedView(value: unknown): value is MovieDaySavedView {
 }
 
 function isMovieDaySort(value: unknown): value is MovieDaySort {
-  return value === "elapsed" || value === "driving" || value === "want";
+  return value === "elapsed" || value === "driving" || value === "home" || value === "want";
 }
 
 function movieOptions(screenings: readonly Screening[]): CheckboxOption[] {

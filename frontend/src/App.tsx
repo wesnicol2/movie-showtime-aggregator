@@ -7,37 +7,31 @@ import { ScreeningsPage } from "./ScreeningsPage";
 import { SettingsPage } from "./SettingsPage";
 import { useAppStore } from "./store";
 
-type AppPath = "/" | "/movies" | "/plan" | "/planner" | "/settings";
+type AppPath = "/" | "/movies" | "/plan" | "/showtimes" | "/settings";
 
 function normalizeLocation(): AppPath {
   const path = window.location.pathname;
   if (path === "/movies") return "/movies";
   if (path === "/plan") {
-    return new URLSearchParams(window.location.search).get("view") === "planner"
-      ? "/planner"
-      : "/plan";
+    return new URLSearchParams(window.location.search).get("view") === "planner" ? "/" : "/plan";
   }
+  if (path === "/planner") return "/";
+  if (path === "/showtimes") return "/showtimes";
   if (path === "/settings") return "/settings";
   return "/";
 }
 
-function browserUrl(path: AppPath): string {
-  return path === "/planner" ? "/plan?view=planner" : path;
-}
-
 export function App() {
   const [path, setPath] = useState(normalizeLocation);
-  const [movieDayMounted, setMovieDayMounted] = useState(() => path === "/plan");
+  const [calendarFocusDate, setCalendarFocusDate] = useState<string | null>(null);
   const syncMovieSelection = useAppStore((state) => state.syncMovieSelection);
-  const setMovieSelection = useAppStore((state) => state.setMovieSelection);
+  const selectedDate = useAppStore((state) => state.selectedDate);
   const setSelectedDate = useAppStore((state) => state.setSelectedDate);
+  const setPlanningDraft = useAppStore((state) => state.setPlanningDraft);
+  const clearPlanningDraft = useAppStore((state) => state.clearPlanningDraft);
 
   useEffect(() => {
-    const onPopState = () => {
-      const nextPath = normalizeLocation();
-      setPath(nextPath);
-      if (nextPath === "/plan") setMovieDayMounted(true);
-    };
+    const onPopState = () => setPath(normalizeLocation());
     const onStorage = (event: StorageEvent) => {
       if (event.key === "movie-showtime-aggregator.selected-movies.v1") syncMovieSelection();
     };
@@ -50,19 +44,22 @@ export function App() {
   }, [syncMovieSelection]);
 
   function navigate(nextPath: AppPath): void {
-    if (nextPath === "/plan") setMovieDayMounted(true);
     if (nextPath === path) return;
-    window.history.pushState({}, "", browserUrl(nextPath));
+    window.history.pushState({}, "", nextPath);
     setPath(nextPath);
   }
 
-  function planDate(date: string, movies: readonly string[] = []): void {
-    if (movies.length > 0) {
-      const currentSelection = useAppStore.getState().selectedMovies;
-      setMovieSelection([...currentSelection, ...movies]);
-    }
+  function chooseDate(date: string): void {
     setSelectedDate(date);
-    navigate("/plan");
+    setPlanningDraft(date, null);
+    setCalendarFocusDate(date);
+    navigate("/movies");
+  }
+
+  function lockItinerary(): void {
+    clearPlanningDraft();
+    setCalendarFocusDate(selectedDate);
+    navigate("/");
   }
 
   return (
@@ -74,39 +71,25 @@ export function App() {
           </span>
           <span>
             <strong>Showtime</strong>
-            <small>Movie decision workstation</small>
+            <small>Plan your movie week</small>
           </span>
         </button>
         <div className="app-header-tools">
-          {path === "/planner" ? null : <ShowDateControl />}
-          <nav className="app-nav" aria-label="Primary">
+          {path === "/showtimes" ? <ShowDateControl /> : null}
+          <nav className="app-nav app-nav-secondary" aria-label="Primary">
             <button
               className={path === "/" ? "current" : ""}
               type="button"
               onClick={() => navigate("/")}
             >
-              Screenings
+              Calendar
             </button>
             <button
-              className={path === "/movies" ? "current" : ""}
+              className={path === "/showtimes" ? "current" : ""}
               type="button"
-              onClick={() => navigate("/movies")}
+              onClick={() => navigate("/showtimes")}
             >
-              Movies
-            </button>
-            <button
-              className={path === "/plan" ? "current" : ""}
-              type="button"
-              onClick={() => navigate("/plan")}
-            >
-              Movie Day
-            </button>
-            <button
-              className={path === "/planner" ? "current" : ""}
-              type="button"
-              onClick={() => navigate("/planner")}
-            >
-              Planner
+              Showtimes
             </button>
             <button
               className={path === "/settings" ? "current" : ""}
@@ -119,15 +102,12 @@ export function App() {
         </div>
       </header>
       <main className="app-main">
-        {movieDayMounted ? (
-          <div hidden={path !== "/plan"}>
-            <MovieDayPage />
-          </div>
-        ) : null}
-        {path === "/plan" ? null : path === "/planner" ? (
-          <PlannerPage onPlanDate={planDate} />
+        {path === "/" ? (
+          <PlannerPage onChooseDate={chooseDate} focusDate={calendarFocusDate} />
         ) : path === "/movies" ? (
-          <MoviesPage />
+          <MoviesPage onBack={() => navigate("/")} onContinue={() => navigate("/plan")} />
+        ) : path === "/plan" ? (
+          <MovieDayPage onBack={() => navigate("/movies")} onLocked={lockItinerary} />
         ) : path === "/settings" ? (
           <SettingsPage />
         ) : (

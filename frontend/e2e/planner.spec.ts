@@ -194,46 +194,36 @@ async function mockPlannerApi(page: Page): Promise<void> {
   });
 }
 
-test("Movie Day hides unavailable selected movies, deselects saved movies, and restores them when replanning", async ({
+test("calendar-first flow keeps wanted movies and returns to the planned day after locking", async ({
   page,
 }) => {
   await mockPlannerApi(page);
-  await page.goto("/plan");
+  await page.goto("/");
 
-  const priorityRows = page.locator("[data-movie-priority-row]");
-  await expect(priorityRows).toHaveCount(2);
-  await expect(priorityRows.filter({ hasText: "Alpha" })).toHaveCount(1);
-  await expect(priorityRows.filter({ hasText: "Beta" })).toHaveCount(1);
-  await expect(priorityRows.filter({ hasText: "Gamma" })).toHaveCount(0);
-  await expect(page.getByLabel("Sort itineraries", { exact: true })).toHaveValue("want");
-  await expect(page.getByLabel("Secondary sort itineraries")).toHaveValue("elapsed");
-
-  await page.getByRole("button", { name: "Find combinations" }).click();
-  await page.getByRole("button", { name: "Save option 1 to Planner" }).click();
-
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        JSON.parse(localStorage.getItem("movie-showtime-aggregator.selected-movies.v1") ?? "[]"),
-      ),
-    )
-    .toEqual(["Gamma"]);
-
-  await page.getByRole("button", { name: "Planner", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Movie planner" })).toBeVisible();
-  await expect(page.getByText("1 planned day")).toBeVisible();
-  await expect(page.getByText("2 planned movies")).toBeVisible();
-  await expect(page.getByText("Showtimes still available")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Plan your movie week" })).toBeVisible();
+  await expect(page.getByText("3 wanted movies still unplanned")).toBeVisible();
+  await page.getByText("3 wanted movies still unplanned").click();
+  await expect(page.getByText("Alpha, Beta, Gamma")).toBeVisible();
 
   const today = page.locator(`[data-date="${isoDate()}"]`);
-  await expect(today.getByText("Alpha", { exact: true })).toBeVisible();
-  await expect(today.getByText("Beta", { exact: true })).toBeVisible();
-  const savedEvent = today.locator(".experience-deviation.positive", { hasText: "Fan Event" });
-  await expect(savedEvent).toContainText("+");
+  await today.getByRole("button", { name: "Choose movies" }).click();
 
-  await today.getByRole("button", { name: "Replan" }).click();
+  await expect(page).toHaveURL(/\/movies$/);
+  await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
+  await expect(page.locator(".movie-tile")).toHaveCount(2);
+  await expect(page.getByText("2 for this day")).toBeVisible();
+  await page.getByRole("button", { name: "Continue to planner" }).click();
+
   await expect(page).toHaveURL(/\/plan$/);
-  await expect(page.getByRole("heading", { name: "Plan a movie day" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Build your itinerary" })).toBeVisible();
+  await expect(page.getByLabel("Number of movies")).toHaveValue("1");
+
+  await page.getByLabel("Number of movies").selectOption("all");
+  await page.getByRole("button", { name: "Find itineraries" }).click();
+  await page.getByRole("button", { name: "Lock in option 1" }).click();
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "Plan your movie week" })).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -241,8 +231,88 @@ test("Movie Day hides unavailable selected movies, deselects saved movies, and r
       ),
     )
     .toEqual(["Alpha", "Beta", "Gamma"]);
-  await expect(priorityRows.filter({ hasText: "Alpha" })).toHaveCount(1);
-  await expect(priorityRows.filter({ hasText: "Beta" })).toHaveCount(1);
+
+  await expect(page.getByText("1 planned day")).toBeVisible();
+  await expect(page.getByText("2 planned movies")).toBeVisible();
+  await expect(page.getByText("1 wanted movie still unplanned")).toBeVisible();
+  await page.getByText("1 wanted movie still unplanned").click();
+  await expect(page.getByText("Gamma", { exact: true })).toBeVisible();
+  await expect(today.getByText("Alpha", { exact: true })).toBeVisible();
+  await expect(today.getByText("Beta", { exact: true })).toBeVisible();
+  const savedEvent = today.locator(".experience-deviation.positive", { hasText: "Fan Event" });
+  await expect(savedEvent).toContainText("+");
+
+  await today.getByRole("button", { name: "Edit day" }).click();
+  await expect(page).toHaveURL(/\/movies$/);
+  await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
+  await expect(page.getByText("Currently planned").first()).toBeVisible();
+});
+
+test("a past plan does not hide a wanted movie from the unplanned warning", async ({ page }) => {
+  const pastDate = isoDate(-1);
+  await page.addInitScript(
+    ({ date }) => {
+      localStorage.setItem(
+        "movie-showtime-aggregator.selected-movies.v1",
+        JSON.stringify(["Past Movie"]),
+      );
+      localStorage.setItem(
+        "movie-showtime-aggregator.planner.v1",
+        JSON.stringify({
+          [date]: {
+            date,
+            savedAt: `${date}T12:00:00`,
+            itinerary: {
+              showtime_ids: [],
+              movies: ["Past Movie"],
+              dropped_movies: [],
+              want_score: 1,
+              starts_at: `${date}T12:00:00`,
+              ends_at: `${date}T14:00:00`,
+              elapsed_minutes: 120,
+              movie_minutes: 120,
+              travel_minutes: 0,
+              waiting_minutes: 0,
+              legs: [],
+            },
+            screenings: [],
+            runtimeOverrides: {},
+          },
+        }),
+      );
+    },
+    { date: pastDate },
+  );
+  await page.route("**/api/screenings?*", async (route) => {
+    const url = new URL(route.request().url());
+    const date = url.searchParams.get("date") ?? isoDate();
+    await route.fulfill({
+      json: {
+        date,
+        market_zip: "85004",
+        radius_miles: 25,
+        location: { zip_code: "85004", radius_miles: 25 },
+        preferences: {
+          amc_vendor_key_set: false,
+          omdb_api_key_set: false,
+          amc_a_list: false,
+          home_configured: true,
+        },
+        preview_minutes_by_chain: {},
+        enrichment_enabled: false,
+        count: 0,
+        total_count: 0,
+        facets: { chains: [], movies: [], theatres: [], formats: [] },
+        screenings: [],
+      },
+    });
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByText("1 wanted movie still unplanned")).toBeVisible();
+  await page.getByText("1 wanted movie still unplanned").click();
+  await expect(page.getByText("Past Movie", { exact: true })).toBeVisible();
 });
 
 test("Movie Day saved views restore planning controls without saving movie selection", async ({
@@ -250,6 +320,7 @@ test("Movie Day saved views restore planning controls without saving movie selec
 }) => {
   await mockPlannerApi(page);
   await page.goto("/plan");
+  await page.getByText("Advanced options", { exact: true }).click();
 
   await expect(page.getByLabel("Sort itineraries", { exact: true })).toHaveValue("want");
   await expect(page.getByLabel("Secondary sort itineraries")).toHaveValue("elapsed");
@@ -316,9 +387,9 @@ test("jumping far enough forward extends the timeline and hands the date to Movi
   await page.getByLabel("Jump to date").fill(target);
   const targetDay = page.locator(`[data-date="${target}"]`);
   await expect(targetDay).toBeVisible();
-  await targetDay.getByRole("button", { name: "Plan this day" }).click();
+  await targetDay.getByRole("button", { name: "Choose movies" }).click();
 
-  await expect(page).toHaveURL(/\/plan$/);
-  await expect(page.getByRole("heading", { name: "Plan a movie day" })).toBeVisible();
-  await expect(page.getByLabel("Show date")).toHaveValue(target);
+  await expect(page).toHaveURL(/\/movies$/);
+  await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove Alpha from this day" })).toBeVisible();
 });

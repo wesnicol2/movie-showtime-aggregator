@@ -102,6 +102,7 @@ async function saveNamedView(page: Page, name: string): Promise<void> {
 test("Movie Selection saves reusable views and restores its chosen default", async ({ page }) => {
   await mockApi(page);
   await page.goto("/movies");
+  await page.getByText("Sort & saved views", { exact: true }).click();
 
   await page.getByRole("button", { name: "Show movie filters" }).click();
   await page.getByLabel("Filter titles").fill("Beta");
@@ -126,7 +127,7 @@ test("Movie Selection saves reusable views and restores its chosen default", asy
 
 test("Screenings can mark a saved view as the page default", async ({ page }) => {
   await mockApi(page);
-  await page.goto("/");
+  await page.goto("/showtimes");
 
   await saveNamedView(page, "My screenings");
   await page.getByRole("button", { name: "Set default" }).click();
@@ -144,6 +145,7 @@ test("Movie Day restores a default planning view without changing movie selectio
 }) => {
   await mockApi(page);
   await page.goto("/plan");
+  await page.getByText("Advanced options", { exact: true }).click();
 
   await page.getByLabel("Number of movies").selectOption("1");
   await page.getByLabel("Movie day start").fill("17:00");
