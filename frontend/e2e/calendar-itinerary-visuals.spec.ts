@@ -129,17 +129,16 @@ async function seedSavedPlan(page: Page): Promise<string> {
         count: 2,
         total_count: 2,
         facets: { chains: ["AMC"], movies: ["Alpha", "Beta"], theatres: [], formats: [] },
-        screenings: [
-          { showtime_id: `${date}-alpha` },
-          { showtime_id: `${date}-beta` },
-        ],
+        screenings: [{ showtime_id: `${date}-alpha` }, { showtime_id: `${date}-beta` }],
       },
     });
   });
   return date;
 }
 
-test("saved calendar plans show time allocation, AMC prices, and proportional transfer gaps", async ({ page }) => {
+test("saved calendar plans show time allocation, AMC prices, and proportional transfer gaps", async ({
+  page,
+}) => {
   const date = await seedSavedPlan(page);
   await page.goto("/");
 
@@ -156,11 +155,11 @@ test("saved calendar plans show time allocation, AMC prices, and proportional tr
     "12 minutes driving, 48 minutes free",
   );
 
-  const driveHeight = await day.locator(".planner-gap-segment.drive").evaluate((node) =>
-    node.getBoundingClientRect().height,
-  );
-  const freeHeight = await day.locator(".planner-gap-segment.free").evaluate((node) =>
-    node.getBoundingClientRect().height,
-  );
+  const driveHeight = await day
+    .locator(".planner-gap-segment.drive")
+    .evaluate((node) => node.getBoundingClientRect().height);
+  const freeHeight = await day
+    .locator(".planner-gap-segment.free")
+    .evaluate((node) => node.getBoundingClientRect().height);
   expect(freeHeight).toBeGreaterThan(driveHeight);
 });
