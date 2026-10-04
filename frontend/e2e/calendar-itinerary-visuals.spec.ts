@@ -144,13 +144,14 @@ test("saved calendar plans show time allocation, AMC prices, and proportional tr
 
   const day = page.locator(`[data-date="${date}"]`);
   const metrics = day.locator(".planner-plan-metrics");
+  const ticketBlocks = day.locator(".planner-ticket-block");
   await expect(metrics.getByText("3h 40m movies")).toBeVisible();
   await expect(metrics.getByText("48m free")).toBeVisible();
   await expect(metrics.getByText("32m driving")).toBeVisible();
   await expect(metrics.getByText("5h total")).toBeVisible();
   await expect(metrics.getByText("$14.99 tickets")).toBeVisible();
-  await expect(day.getByText("$14.99", { exact: true })).toBeVisible();
-  await expect(day.getByText("A-List $0", { exact: true })).toBeVisible();
+  await expect(ticketBlocks.getByText("$14.99", { exact: true })).toBeVisible();
+  await expect(ticketBlocks.getByText("A-List $0", { exact: true })).toBeVisible();
   await expect(day.locator(".planner-gap")).toHaveAttribute(
     "aria-label",
     "12 minutes driving, 48 minutes free",
