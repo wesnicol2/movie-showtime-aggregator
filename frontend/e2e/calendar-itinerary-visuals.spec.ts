@@ -162,4 +162,18 @@ test("saved calendar plans show time allocation, AMC prices, and proportional tr
     .locator(".planner-gap-segment.free")
     .evaluate((node) => node.getBoundingClientRect().height);
   expect(freeHeight).toBeGreaterThan(driveHeight);
+
+  await page.evaluate(
+    ({ planDate }) => {
+      const key = "movie-showtime-aggregator.planner.v1";
+      const plans = JSON.parse(localStorage.getItem(key) ?? "{}");
+      plans[planDate].screenings[1].ticket_price = null;
+      localStorage.setItem(key, JSON.stringify(plans));
+      window.dispatchEvent(new Event("movie-showtime-aggregator:planner-updated"));
+    },
+    { planDate: date },
+  );
+
+  await expect(day.getByText("Price unknown", { exact: true })).toBeVisible();
+  await expect(day.getByText("$14.99 tickets", { exact: true })).toHaveCount(0);
 });
