@@ -299,8 +299,7 @@ function SavedPlanDetails({
     .map((id) => screeningById.get(id))
     .filter((screening): screening is Screening => screening !== undefined);
   const leaveHome = screenings[0]?.leave_home;
-  const homeAt =
-    plan.itinerary.home_at ?? screenings[screenings.length - 1]?.home_arrival ?? null;
+  const homeAt = plan.itinerary.home_at ?? screenings[screenings.length - 1]?.home_arrival ?? null;
   const knownTicketTotal =
     screenings.length > 0 && screenings.every((screening) => screening.ticket_price !== null)
       ? screenings.reduce((total, screening) => total + (screening.ticket_price ?? 0), 0)
@@ -440,10 +439,7 @@ function ticketPriceLabel(screening: Screening): string {
 
 function timelineHeight(minutes: number): number {
   if (minutes <= 0) return 0;
-  return Math.min(
-    TIMELINE_MAX_SEGMENT_PX,
-    Math.max(10, minutes * TIMELINE_PX_PER_MINUTE),
-  );
+  return Math.min(TIMELINE_MAX_SEGMENT_PX, Math.max(10, minutes * TIMELINE_PX_PER_MINUTE));
 }
 
 function isCompressed(minutes: number): boolean {
