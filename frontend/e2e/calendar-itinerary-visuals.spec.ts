@@ -143,11 +143,12 @@ test("saved calendar plans show time allocation, AMC prices, and proportional tr
   await page.goto("/");
 
   const day = page.locator(`[data-date="${date}"]`);
-  await expect(day.getByText("3h 40m movies")).toBeVisible();
-  await expect(day.getByText("48m free")).toBeVisible();
-  await expect(day.getByText("32m driving")).toBeVisible();
-  await expect(day.getByText("5h total")).toBeVisible();
-  await expect(day.getByText("$14.99 tickets")).toBeVisible();
+  const metrics = day.locator(".planner-plan-metrics");
+  await expect(metrics.getByText("3h 40m movies")).toBeVisible();
+  await expect(metrics.getByText("48m free")).toBeVisible();
+  await expect(metrics.getByText("32m driving")).toBeVisible();
+  await expect(metrics.getByText("5h total")).toBeVisible();
+  await expect(metrics.getByText("$14.99 tickets")).toBeVisible();
   await expect(day.getByText("$14.99", { exact: true })).toBeVisible();
   await expect(day.getByText("A-List $0", { exact: true })).toBeVisible();
   await expect(day.locator(".planner-gap")).toHaveAttribute(
@@ -175,5 +176,5 @@ test("saved calendar plans show time allocation, AMC prices, and proportional tr
   );
 
   await expect(day.getByText("Price unknown", { exact: true })).toBeVisible();
-  await expect(day.getByText("$14.99 tickets", { exact: true })).toHaveCount(0);
+  await expect(metrics.getByText("$14.99 tickets", { exact: true })).toHaveCount(0);
 });
