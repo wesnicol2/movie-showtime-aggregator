@@ -410,9 +410,10 @@
 
   .planner-overview {
     top: 108px;
+    flex-wrap: wrap;
     margin-bottom: 20px;
-    overflow-x: auto;
-    white-space: nowrap;
+    overflow: visible;
+    white-space: normal;
   }
 
   .planner-month-header {
