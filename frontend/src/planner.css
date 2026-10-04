@@ -94,10 +94,6 @@
   min-height: 62px;
 }
 
-.planner-day.empty .planner-day-header {
-  opacity: 0.78;
-}
-
 .planner-day.planned {
   padding-bottom: 28px;
 }
@@ -109,6 +105,10 @@
   justify-content: space-between;
   gap: 18px;
   padding: 12px 0;
+}
+
+.planner-day.empty .planner-day-header {
+  opacity: 0.78;
 }
 
 .planner-day-title {
