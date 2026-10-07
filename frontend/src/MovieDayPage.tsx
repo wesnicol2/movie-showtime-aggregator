@@ -685,6 +685,7 @@ function ItineraryTimeVisualization({
   return (
     <div
       className="itinerary-time-visualization"
+      role="img"
       aria-label={`Time visualization: ${ariaDescription}`}
       style={{
         padding: "12px 18px 14px",

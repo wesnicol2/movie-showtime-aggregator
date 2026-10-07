@@ -146,7 +146,9 @@ async function mockApi(page: Page): Promise<void> {
   });
 }
 
-test("planning results visualize movie, driving, and free time proportionally", async ({ page }) => {
+test("planning results visualize movie, driving, and free time proportionally", async ({
+  page,
+}) => {
   await mockApi(page);
   await page.goto("/plan");
   await page.getByText("Advanced options", { exact: true }).click();
