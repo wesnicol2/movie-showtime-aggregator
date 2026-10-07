@@ -48,6 +48,16 @@ def test_preview_minutes_derives_actual_start_and_end():
     assert calculated.estimated_end == datetime(2026, 9, 4, 20, 37)
 
 
+def test_missing_preview_minutes_uses_ten_minute_default():
+    screening = normalize_showtime(raw_showtime())
+    assert screening is not None
+
+    calculated = apply_preview_minutes(screening, None)
+
+    assert calculated.actual_start == datetime(2026, 9, 4, 18, 10)
+    assert calculated.estimated_end == datetime(2026, 9, 4, 20, 22)
+
+
 def test_zero_preview_minutes_is_a_valid_configuration():
     screening = normalize_showtime(raw_showtime())
     assert screening is not None

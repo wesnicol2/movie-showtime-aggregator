@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 
 from .experience import ExperienceDeviation, classify_experience
 
+DEFAULT_PREVIEW_MINUTES = 10
+
 
 @dataclass(frozen=True, slots=True)
 class Screening:
@@ -102,19 +104,10 @@ def normalize_showtime(raw: dict[str, object]) -> Screening | None:
 
 
 def apply_preview_minutes(screening: Screening, preview_minutes: int | None) -> Screening:
-    if preview_minutes is None:
-        return replace(
-            screening,
-            actual_start=None,
-            estimated_end=None,
-            drive_to_minutes=None,
-            drive_home_minutes=None,
-            leave_home=None,
-            home_arrival=None,
-            route_source_url="",
-        )
-
-    actual_start = screening.advertised_start + timedelta(minutes=preview_minutes)
+    effective_preview_minutes = (
+        DEFAULT_PREVIEW_MINUTES if preview_minutes is None else preview_minutes
+    )
+    actual_start = screening.advertised_start + timedelta(minutes=effective_preview_minutes)
     estimated_end = (
         actual_start + timedelta(minutes=screening.runtime_minutes)
         if screening.runtime_minutes is not None

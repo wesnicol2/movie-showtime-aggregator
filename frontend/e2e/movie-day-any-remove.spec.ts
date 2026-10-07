@@ -185,8 +185,9 @@ test("Any returns itineraries across every feasible movie count in global want-s
   expect(requestedCounts.sort()).toEqual([1, 2]);
   const cards = page.locator(".itinerary-card");
   await expect(cards).toHaveCount(3);
-  await expect(cards.nth(0).getByText("Alpha", { exact: true })).toBeVisible();
-  await expect(cards.nth(0).getByText("Beta", { exact: true })).toBeVisible();
+  const firstCardShowings = cards.nth(0).locator(".showing-line");
+  await expect(firstCardShowings.getByText("Alpha", { exact: true })).toBeVisible();
+  await expect(firstCardShowings.getByText("Beta", { exact: true })).toBeVisible();
 });
 
 test("the priority-list X removes a movie from this day but keeps it wanted", async ({ page }) => {

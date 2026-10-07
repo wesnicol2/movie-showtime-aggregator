@@ -10,7 +10,7 @@ A React-based movie-going planner built around one simple loop:
 - the itinerary step defaults to planning one movie, while time windows, filters, ranking, pins, runtimes, and alternate sort objectives stay available behind advanced controls;
 - the spreadsheet-style showtime table remains available as a secondary inspection/power-user surface at `/showtimes`.
 
-The app discovers theaters around a configured ZIP code and radius, applies user-known preview times, and can optionally enrich screenings with movie ratings/posters, rough home travel times, and official AMC pricing/seating data. The Python backend remains authoritative for screening data, provider semantics, calculations, and enrichment; the React frontend consumes typed API contracts and performs only already-loaded interaction such as table sorting/filtering.
+The app discovers theaters around a configured ZIP code and radius, applies user-known preview times with a 10-minute fallback when none is set, and can optionally enrich screenings with movie ratings/posters, rough home travel times, and official AMC pricing/seating data. The Python backend remains authoritative for screening data, provider semantics, calculations, and enrichment; the React frontend consumes typed API contracts and performs only already-loaded interaction such as table sorting/filtering.
 
 > **Fresh from the template?** Work through
 > [docs/new-repo-checklist.md](docs/new-repo-checklist.md) first. It covers the
@@ -50,7 +50,7 @@ Movie Selection is normally entered by choosing a day on the calendar. The page 
 
 Movie Selection has local filters for title, minimum IMDb/Rotten Tomatoes/Metacritic ratings, and initial release date, plus multi-value checkbox filters for selection state, theater, chain, format, and listed showtime window (matinee, afternoon, evening, late night). Those controls are collapsed by default behind the **Filters** button so the poster grid remains primary; the button keeps an active-filter count visible while collapsed. Each checkbox filter opens the same **All** / **None** / per-value checkbox menu the screening table uses, and reads `All` until you narrow it.
 
-Theater, chain, format, and listed-time checkboxes describe screenings rather than movies, so a movie stays visible while at least one of its screenings matches every active screening filter — selecting `AMC Center 8` and a late-night window keeps only movies that actually play late at that theater. Listed showtime windows come from the provider's listed start time, not the calculated actual start, so they never depend on configured preview minutes.
+Theater, chain, format, and listed-time checkboxes describe screenings rather than movies, so a movie stays visible while at least one of its screenings matches every active screening filter — selecting `AMC Center 8` and a late-night window keeps only movies that actually play late at that theater. Listed showtime windows come from the provider's listed start time, not the calculated actual start, so configured preview minutes or the 10-minute fallback never shift those filter buckets.
 
 Movie Selection can sort in either direction by title, initial release date, IMDb, Rotten Tomatoes, or Metacritic. The active sort field and value are shown under every title so the current ordering is visible without opening a detail view.
 
@@ -66,7 +66,7 @@ Power-user controls remain available without dominating the first-time path. **A
 
 The **Movie Priority** list ranks the selected pool from most wanted to least wanted. With N selected movies, rank #1 is worth N want points, rank #2 is worth N-1, down to one point for the last-ranked movie; an itinerary's want score is the sum of the movies it contains. Rankings and pins are browser-persistent Movie Day preferences. **Pin** marks a movie as mandatory, so every returned itinerary contains it; Watch cannot be set below the number of pinned movies. If a pinned movie has no eligible showing under the current filters/time bounds, the planner reports that conflict rather than silently dropping it.
 
-**Start** constrains the first used showing's calculated actual start, and **End** constrains every used showing's calculated end so the final movie finishes by that time. When both are supplied and End is at or before Start, End is interpreted as the following calendar day. Missing preview/runtime still makes a showing unplannable rather than inventing timing.
+**Start** constrains the first used showing's calculated actual start, and **End** constrains every used showing's calculated end so the final movie finishes by that time. When both are supplied and End is at or before Start, End is interpreted as the following calendar day. A missing preview setting uses the 10-minute fallback; a missing runtime still makes a showing unplannable.
 
 Results can be globally ranked by **Minimum time** (full door-to-door elapsed time from leaving home for the first theater through arriving home after the final movie), **Minimum driving** (outbound home-to-first-theater drive + theater-to-theater drives + final-theater-to-home drive), **Earliest home** (the earliest estimated arrival back home after the final movie), or **Highest want score** (rank-weight sum). When home is not configured, Earliest home falls back to the final movie end time. **Secondary sort** explicitly chooses how ties on the primary objective are broken. Changing the primary sort resets the secondary choice to the planner's historical default — Minimum time → Minimum driving; Minimum driving, Earliest home, and Highest want score → Minimum time; equal want score and elapsed time still use driving as the final legacy tie-breaker. Ranking happens in the backend across the complete feasible solution set, not by re-sorting one 25-result browser page.
 
@@ -82,7 +82,7 @@ Open `/settings`. There are two persistence scopes.
 
 **Theater search** stores a five-digit US ZIP plus a 1–100 mile radius. The default is `85004` / 25 miles. The backend resolves the ZIP, broadens Fandango discovery through nearby returned theater ZIP markets, deduplicates screenings, calculates exact straight-line theater distance, and removes theaters outside the configured radius.
 
-**Preview time by chain** stores the number of minutes between the listed showtime and the actual movie start. `0` is valid. Blank means unknown. These browser settings live in `localStorage` and are mirrored into cookies so `/api/screenings` can apply them.
+**Preview time by chain** stores the number of minutes between the listed showtime and the actual movie start. `0` is valid. Blank uses the 10-minute default. These browser settings live in `localStorage` and are mirrored into cookies so `/api/screenings` can apply them.
 
 ### Shared persistent settings
 
@@ -113,10 +113,10 @@ Settings shows requests made today, cache hits, percentage/estimated remaining f
 
 ## Time model
 
-Every screening always has a **Listed** time. A chain with configured preview minutes gets:
+Every screening always has a **Listed** time. Calculated timing uses an explicit per-chain preview value when present and otherwise falls back to 10 minutes:
 
 ```text
-actual start = listed showtime + preview minutes
+actual start = listed showtime + (configured preview minutes or 10-minute default)
 end          = actual start + movie runtime
 ```
 
@@ -129,7 +129,7 @@ leave home = actual start - estimated drive-to minutes
 back home  = estimated end + estimated drive-home minutes
 ```
 
-Travel columns remain unknown when the chain preview time, runtime, theater coordinates, home address, or route estimate needed for the calculation is unavailable. After-midnight values use full datetimes and are displayed with `(+1d)` when applicable.
+Travel columns remain unknown when the runtime, theater coordinates, home address, or route estimate needed for the calculation is unavailable. After-midnight values use full datetimes and are displayed with `(+1d)` when applicable.
 
 ## Seats and ticket prices
 
