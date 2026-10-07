@@ -580,6 +580,11 @@ function ItineraryCard({
           </button>
         </div>
       </header>
+      <ItineraryTimeVisualization
+        itinerary={itinerary}
+        screenings={screenings}
+        runtimeOverrides={runtimeOverrides}
+      />
       <ol>
         {screenings.map((screening, index) => {
           const leg = index > 0 ? itinerary.legs[index - 1] : undefined;
@@ -618,6 +623,159 @@ function ItineraryCard({
         })}
       </ol>
     </article>
+  );
+}
+
+type TimelineSegment = {
+  key: string;
+  kind: "movie" | "drive" | "free";
+  minutes: number;
+  label: string;
+};
+
+function ItineraryTimeVisualization({
+  itinerary,
+  screenings,
+  runtimeOverrides,
+}: {
+  itinerary: MovieDayItinerary;
+  screenings: readonly Screening[];
+  runtimeOverrides: Readonly<Record<string, number>>;
+}) {
+  const segments: TimelineSegment[] = [];
+
+  screenings.forEach((screening, index) => {
+    const runtime = runtimeOverrides[screening.movie] ?? screening.runtime_minutes;
+    if (runtime !== null && runtime > 0) {
+      segments.push({
+        key: `movie-${screening.showtime_id}`,
+        kind: "movie",
+        minutes: runtime,
+        label: screening.movie,
+      });
+    }
+
+    const leg = itinerary.legs[index];
+    if (!leg) return;
+    const driveMinutes = Math.max(0, leg.drive_minutes);
+    const freeMinutes = Math.max(0, leg.gap_minutes - driveMinutes);
+    if (driveMinutes > 0) {
+      segments.push({
+        key: `drive-${leg.from_showtime_id}-${leg.to_showtime_id}`,
+        kind: "drive",
+        minutes: driveMinutes,
+        label: "Driving",
+      });
+    }
+    if (freeMinutes > 0) {
+      segments.push({
+        key: `free-${leg.from_showtime_id}-${leg.to_showtime_id}`,
+        kind: "free",
+        minutes: freeMinutes,
+        label: "Free time",
+      });
+    }
+  });
+
+  if (segments.length === 0) return null;
+  const ariaDescription = segments
+    .map((segment) => `${segment.label} ${segment.minutes} minutes`)
+    .join(", ");
+
+  return (
+    <div
+      className="itinerary-time-visualization"
+      role="img"
+      aria-label={`Time visualization: ${ariaDescription}`}
+      style={{
+        padding: "12px 18px 14px",
+        borderTop: "1px solid var(--line)",
+        borderBottom: "1px solid var(--line)",
+      }}
+    >
+      <div
+        className="itinerary-time-track"
+        style={{
+          display: "flex",
+          alignItems: "stretch",
+          gap: "2px",
+          height: "42px",
+          padding: "3px",
+          borderRadius: "9px",
+          background: "var(--bg)",
+        }}
+      >
+        {segments.map((segment) => (
+          <div
+            key={segment.key}
+            data-time-kind={segment.kind}
+            data-minutes={segment.minutes}
+            title={`${segment.label}: ${formatDuration(segment.minutes)}`}
+            style={{
+              flexBasis: 0,
+              flexGrow: segment.minutes,
+              minWidth: segment.kind === "movie" ? "18px" : "6px",
+              display: "grid",
+              placeItems: "center",
+              overflow: "hidden",
+              borderRadius: "5px",
+              background:
+                segment.kind === "drive"
+                  ? "var(--accent)"
+                  : segment.kind === "free"
+                    ? "#303845"
+                    : "var(--panel-raised)",
+              color: segment.kind === "drive" ? "#0d1015" : "var(--text)",
+              fontSize: "10px",
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {segment.kind === "movie" ? (
+              <span
+                style={{
+                  maxWidth: "100%",
+                  padding: "0 7px",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {segment.label}
+              </span>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      <div
+        className="itinerary-time-legend"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "6px 14px",
+          marginTop: "8px",
+          color: "var(--muted)",
+          fontSize: "10px",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        <TimelineLegendItem label="Movie time" background="var(--panel-raised)" />
+        <TimelineLegendItem label="Driving" background="var(--accent)" />
+        <TimelineLegendItem label="Free time" background="#303845" />
+        <span style={{ marginLeft: "auto" }}>Width represents time</span>
+      </div>
+    </div>
+  );
+}
+
+function TimelineLegendItem({ label, background }: { label: string; background: string }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+      <span
+        aria-hidden="true"
+        style={{ width: "9px", height: "9px", borderRadius: "3px", background }}
+      />
+      {label}
+    </span>
   );
 }
 

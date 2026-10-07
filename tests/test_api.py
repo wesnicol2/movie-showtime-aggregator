@@ -369,7 +369,7 @@ def test_location_cookie_takes_precedence_over_query(monkeypatch):
     assert payload["location"] == {"zip_code": "85004", "radius_miles": 30}
 
 
-def test_empty_settings_cookie_keeps_preview_times_unknown(monkeypatch):
+def test_empty_settings_cookie_keeps_preview_overrides_empty(monkeypatch):
     service = StubService([sample_screening()])
     monkeypatch.setattr(api, "_SERVICE", service)
     settings_cookie = "movie_preview_minutes=%7B%7D"

@@ -204,7 +204,7 @@ class FakeShowtimeClient:
         ]
 
 
-def test_service_caches_location_data_and_applies_previews_per_chain():
+def test_service_caches_location_data_and_applies_previews_with_ten_minute_default():
     client = FakeShowtimeClient()
     locator = FakeLocator()
     service = ScreeningService(client, Settings(), locator=locator)
@@ -215,14 +215,20 @@ def test_service_caches_location_data_and_applies_previews_per_chain():
 
     assert client.calls == 1
     assert locator.calls == ["85004"]
-    assert all(item.actual_start is None for item in unknown)
+    unknown_amc = next(item for item in unknown if item.chain == "AMC")
+    unknown_harkins = next(item for item in unknown if item.chain == "Harkins Theatres")
+    assert unknown_amc.actual_start == datetime(2026, 9, 4, 18, 10)
+    assert unknown_amc.estimated_end == datetime(2026, 9, 4, 19, 50)
+    assert unknown_harkins.actual_start == datetime(2026, 9, 4, 19, 10)
+    assert unknown_harkins.estimated_end == datetime(2026, 9, 4, 20, 50)
+
     amc = next(item for item in configured if item.chain == "AMC")
     harkins = next(item for item in configured if item.chain == "Harkins Theatres")
     assert amc.actual_start == datetime(2026, 9, 4, 18, 25)
     assert amc.estimated_end == datetime(2026, 9, 4, 20, 5)
     assert amc.distance_miles == 0
-    assert harkins.actual_start is None
-    assert harkins.estimated_end is None
+    assert harkins.actual_start == datetime(2026, 9, 4, 19, 10)
+    assert harkins.estimated_end == datetime(2026, 9, 4, 20, 50)
 
 
 class RadiusShowtimeClient:

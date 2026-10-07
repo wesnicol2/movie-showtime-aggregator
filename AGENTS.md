@@ -96,7 +96,7 @@ Movie Selection's local filter panel is collapsed by default behind a compact **
 
 Discrete dimensions on this page are multi-value checkbox filters (selection state, theater, chain, format, listed showtime window) sharing the table's All/None value-menu vocabulary; open-ended ones stay typed inputs. The screening-derived facets come from `screening-facets.ts`, shared with Movie Day so both pages bucket listed time identically. `null` means every value is included, so an untouched filter is inactive and an emptied one legitimately matches nothing. Theater, chain, format, and listed time constrain screenings rather than movies: a movie survives when one of its screenings satisfies every active screening filter, so combining them answers "can I actually watch this here, in this format, at this time of day."
 
-Listed showtime windows bucket the provider's listed start, never the calculated actual start, so they stay defined when preview minutes are unconfigured. New movie-page dimensions should normally become another checkbox filter over base screening facts rather than a bespoke control.
+Listed showtime windows bucket the provider's listed start, never the calculated actual start, so configured preview minutes or the 10-minute fallback never shift those filter buckets. New movie-page dimensions should normally become another checkbox filter over base screening facts rather than a bespoke control.
 
 Wanted movie titles live in browser local storage independently from the Screening table's Movie filter. Do not couple the want list back to table filter state: clearing or loading Screening filters must never erase movie intent. This is browser convenience state, not an account/profile system.
 
@@ -116,7 +116,7 @@ Start and End are planner constraints over canonical calculated timing: a used s
 
 Dynamic programming counts exact feasible completions from `(showing, visited-movie-mask)` states and prunes paths that cannot reach the requested cardinality or still cover all required movie bits. Pins must be enforced in this completion state, not post-filtered after pagination/counting. Result ordering is a separate backend responsibility: best-first traversal uses monotone lower bounds (and the optimistic want-score upper bound) so the **primary sort and Secondary sort are applied globally before pagination**, never to only the browser's current page. The selectable objectives are full door-to-door **Minimum time**, full round-trip **Minimum driving**, absolute **Earliest home**, and **Highest want score**. Earliest home ranks by final movie end plus the return-home estimate; without a configured home it falls back to final movie end, and unknown return routes sort after known home arrivals. Secondary sort must differ from the primary objective. When the primary objective changes, the UI resets Secondary sort to the historical implicit tie-breaker so existing behavior is preserved by default: elapsed → driving; driving, home, and want → elapsed. The legacy want-score order still uses driving after equal score and equal elapsed time. API callers that omit `secondary_sort_by` receive those same defaults. A caller that explicitly chooses another secondary objective changes only the tie-break order after the primary metric; deterministic start/showtime identity remains after the requested ordering.
 
-Same-theater transitions take zero minutes. Different-theater transitions use directional OSRM drive time and require coordinates/routes. Unknown preview or runtime makes that showing unplannable; missing cross-theater routing makes that transition infeasible. When Watch is smaller than the selected pool, missing/unplannable unpinned movies are not fatal unless fewer than `K` distinct movies remain. A missing/unplannable pinned movie is a hard conflict and must be reported explicitly. Each returned itinerary identifies which unpinned selected movies it omitted and includes its want score.
+Same-theater transitions take zero minutes. Different-theater transitions use directional OSRM drive time and require coordinates/routes. Missing preview configuration uses the 10-minute default; unknown runtime still makes that showing unplannable, and missing cross-theater routing makes that transition infeasible. When Watch is smaller than the selected pool, missing/unplannable unpinned movies are not fatal unless fewer than `K` distinct movies remain. A missing/unplannable pinned movie is a hard conflict and must be reported explicitly. Each returned itinerary identifies which unpinned selected movies it omitted and includes its want score.
 
 ### Settings
 
@@ -137,13 +137,13 @@ Base facts include movie, theater, chain, listed start, runtime, format, purchas
 The important derived timing model is:
 
 ```text
-actual start = listed start + configured chain preview minutes
+actual start = listed start + explicit chain preview minutes, or 10 minutes when unset
 end          = actual start + runtime
 leave home   = actual start - outbound drive estimate
 back home    = end + return drive estimate
 ```
 
-No preview duration is assumed. Missing preview means actual start/end/travel timing remain unknown. Missing runtime means end/back-home remain unknown. Missing home/theater route means leave/back-home remain unknown.
+Preview duration defaults to 10 minutes when no per-chain value is configured; an explicit value, including `0`, overrides the fallback. Missing runtime means end/back-home remain unknown. Missing home/theater route means leave/back-home remain unknown.
 
 All time filtering compares complete datetimes. Do not regress to clock-only `HH:MM` comparisons; after-midnight rows must remain ordered correctly and display `(+1d)` when applicable.
 
@@ -235,7 +235,7 @@ See `CONTRIBUTING.md` for the full promotion contract.
 ## Repo history worth not relearning
 
 - A single Fandango ZIP response can omit nearby theaters; radius discovery therefore expands through nearby returned ZIP markets before enforcing the exact app-defined radius.
-- Preview/trailer time is user knowledge, not a provider fact. It belongs in Settings and remains unknown until configured.
+- Preview/trailer time is user knowledge, not a provider fact. Explicit per-chain values belong in Settings; an unset chain uses the product's 10-minute fallback.
 - Preview configuration briefly lived inside the Chain filter menu. It was intentionally moved out.
 - The first UI used standalone filter panels. Product direction changed to an Excel-style table where headers own sorting/filtering.
 - Movie Selection and Movie Day optional filter facets were later collapsed behind compact Filters buttons so filters remain available without dominating the primary selection/planning surfaces.

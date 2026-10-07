@@ -200,7 +200,7 @@ export function SettingsPage() {
     writeBrowserSettings(current);
     writeCookie(PREVIEW_COOKIE, {});
     invalidateScreenings();
-    setStatus("Preview times cleared");
+    setStatus("Preview times cleared; blank chains use the 10-minute default");
   }
 
   function updateExperienceDeviation(
@@ -338,8 +338,8 @@ export function SettingsPage() {
           <div>
             <h2>Preview time by chain</h2>
             <p>
-              Minutes between listed showtime and actual movie start. Blank keeps derived times
-              unknown.
+              Minutes between listed showtime and actual movie start. Blank uses the 10-minute
+              default.
             </p>
           </div>
           <span className="scope-badge">This browser</span>
@@ -356,7 +356,7 @@ export function SettingsPage() {
                   min={0}
                   max={180}
                   step={1}
-                  placeholder="Unknown"
+                  placeholder="Default 10"
                   aria-label={`Preview minutes for ${chain}`}
                   value={previewMinutes[chain] ?? ""}
                   onChange={(event) =>
