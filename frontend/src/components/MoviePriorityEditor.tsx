@@ -321,7 +321,7 @@ export function MoviePriorityEditor({
                 <span>
                   {wantScore} want point{wantScore === 1 ? "" : "s"}
                 </span>
-                <div className="movie-priority-ratings" aria-label={`${movie} ratings`}>
+                <div className="movie-priority-ratings" role="group" aria-label={`${movie} ratings`}>
                   <RatingItem
                     label="Rotten Tomatoes"
                     value={screening?.rotten_tomatoes_score === null ||
@@ -444,7 +444,7 @@ function RatingItem({
 }) {
   const content = <>{label} <strong>{value}</strong></>;
   return href ? (
-    <a href={href} target="_blank" rel="noopener noreferrer" title={\`Open \${label}\`}>
+    <a href={href} target="_blank" rel="noopener noreferrer" title={"Open " + label}>
       {content}
     </a>
   ) : (
