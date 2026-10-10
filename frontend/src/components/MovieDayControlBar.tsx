@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MAX_MOVIES_PER_DAY } from "../movie-limits";
 import { readDefaultSavedView, writeDefaultSavedView } from "../saved-view-defaults";
 import {
   activeFacetCount,
@@ -261,6 +262,7 @@ export function MovieDayControlBar({
           <CheckboxFilter
             label="Movies"
             options={movies}
+            maxSelections={MAX_MOVIES_PER_DAY}
             selected={selectedMovieValues}
             open={openControl === "movies"}
             searchable
