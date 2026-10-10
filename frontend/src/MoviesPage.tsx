@@ -92,11 +92,7 @@ export function MoviesPage({ onBack, onContinue }: Props) {
     const available = new Set(allMovies.map((movie) => movie.representative.movie));
     const candidates = [...plannedThisDate].filter((movie) => available.has(movie));
     for (const movie of selectedMovies) {
-      if (
-        available.has(movie) &&
-        !plannedOnOtherDates.has(movie) &&
-        !candidates.includes(movie)
-      ) {
+      if (available.has(movie) && !plannedOnOtherDates.has(movie) && !candidates.includes(movie)) {
         candidates.push(movie);
       }
     }
@@ -216,7 +212,9 @@ export function MoviesPage({ onBack, onContinue }: Props) {
           <button type="button" onClick={onBack}>
             Calendar
           </button>
-          <strong>{planningMovies.size} / {MAX_MOVIES_PER_DAY} for this day</strong>
+          <strong>
+            {planningMovies.size} / {MAX_MOVIES_PER_DAY} for this day
+          </strong>
           <button
             className="primary-action"
             type="button"
@@ -344,19 +342,20 @@ export function MoviesPage({ onBack, onContinue }: Props) {
           const selectedForDay = planningMovies.has(screening.movie);
           const locked = plannedElsewhere !== undefined;
           const full = !selectedForDay && planningMovies.size >= MAX_MOVIES_PER_DAY;
-          const statusLabel = full && !locked
-            ? "10-movie limit reached"
-            : plannedHere
-            ? "Currently planned"
-            : plannedElsewhere
-              ? `Planned ${formatShortDate(plannedElsewhere)}`
-              : selectedForDay
-                ? wanted
-                  ? "Wanted · this day"
-                  : "This day"
-                : wanted
-                  ? "Wanted · not this day"
-                  : "Available";
+          const statusLabel =
+            full && !locked
+              ? "10-movie limit reached"
+              : plannedHere
+                ? "Currently planned"
+                : plannedElsewhere
+                  ? `Planned ${formatShortDate(plannedElsewhere)}`
+                  : selectedForDay
+                    ? wanted
+                      ? "Wanted · this day"
+                      : "This day"
+                    : wanted
+                      ? "Wanted · not this day"
+                      : "Available";
 
           return (
             <button
