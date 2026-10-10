@@ -184,9 +184,29 @@ async function keepOnly(page: Page, label: string, values: string[]): Promise<vo
   await menu.getByRole("button", { name: `Close ${label.toLowerCase()} filter` }).click();
 }
 
-async function mockApi(page: Page): Promise<void> {
+async function mockApi(page: Page, extraMovieTitles: string[] = []): Promise<void> {
+  const screenings = [
+    ...screeningsPayload.screenings,
+    ...extraMovieTitles.map((movie, index) => ({
+      ...screeningsPayload.screenings[0],
+      movie,
+      showtime_id: `extra-${index}`,
+      movie_source_id: `extra-${index}`,
+    })),
+  ];
   await page.route("**/api/screenings?*", async (route) => {
-    await route.fulfill({ json: screeningsPayload });
+    await route.fulfill({
+      json: {
+        ...screeningsPayload,
+        screenings,
+        count: screenings.length,
+        total_count: screenings.length,
+        facets: {
+          ...screeningsPayload.facets,
+          movies: [...screeningsPayload.facets.movies, ...extraMovieTitles],
+        },
+      },
+    });
   });
 }
 
@@ -305,4 +325,49 @@ test("screening saved views do not overwrite the persistent want list", async ({
       ),
     )
     .toEqual(["Alpha", "Beta"]);
+});
+
+test("the choose-movies grid enforces 10 candidates, but keeps the want list unlimited", async ({
+  page,
+}) => {
+  const extraMovies = Array.from({ length: 9 }, (_, index) => `Film ${index + 1}`);
+  await mockApi(page, extraMovies);
+  await page.goto("/movies");
+
+  await page.getByRole("button", { name: "Add Alpha to this day" }).click();
+  await page.getByRole("button", { name: "Add Beta to this day" }).click();
+  for (const movie of extraMovies.slice(0, 8)) {
+    await page.getByRole("button", { name: `Add ${movie} to this day` }).click();
+  }
+
+  await expect(page.getByText("10 / 10 for this day")).toBeVisible();
+  await expect(page.getByText("10-movie limit reached · remove one to add another")).toBeVisible();
+  const eleventh = page.getByRole("button", { name: "Add Film 9 to this day" });
+  await expect(eleventh).toBeDisabled();
+  await expect(eleventh.getByText("10-movie limit reached")).toBeVisible();
+
+  await page.getByRole("button", { name: "Remove Alpha from this day" }).click();
+  await expect(eleventh).toBeEnabled();
+  await eleventh.click();
+  await expect(page.getByText("10 / 10 for this day")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove Film 9 from this day" })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem("movie-showtime-aggregator.selected-movies.v1") ?? "[]"),
+      ),
+    )
+    .toHaveLength(11);
+});
+
+test("saved movie selections exceeding 10 are capped for the day", async ({ page }) => {
+  const extraMovies = Array.from({ length: 9 }, (_, index) => `Film ${index + 1}`);
+  await page.addInitScript((titles) => {
+    localStorage.setItem("movie-showtime-aggregator.selected-movies.v1", JSON.stringify(titles));
+  }, ["Alpha", "Beta", ...extraMovies]);
+  await mockApi(page, extraMovies);
+  await page.goto("/movies");
+  await expect(page.getByText("10 / 10 for this day")).toBeVisible();
+  await expect(page.locator(".movie-tile[aria-pressed='true']")).toHaveCount(10);
+  await expect(page.locator(".movie-tile[aria-pressed='false']:not(:disabled)")).toHaveCount(0);
 });
