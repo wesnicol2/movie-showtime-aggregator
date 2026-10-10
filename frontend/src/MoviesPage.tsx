@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MovieFilterBar } from "./components/MovieFilterBar";
 import "./movie-controls.css";
+import { MAX_MOVIES_PER_DAY } from "./movie-limits";
 import {
   createMovieSavedView,
   type MovieSavedView,
@@ -89,13 +90,17 @@ export function MoviesPage({ onBack, onContinue }: Props) {
     if (planningDraftDate === selectedDate && planningDraftMovies !== null) return;
 
     const available = new Set(allMovies.map((movie) => movie.representative.movie));
-    const candidates = selectedMovies.filter(
-      (movie) => available.has(movie) && !plannedOnOtherDates.has(movie),
-    );
-    for (const movie of plannedThisDate) {
-      if (available.has(movie) && !candidates.includes(movie)) candidates.push(movie);
+    const candidates = [...plannedThisDate].filter((movie) => available.has(movie));
+    for (const movie of selectedMovies) {
+      if (
+        available.has(movie) &&
+        !plannedOnOtherDates.has(movie) &&
+        !candidates.includes(movie)
+      ) {
+        candidates.push(movie);
+      }
     }
-    setPlanningDraft(selectedDate, candidates);
+    setPlanningDraft(selectedDate, candidates.slice(0, MAX_MOVIES_PER_DAY));
   }, [
     allMovies,
     plannedOnOtherDates,
@@ -139,6 +144,7 @@ export function MoviesPage({ onBack, onContinue }: Props) {
       );
       return;
     }
+    if (current.length >= MAX_MOVIES_PER_DAY) return;
 
     if (!selectedMovies.includes(movie)) {
       setMovieSelection([...selectedMovies, movie]);
@@ -210,7 +216,7 @@ export function MoviesPage({ onBack, onContinue }: Props) {
           <button type="button" onClick={onBack}>
             Calendar
           </button>
-          <strong>{planningMovies.size} for this day</strong>
+          <strong>{planningMovies.size} / {MAX_MOVIES_PER_DAY} for this day</strong>
           <button
             className="primary-action"
             type="button"
@@ -226,6 +232,12 @@ export function MoviesPage({ onBack, onContinue }: Props) {
         <strong>{selectedMovies.length}</strong> wanted overall
         <span>·</span>
         <span>Only movies playing on {formatShortDate(selectedDate)} are shown here</span>
+        <span>·</span>
+        <span>
+          {planningMovies.size >= MAX_MOVIES_PER_DAY
+            ? "10-movie limit reached · remove one to add another"
+            : "Choose up to 10 movies for this day"}
+        </span>
         {plannedOnOtherDates.size > 0 ? (
           <>
             <span>·</span>
@@ -331,7 +343,10 @@ export function MoviesPage({ onBack, onContinue }: Props) {
           const plannedElsewhere = plannedOnOtherDates.get(screening.movie);
           const selectedForDay = planningMovies.has(screening.movie);
           const locked = plannedElsewhere !== undefined;
-          const statusLabel = plannedHere
+          const full = !selectedForDay && planningMovies.size >= MAX_MOVIES_PER_DAY;
+          const statusLabel = full && !locked
+            ? "10-movie limit reached"
+            : plannedHere
             ? "Currently planned"
             : plannedElsewhere
               ? `Planned ${formatShortDate(plannedElsewhere)}`
@@ -354,7 +369,8 @@ export function MoviesPage({ onBack, onContinue }: Props) {
                   ? `${screening.movie}: ${statusLabel}`
                   : `${selectedForDay ? "Remove" : "Add"} ${screening.movie} ${selectedForDay ? "from" : "to"} this day`
               }
-              disabled={locked}
+              disabled={locked || full}
+              title={full && !locked ? "Remove a movie to add another (10 maximum)" : undefined}
               onClick={() => toggleMovieForDay(screening.movie)}
             >
               <span className="poster-frame">
