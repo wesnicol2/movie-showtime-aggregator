@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { createMovieDayPlan } from "./api";
+import { MAX_MOVIES_PER_DAY } from "./movie-limits";
 import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
 import { MovieDayControlBar } from "./components/MovieDayControlBar";
 import { MoviePriorityEditor } from "./components/MoviePriorityEditor";
@@ -92,10 +93,12 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
         ? planningDraftMovies
         : null;
     const candidates = draftMovies ?? [...new Set([...selectedMovies, ...currentPlanMovies])];
-    return candidates.filter(
-      (movie) =>
-        showingMovies.has(movie) && (!plannedElsewhere.has(movie) || currentPlanMovies.has(movie)),
-    );
+    return candidates
+      .filter(
+        (movie) =>
+          showingMovies.has(movie) && (!plannedElsewhere.has(movie) || currentPlanMovies.has(movie)),
+      )
+      .slice(0, MAX_MOVIES_PER_DAY);
   }, [
     allScreenings,
     currentPlanMovies,
@@ -275,7 +278,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   }
 
   function setAvailableMovieSelection(movies: string[]): void {
-    if (!responseDate) return;
+    if (!responseDate || new Set(movies).size > MAX_MOVIES_PER_DAY) return;
     const newWantedMovies = movies.filter((movie) => !selectedMovies.includes(movie));
     if (newWantedMovies.length > 0) {
       setMovieSelection([...selectedMovies, ...newWantedMovies]);
