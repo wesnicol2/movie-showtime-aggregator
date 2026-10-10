@@ -321,28 +321,34 @@ export function MoviePriorityEditor({
                 <span>
                   {wantScore} want point{wantScore === 1 ? "" : "s"}
                 </span>
-                <div className="movie-priority-ratings" role="group" aria-label={`${movie} ratings`}>
+                <div className="movie-priority-ratings">
                   <RatingItem
                     label="Rotten Tomatoes"
-                    value={screening?.rotten_tomatoes_score === null ||
+                    value={
+                      screening?.rotten_tomatoes_score === null ||
                       screening?.rotten_tomatoes_score === undefined
-                      ? "—"
-                      : `${screening.rotten_tomatoes_score}%`}
+                        ? "—"
+                        : `${screening.rotten_tomatoes_score}%`
+                    }
                     href={screening?.rotten_tomatoes_url}
                   />
                   <RatingItem
                     label="Metacritic"
-                    value={screening?.metacritic_score === null ||
+                    value={
+                      screening?.metacritic_score === null ||
                       screening?.metacritic_score === undefined
-                      ? "—"
-                      : `${screening.metacritic_score}/100`}
+                        ? "—"
+                        : `${screening.metacritic_score}/100`
+                    }
                     href={screening?.metacritic_url}
                   />
                   <RatingItem
                     label="Letterboxd"
-                    value={letterboxdScore === undefined || letterboxdScore === null
-                      ? "—"
-                      : `${letterboxdScore.toFixed(2)}/5`}
+                    value={
+                      letterboxdScore === undefined || letterboxdScore === null
+                        ? "—"
+                        : `${letterboxdScore.toFixed(2)}/5`
+                    }
                     href={letterboxdUrl}
                   />
                 </div>
@@ -432,22 +438,14 @@ export function MoviePriorityEditor({
   );
 }
 
-
-function RatingItem({
-  label,
-  value,
-  href,
-}: {
-  label: string;
-  value: string;
-  href?: string;
-}) {
-  const content = <>{label} <strong>{value}</strong></>;
+function RatingItem({ label, value, href }: { label: string; value: string; href?: string }) {
   return href ? (
-    <a href={href} target="_blank" rel="noopener noreferrer" title={"Open " + label}>
-      {content}
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {label} <strong>{value}</strong>
     </a>
   ) : (
-    <span>{content}</span>
+    <span>
+      {label} <strong>{value}</strong>
+    </span>
   );
 }
