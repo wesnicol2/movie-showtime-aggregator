@@ -638,7 +638,9 @@ function TransferTimeline({ leg }: { leg: MovieDayItinerary["legs"][number] }) {
       <div className="transfer-track" aria-hidden="true">
         {driveMinutes > 0 ? (
           <span
-            className={spareMinutes > 0 ? "transfer-track-drive" : "transfer-track-drive is-neutral"}
+            className={
+              spareMinutes > 0 ? "transfer-track-drive" : "transfer-track-drive is-neutral"
+            }
             style={{ height: driveHeight }}
           />
         ) : null}
