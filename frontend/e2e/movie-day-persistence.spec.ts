@@ -170,7 +170,7 @@ test("each itinerary session starts simple while the want list persists", async 
 
   await page.getByRole("button", { name: "Change movies" }).click();
   await expect(page).toHaveURL(/\/movies$/);
-  await expect(page.getByText("2 for this day")).toBeVisible();
+  await expect(page.getByText("2 / 10 for this day")).toBeVisible();
   await page.getByRole("button", { name: "Continue to planner" }).click();
   await expect(page).toHaveURL(/\/plan$/);
 
