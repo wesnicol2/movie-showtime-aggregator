@@ -659,7 +659,7 @@
   min-width: 0;
 }
 
-.transfer-phase a {
+.transfer-line .transfer-phase a {
   color: var(--accent);
 }
 
