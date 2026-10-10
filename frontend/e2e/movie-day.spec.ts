@@ -55,7 +55,10 @@ const screenings = [
   },
 ];
 
-async function mockApi(page: Page): Promise<void> {
+async function mockApi(
+  page: Page,
+  movieMetadata: Record<string, Partial<(typeof screenings)[number]>> = {},
+): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem(
       "movie-showtime-aggregator.selected-movies.v1",
@@ -85,7 +88,10 @@ async function mockApi(page: Page): Promise<void> {
           theatres: ["AMC Center 8", "AMC Valley 12"],
           formats: ["Standard"],
         },
-        screenings,
+        screenings: screenings.map((screening) => ({
+          ...screening,
+          ...movieMetadata[screening.movie],
+        })),
       },
     });
   });
@@ -449,4 +455,55 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
   await page.reload();
   await page.getByText("Movie priorities & runtimes", { exact: true }).click();
   await expect(page.getByLabel("Alpha runtime minutes")).toHaveValue("95");
+});
+
+
+test("priority rows link ratings and fetch Letterboxd only when expanded", async ({ page }) => {
+  await mockApi(page, {
+    Alpha: {
+      imdb_id: "tt1234567",
+      letterboxd_url: "https://letterboxd.com/imdb/tt1234567/",
+      rotten_tomatoes_score: 87,
+      rotten_tomatoes_url: "https://www.rottentomatoes.com/m/alpha",
+      metacritic_score: 74,
+      metacritic_url: "https://www.metacritic.com/movie/alpha/",
+    },
+  });
+  let requests = 0;
+  await page.route("**/api/letterboxd-rating?*", async (route) => {
+    requests += 1;
+    await route.fulfill({ json: { rating: 4.15 } });
+  });
+  await page.goto("/plan");
+  expect(requests).toBe(0);
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
+
+  const first = page.locator(".movie-priority-list li").first();
+  await expect(first.getByRole("link", { name: "Rotten Tomatoes 87%" })).toHaveAttribute(
+    "href",
+    "https://www.rottentomatoes.com/m/alpha",
+  );
+  await expect(first.getByRole("link", { name: "Metacritic 74/100" })).toBeVisible();
+  await expect(first.getByRole("link", { name: "Letterboxd 4.15/5" })).toHaveAttribute(
+    "href",
+    "https://letterboxd.com/imdb/tt1234567/",
+  );
+  expect(requests).toBe(1);
+  await expect(page.getByText("Letterboxd —")).toBeVisible();
+});
+
+test("transfer timeline is vertical between movie rows with proportional segments", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/plan");
+  await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByLabel("Number of movies").selectOption("all");
+  await page.getByRole("button", { name: "Find itineraries" }).click();
+
+  await expect(page.locator(".itinerary-time-track")).toHaveCount(0);
+  const transfer = page.locator(".itinerary-card .transfer-line");
+  await expect(transfer).toHaveCount(1);
+  await expect(transfer.getByRole("link", { name: "15 min drive" })).toBeVisible();
+  await expect(transfer.getByText("15 min spare")).toBeVisible();
+  await expect(transfer.locator(".transfer-track-drive")).toHaveAttribute("style", "height: 24px;");
+  await expect(transfer.locator(".transfer-track-free")).toHaveAttribute("style", "height: 24px;");
 });
