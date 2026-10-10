@@ -458,7 +458,6 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
   await expect(page.getByLabel("Alpha runtime minutes")).toHaveValue("95");
 });
 
-
 test("priority rows link ratings and fetch Letterboxd only when expanded", async ({ page }) => {
   await mockApi(page, {
     Alpha: {
@@ -493,7 +492,9 @@ test("priority rows link ratings and fetch Letterboxd only when expanded", async
   await expect(page.getByText("Letterboxd —")).toBeVisible();
 });
 
-test("transfer timeline is vertical between movie rows with proportional segments", async ({ page }) => {
+test("transfer timeline is vertical between movie rows with proportional segments", async ({
+  page,
+}) => {
   await mockApi(page);
   await page.goto("/plan");
   await page.getByText("Advanced options", { exact: true }).click();
