@@ -647,7 +647,8 @@
   background: var(--accent);
 }
 
-.transfer-track-free {
+.transfer-track-free,
+.transfer-track-drive.is-neutral {
   display: block;
   flex: none;
   background: #303845;
@@ -656,6 +657,8 @@
 .transfer-phase {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   min-width: 0;
 }
 
