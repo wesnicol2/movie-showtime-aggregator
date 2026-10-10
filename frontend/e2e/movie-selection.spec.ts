@@ -362,9 +362,12 @@ test("the choose-movies grid enforces 10 candidates, but keeps the want list unl
 
 test("saved movie selections exceeding 10 are capped for the day", async ({ page }) => {
   const extraMovies = Array.from({ length: 9 }, (_, index) => `Film ${index + 1}`);
-  await page.addInitScript((titles) => {
-    localStorage.setItem("movie-showtime-aggregator.selected-movies.v1", JSON.stringify(titles));
-  }, ["Alpha", "Beta", ...extraMovies]);
+  await page.addInitScript(
+    (titles) => {
+      localStorage.setItem("movie-showtime-aggregator.selected-movies.v1", JSON.stringify(titles));
+    },
+    ["Alpha", "Beta", ...extraMovies],
+  );
   await mockApi(page, extraMovies);
   await page.goto("/movies");
   await expect(page.getByText("10 / 10 for this day")).toBeVisible();
