@@ -438,7 +438,15 @@ export function MoviePriorityEditor({
   );
 }
 
-function RatingItem({ label, value, href }: { label: string; value: string; href?: string | undefined }) {
+function RatingItem({
+  label,
+  value,
+  href,
+}: {
+  label: string;
+  value: string;
+  href?: string | undefined;
+}) {
   return href ? (
     <a href={href} target="_blank" rel="noopener noreferrer">
       {label} <strong>{value}</strong>
