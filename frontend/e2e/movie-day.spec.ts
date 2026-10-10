@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import type { Screening } from "../src/types";
 
 const baseScreening = {
   chain: "AMC",
@@ -57,7 +58,7 @@ const screenings = [
 
 async function mockApi(
   page: Page,
-  movieMetadata: Record<string, Partial<(typeof screenings)[number]>> = {},
+  movieMetadata: Record<string, Partial<Screening>> = {},
 ): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem(
