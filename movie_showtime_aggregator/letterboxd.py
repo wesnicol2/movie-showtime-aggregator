@@ -70,7 +70,9 @@ def _rating_from_json(data: object) -> float | None:
     if not isinstance(data, dict):
         return None
     kind = data.get("@type")
-    if kind in {"Movie", "Film"} or (isinstance(kind, list) and "Movie" in kind):
+    if (isinstance(kind, str) and kind in {"Movie", "Film"}) or (
+        isinstance(kind, list) and "Movie" in kind
+    ):
         aggregate = data.get("aggregateRating")
         if isinstance(aggregate, dict):
             try:
