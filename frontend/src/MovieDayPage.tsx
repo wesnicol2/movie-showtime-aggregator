@@ -4,6 +4,7 @@ import { createMovieDayPlan } from "./api";
 import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
 import { MovieDayControlBar } from "./components/MovieDayControlBar";
 import { MoviePriorityEditor } from "./components/MoviePriorityEditor";
+import { MAX_MOVIES_PER_DAY } from "./movie-limits";
 import "./movie-day.css";
 import { readSavedMoviePlans, savedMoviePlanForDate, saveMoviePlan } from "./planner";
 import {
@@ -64,6 +65,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   const [planError, setPlanError] = useState<string | null>(null);
   const [planning, setPlanning] = useState(false);
   const [savedItineraryKey, setSavedItineraryKey] = useState<string | null>(null);
+  const [prioritiesOpen, setPrioritiesOpen] = useState(false);
 
   const responseDate = response?.date ?? "";
   const allScreenings = useMemo(() => response?.screenings ?? [], [response]);
@@ -91,10 +93,13 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
         ? planningDraftMovies
         : null;
     const candidates = draftMovies ?? [...new Set([...selectedMovies, ...currentPlanMovies])];
-    return candidates.filter(
-      (movie) =>
-        showingMovies.has(movie) && (!plannedElsewhere.has(movie) || currentPlanMovies.has(movie)),
-    );
+    return candidates
+      .filter(
+        (movie) =>
+          showingMovies.has(movie) &&
+          (!plannedElsewhere.has(movie) || currentPlanMovies.has(movie)),
+      )
+      .slice(0, MAX_MOVIES_PER_DAY);
   }, [
     allScreenings,
     currentPlanMovies,
@@ -130,6 +135,16 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
     }
     return runtimes;
   }, [allScreenings, rankedMovies]);
+  const screeningByMovie = useMemo(() => {
+    const result = new Map<string, Screening>();
+    for (const screening of allScreenings) {
+      const existing = result.get(screening.movie);
+      if (!existing || (!existing.imdb_id && screening.imdb_id)) {
+        result.set(screening.movie, screening);
+      }
+    }
+    return result;
+  }, [allScreenings]);
   const eligibleScreenings = useMemo(() => {
     const selected = new Set(availableSelectedMovies);
     return filterAndSort(allScreenings, filters, sort).filter(
@@ -264,7 +279,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   }
 
   function setAvailableMovieSelection(movies: string[]): void {
-    if (!responseDate) return;
+    if (!responseDate || new Set(movies).size > MAX_MOVIES_PER_DAY) return;
     const newWantedMovies = movies.filter((movie) => !selectedMovies.includes(movie));
     if (newWantedMovies.length > 0) {
       setMovieSelection([...selectedMovies, ...newWantedMovies]);
@@ -390,18 +405,24 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
         </div>
       ) : null}
 
-      <details className="movie-day-priority-advanced">
+      <details
+        className="movie-day-priority-advanced"
+        onToggle={(event) => setPrioritiesOpen(event.currentTarget.open)}
+      >
         <summary className="movie-day-detail-summary">Movie priorities & runtimes</summary>
-        <MoviePriorityEditor
-          movies={rankedMovies}
-          pinnedMovies={pinnedMovies}
-          defaultRuntimeByMovie={defaultRuntimeByMovie}
-          runtimeOverrides={runtimeOverrides}
-          onMove={moveMovie}
-          onTogglePinned={togglePinned}
-          onRemoveMovie={removeMovie}
-          onRuntimeOverrideChange={setRuntimeOverride}
-        />
+        {prioritiesOpen ? (
+          <MoviePriorityEditor
+            movies={rankedMovies}
+            screeningsByMovie={screeningByMovie}
+            pinnedMovies={pinnedMovies}
+            defaultRuntimeByMovie={defaultRuntimeByMovie}
+            runtimeOverrides={runtimeOverrides}
+            onMove={moveMovie}
+            onTogglePinned={togglePinned}
+            onRemoveMovie={removeMovie}
+            onRuntimeOverrideChange={setRuntimeOverride}
+          />
+        ) : null}
       </details>
 
       {status === "loading" ? (
@@ -580,11 +601,6 @@ function ItineraryCard({
           </button>
         </div>
       </header>
-      <ItineraryTimeVisualization
-        itinerary={itinerary}
-        screenings={screenings}
-        runtimeOverrides={runtimeOverrides}
-      />
       <ol>
         {screenings.map((screening, index) => {
           const leg = index > 0 ? itinerary.legs[index - 1] : undefined;
@@ -592,18 +608,7 @@ function ItineraryCard({
           const runtime = runtimeOverride ?? screening.runtime_minutes;
           return (
             <li key={screening.showtime_id}>
-              {leg ? (
-                <div className="transfer-line">
-                  {leg.route_source_url ? (
-                    <a href={leg.route_source_url} target="_blank" rel="noreferrer">
-                      {leg.drive_minutes} min drive
-                    </a>
-                  ) : (
-                    <span>Same theater</span>
-                  )}
-                  <span>{leg.gap_minutes - leg.drive_minutes} min spare</span>
-                </div>
-              ) : null}
+              {leg ? <TransferTimeline leg={leg} /> : null}
               <div className="showing-line">
                 <time>{formatTime(screening.actual_start ?? screening.advertised_start)}</time>
                 <div>
@@ -626,156 +631,51 @@ function ItineraryCard({
   );
 }
 
-type TimelineSegment = {
-  key: string;
-  kind: "movie" | "drive" | "free";
-  minutes: number;
-  label: string;
-};
-
-function ItineraryTimeVisualization({
-  itinerary,
-  screenings,
-  runtimeOverrides,
-}: {
-  itinerary: MovieDayItinerary;
-  screenings: readonly Screening[];
-  runtimeOverrides: Readonly<Record<string, number>>;
-}) {
-  const segments: TimelineSegment[] = [];
-
-  screenings.forEach((screening, index) => {
-    const runtime = runtimeOverrides[screening.movie] ?? screening.runtime_minutes;
-    if (runtime !== null && runtime > 0) {
-      segments.push({
-        key: `movie-${screening.showtime_id}`,
-        kind: "movie",
-        minutes: runtime,
-        label: screening.movie,
-      });
-    }
-
-    const leg = itinerary.legs[index];
-    if (!leg) return;
-    const driveMinutes = Math.max(0, leg.drive_minutes);
-    const freeMinutes = Math.max(0, leg.gap_minutes - driveMinutes);
-    if (driveMinutes > 0) {
-      segments.push({
-        key: `drive-${leg.from_showtime_id}-${leg.to_showtime_id}`,
-        kind: "drive",
-        minutes: driveMinutes,
-        label: "Driving",
-      });
-    }
-    if (freeMinutes > 0) {
-      segments.push({
-        key: `free-${leg.from_showtime_id}-${leg.to_showtime_id}`,
-        kind: "free",
-        minutes: freeMinutes,
-        label: "Free time",
-      });
-    }
-  });
-
-  if (segments.length === 0) return null;
-  const ariaDescription = segments
-    .map((segment) => `${segment.label} ${segment.minutes} minutes`)
-    .join(", ");
+function TransferTimeline({ leg }: { leg: MovieDayItinerary["legs"][number] }) {
+  const driveMinutes = Math.max(0, leg.drive_minutes);
+  const spareMinutes = Math.max(0, leg.gap_minutes - driveMinutes);
+  const driveHeight = driveMinutes > 0 ? Math.max(24, driveMinutes) : 0;
+  const spareHeight = spareMinutes > 0 ? Math.max(24, spareMinutes) : 0;
 
   return (
-    <div
-      className="itinerary-time-visualization"
-      role="img"
-      aria-label={`Time visualization: ${ariaDescription}`}
-      style={{
-        padding: "12px 18px 14px",
-        borderTop: "1px solid var(--line)",
-        borderBottom: "1px solid var(--line)",
-      }}
-    >
-      <div
-        className="itinerary-time-track"
-        style={{
-          display: "flex",
-          alignItems: "stretch",
-          gap: "2px",
-          height: "42px",
-          padding: "3px",
-          borderRadius: "9px",
-          background: "var(--bg)",
-        }}
-      >
-        {segments.map((segment) => (
-          <div
-            key={segment.key}
-            data-time-kind={segment.kind}
-            data-minutes={segment.minutes}
-            title={`${segment.label}: ${formatDuration(segment.minutes)}`}
-            style={{
-              flexBasis: 0,
-              flexGrow: segment.minutes,
-              minWidth: segment.kind === "movie" ? "18px" : "6px",
-              display: "grid",
-              placeItems: "center",
-              overflow: "hidden",
-              borderRadius: "5px",
-              background:
-                segment.kind === "drive"
-                  ? "var(--accent)"
-                  : segment.kind === "free"
-                    ? "#303845"
-                    : "var(--panel-raised)",
-              color: segment.kind === "drive" ? "#0d1015" : "var(--text)",
-              fontSize: "10px",
-              fontWeight: 700,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {segment.kind === "movie" ? (
-              <span
-                style={{
-                  maxWidth: "100%",
-                  padding: "0 7px",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {segment.label}
-              </span>
-            ) : null}
-          </div>
-        ))}
+    <div className="transfer-line">
+      <div className="transfer-track" aria-hidden="true">
+        {driveMinutes > 0 ? (
+          <span
+            className={
+              spareMinutes > 0 ? "transfer-track-drive" : "transfer-track-drive is-neutral"
+            }
+            style={{ height: driveHeight }}
+          />
+        ) : null}
+        {spareMinutes > 0 ? (
+          <span className="transfer-track-free" style={{ height: spareHeight }} />
+        ) : null}
       </div>
-      <div
-        className="itinerary-time-legend"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "6px 14px",
-          marginTop: "8px",
-          color: "var(--muted)",
-          fontSize: "10px",
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        <TimelineLegendItem label="Movie time" background="var(--panel-raised)" />
-        <TimelineLegendItem label="Driving" background="var(--accent)" />
-        <TimelineLegendItem label="Free time" background="#303845" />
-        <span style={{ marginLeft: "auto" }}>Width represents time</span>
+      <div className="transfer-breakdown">
+        {driveMinutes > 0 ? (
+          <div className="transfer-phase" style={{ minHeight: driveHeight }}>
+            {leg.route_source_url ? (
+              <a href={leg.route_source_url} target="_blank" rel="noreferrer">
+                {driveMinutes} min drive
+              </a>
+            ) : (
+              <span>{driveMinutes} min drive</span>
+            )}
+          </div>
+        ) : null}
+        {spareMinutes > 0 ? (
+          <div className="transfer-phase" style={{ minHeight: spareHeight }}>
+            {driveMinutes === 0 ? <span>Same theater</span> : null}
+            <span>{spareMinutes} min spare</span>
+          </div>
+        ) : driveMinutes > 0 ? (
+          <span className="transfer-zero-spare">0 min spare</span>
+        ) : (
+          <span className="transfer-zero-spare">Same theater · 0 min spare</span>
+        )}
       </div>
     </div>
-  );
-}
-
-function TimelineLegendItem({ label, background }: { label: string; background: string }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
-      <span
-        aria-hidden="true"
-        style={{ width: "9px", height: "9px", borderRadius: "3px", background }}
-      />
-      {label}
-    </span>
   );
 }
 

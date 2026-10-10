@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import type { Screening } from "../src/types";
 
 const baseScreening = {
   chain: "AMC",
@@ -55,7 +56,11 @@ const screenings = [
   },
 ];
 
-async function mockApi(page: Page): Promise<void> {
+async function mockApi(
+  page: Page,
+  movieMetadata: Record<string, Partial<Screening>> = {},
+  extraMovies: string[] = [],
+): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem(
       "movie-showtime-aggregator.selected-movies.v1",
@@ -63,6 +68,12 @@ async function mockApi(page: Page): Promise<void> {
     );
   });
   await page.route("**/api/screenings?*", async (route) => {
+    const extraScreenings = extraMovies.map((movie, index) => ({
+      ...screenings[0],
+      movie,
+      movie_source_id: `extra-${index}`,
+      showtime_id: `extra-${index}`,
+    }));
     await route.fulfill({
       json: {
         date: "2026-09-10",
@@ -77,15 +88,21 @@ async function mockApi(page: Page): Promise<void> {
         },
         preview_minutes_by_chain: { AMC: 25 },
         enrichment_enabled: true,
-        count: 2,
-        total_count: 2,
+        count: 2 + extraScreenings.length,
+        total_count: 2 + extraScreenings.length,
         facets: {
           chains: ["AMC"],
-          movies: ["Alpha", "Beta"],
+          movies: ["Alpha", "Beta", ...extraMovies],
           theatres: ["AMC Center 8", "AMC Valley 12"],
           formats: ["Standard"],
         },
-        screenings,
+        screenings: [
+          ...screenings.map((screening) => ({
+            ...screening,
+            ...movieMetadata[screening.movie],
+          })),
+          ...extraScreenings,
+        ],
       },
     });
   });
@@ -449,4 +466,83 @@ test("manual runtimes are persisted and sent to the planner", async ({ page }) =
   await page.reload();
   await page.getByText("Movie priorities & runtimes", { exact: true }).click();
   await expect(page.getByLabel("Alpha runtime minutes")).toHaveValue("95");
+});
+
+test("priority rows link ratings and fetch Letterboxd only when expanded", async ({ page }) => {
+  await mockApi(page, {
+    Alpha: {
+      imdb_id: "tt1234567",
+      letterboxd_url: "https://letterboxd.com/imdb/tt1234567/",
+      rotten_tomatoes_score: 87,
+      rotten_tomatoes_url: "https://www.rottentomatoes.com/m/alpha",
+      metacritic_score: 74,
+      metacritic_url: "https://www.metacritic.com/movie/alpha/",
+    },
+  });
+  let requests = 0;
+  await page.route("**/api/letterboxd-rating?*", async (route) => {
+    requests += 1;
+    await route.fulfill({ json: { rating: 4.15 } });
+  });
+  await page.goto("/plan");
+  expect(requests).toBe(0);
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
+
+  const first = page.locator(".movie-priority-list li").first();
+  await expect(first.getByRole("link", { name: "Rotten Tomatoes 87%" })).toHaveAttribute(
+    "href",
+    "https://www.rottentomatoes.com/m/alpha",
+  );
+  await expect(first.getByRole("link", { name: "Metacritic 74/100" })).toBeVisible();
+  await expect(first.getByRole("link", { name: "Letterboxd 4.15/5" })).toHaveAttribute(
+    "href",
+    "https://letterboxd.com/imdb/tt1234567/",
+  );
+  expect(requests).toBe(1);
+  await expect(page.getByText("Letterboxd —")).toBeVisible();
+});
+
+test("transfer timeline is vertical between movie rows with proportional segments", async ({
+  page,
+}) => {
+  await mockApi(page);
+  await page.goto("/plan");
+  await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByLabel("Number of movies").selectOption("all");
+  await page.getByRole("button", { name: "Find itineraries" }).click();
+
+  await expect(page.locator(".itinerary-time-track")).toHaveCount(0);
+  const transfer = page.locator(".itinerary-card .transfer-line");
+  await expect(transfer).toHaveCount(1);
+  await expect(transfer.getByRole("link", { name: "15 min drive" })).toBeVisible();
+  await expect(transfer.getByText("15 min spare")).toBeVisible();
+  await expect(transfer.locator(".transfer-track-drive")).toHaveAttribute("style", "height: 24px;");
+  await expect(transfer.locator(".transfer-track-free")).toHaveAttribute("style", "height: 24px;");
+});
+
+test("planner movie checkbox selection enforces 10 candidates without disabling deselection", async ({
+  page,
+}) => {
+  const extraMovies = Array.from({ length: 9 }, (_, index) => `Film ${index + 1}`);
+  await mockApi(page, {}, extraMovies);
+  await page.goto("/plan");
+  await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByRole("button", { name: "Filter by movies" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Movies filter" });
+  await expect(dialog.getByRole("button", { name: "All", exact: true })).toBeDisabled();
+
+  for (const movie of extraMovies.slice(0, 8)) {
+    await dialog.getByRole("checkbox", { name: movie, exact: true }).check();
+  }
+
+  await expect(page.getByText("10 candidates", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("10 of 10 max · Remove one to add another")).toBeVisible();
+  const eleventh = dialog.getByRole("checkbox", { name: "Film 9", exact: true });
+  await expect(eleventh).toBeDisabled();
+  await dialog.getByRole("checkbox", { name: "Alpha", exact: true }).uncheck();
+  await expect(eleventh).toBeEnabled();
+  await eleventh.check();
+  await expect(page.getByText("10 candidates", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("10 of 10 max · Remove one to add another")).toBeVisible();
 });

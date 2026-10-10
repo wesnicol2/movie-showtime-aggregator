@@ -586,3 +586,94 @@
 .movie-day-explanation p {
   margin-top: 10px;
 }
+
+/* Ratings accompany the title without competing with the priority controls. */
+.movie-priority-ratings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.movie-priority-title .movie-priority-ratings > a,
+.movie-priority-title .movie-priority-ratings > span {
+  overflow: visible;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.movie-priority-ratings strong {
+  color: var(--text);
+  font-size: inherit;
+}
+
+.movie-priority-ratings a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* Actual vertical itinerary time: drive and spare height scale with minutes. */
+.transfer-line {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 12px;
+  margin: 0 14px 0 53px;
+  padding: 3px 0 3px 41px;
+  border-left: 1px dashed var(--line-strong);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.transfer-track,
+.transfer-breakdown {
+  display: flex;
+  flex-direction: column;
+}
+
+.transfer-track {
+  gap: 0;
+  overflow: hidden;
+  border-radius: 5px;
+}
+
+.transfer-track-drive {
+  display: block;
+  flex: none;
+  background: var(--accent);
+}
+
+.transfer-track-free,
+.transfer-track-drive.is-neutral {
+  display: block;
+  flex: none;
+  background: #303845;
+}
+
+.transfer-phase {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.transfer-line .transfer-phase a {
+  color: var(--accent);
+}
+
+.transfer-zero-spare {
+  padding-top: 2px;
+  font-size: 10px;
+}
+
+@media (max-width: 700px) {
+  .transfer-line {
+    margin-left: 47px;
+    padding-left: 35px;
+  }
+}

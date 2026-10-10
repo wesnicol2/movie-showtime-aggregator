@@ -55,7 +55,10 @@ const screenings = [
   },
 ];
 
-async function mockApi(page: Page): Promise<void> {
+async function mockApi(
+  page: Page,
+  { driveMinutes = 10, gapMinutes = 50 }: { driveMinutes?: number; gapMinutes?: number } = {},
+): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem(
       "movie-showtime-aggregator.selected-movies.v1",
@@ -134,8 +137,8 @@ async function mockApi(page: Page): Promise<void> {
                 to_showtime_id: "beta-visual",
                 from_theatre: "AMC Center 8",
                 to_theatre: "AMC Valley 12",
-                drive_minutes: 10,
-                gap_minutes: 50,
+                drive_minutes: driveMinutes,
+                gap_minutes: gapMinutes,
                 route_source_url: "https://example.test/route",
               },
             ],
@@ -146,7 +149,7 @@ async function mockApi(page: Page): Promise<void> {
   });
 }
 
-test("planning results visualize movie, driving, and free time proportionally", async ({
+test("planning transfers visualize driving and spare time vertically between movies", async ({
   page,
 }) => {
   await mockApi(page);
@@ -155,25 +158,66 @@ test("planning results visualize movie, driving, and free time proportionally", 
   await page.getByLabel("Number of movies").selectOption("all");
   await page.getByRole("button", { name: "Find itineraries" }).click();
 
-  const visualization = page.locator(".itinerary-time-visualization");
-  await expect(visualization).toBeVisible();
-  await expect(visualization.locator('[data-time-kind="movie"]')).toHaveCount(2);
-
-  const drive = visualization.locator('[data-time-kind="drive"]');
-  const free = visualization.locator('[data-time-kind="free"]');
-  await expect(drive).toHaveAttribute("data-minutes", "10");
-  await expect(free).toHaveAttribute("data-minutes", "40");
-  await expect(visualization).toHaveAttribute(
-    "aria-label",
-    /Driving 10 minutes, Free time 40 minutes/,
+  const card = page.locator(".itinerary-card");
+  await expect(card.locator(".showing-line")).toHaveCount(2);
+  await expect(card.locator(".itinerary-time-visualization")).toHaveCount(0);
+  const transfer = card.locator(".transfer-line");
+  await expect(transfer).toBeVisible();
+  const drive = transfer.locator(".transfer-track-drive");
+  const spare = transfer.locator(".transfer-track-free");
+  await expect(transfer.getByRole("link", { name: "10 min drive" })).toHaveAttribute(
+    "href",
+    "https://example.test/route",
   );
+  await expect(transfer.getByText("40 min spare")).toBeVisible();
+  const driveHeight = await drive.evaluate((node) => node.getBoundingClientRect().height);
+  const spareHeight = await spare.evaluate((node) => node.getBoundingClientRect().height);
+  expect(spareHeight).toBeGreaterThan(driveHeight);
 
-  const driveWidth = await drive.evaluate((node) => node.getBoundingClientRect().width);
-  const freeWidth = await free.evaluate((node) => node.getBoundingClientRect().width);
-  expect(freeWidth).toBeGreaterThan(driveWidth);
+  const firstMovie = await card.locator(".showing-line").first().boundingBox();
+  const lastMovie = await card.locator(".showing-line").last().boundingBox();
+  const transferBox = await transfer.boundingBox();
+  expect(firstMovie).not.toBeNull();
+  expect(lastMovie).not.toBeNull();
+  expect(transferBox).not.toBeNull();
+  if (firstMovie && lastMovie && transferBox) {
+    expect(transferBox.y).toBeGreaterThanOrEqual(firstMovie.y + firstMovie.height - 1);
+    expect(transferBox.y + transferBox.height).toBeLessThanOrEqual(lastMovie.y + 1);
+  }
+});
 
-  await expect(visualization.getByText("Movie time", { exact: true })).toBeVisible();
-  await expect(visualization.getByText("Driving", { exact: true })).toBeVisible();
-  await expect(visualization.getByText("Free time", { exact: true })).toBeVisible();
-  await expect(visualization.getByText("Width represents time", { exact: true })).toBeVisible();
+test("same-theater transfers display only a gray spare-time segment", async ({ page }) => {
+  await mockApi(page, { driveMinutes: 0, gapMinutes: 50 });
+  await page.goto("/plan");
+  await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByLabel("Number of movies").selectOption("all");
+  await page.getByRole("button", { name: "Find itineraries" }).click();
+
+  const transfer = page.locator(".itinerary-card .transfer-line");
+  await expect(transfer.locator(".transfer-track-drive")).toHaveCount(0);
+  await expect(transfer.locator(".transfer-track-free")).toHaveCount(1);
+  await expect(transfer.locator(".transfer-track-free")).toHaveCSS(
+    "background-color",
+    "rgb(48, 56, 69)",
+  );
+  await expect(transfer.getByText("Same theater")).toBeVisible();
+  await expect(transfer.getByText("50 min spare")).toBeVisible();
+});
+
+test("transfers without spare time display only gray driving", async ({ page }) => {
+  await mockApi(page, { driveMinutes: 10, gapMinutes: 10 });
+  await page.goto("/plan");
+  await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByLabel("Number of movies").selectOption("all");
+  await page.getByRole("button", { name: "Find itineraries" }).click();
+
+  const transfer = page.locator(".itinerary-card .transfer-line");
+  await expect(transfer.locator(".transfer-track-drive")).toHaveCount(1);
+  await expect(transfer.locator(".transfer-track-free")).toHaveCount(0);
+  await expect(transfer.locator(".transfer-track-drive")).toHaveCSS(
+    "background-color",
+    "rgb(48, 56, 69)",
+  );
+  await expect(transfer.getByRole("link", { name: "10 min drive" })).toBeVisible();
+  await expect(transfer.getByText("0 min spare")).toBeVisible();
 });

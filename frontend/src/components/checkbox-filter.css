@@ -64,3 +64,14 @@
     overflow: auto;
   }
 }
+
+.checkbox-filter-menu .filter-selection-limit {
+  display: block;
+  padding: 4px 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.checkbox-filter-menu .check-row input:disabled + span {
+  opacity: 0.5;
+}
