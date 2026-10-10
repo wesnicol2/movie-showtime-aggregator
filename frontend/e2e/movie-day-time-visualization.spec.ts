@@ -146,7 +146,7 @@ async function mockApi(page: Page): Promise<void> {
   });
 }
 
-test("planning results visualize movie, driving, and free time proportionally", async ({
+test("planning transfers visualize driving and spare time vertically between movies", async ({
   page,
 }) => {
   await mockApi(page);
@@ -155,25 +155,30 @@ test("planning results visualize movie, driving, and free time proportionally", 
   await page.getByLabel("Number of movies").selectOption("all");
   await page.getByRole("button", { name: "Find itineraries" }).click();
 
-  const visualization = page.locator(".itinerary-time-visualization");
-  await expect(visualization).toBeVisible();
-  await expect(visualization.locator('[data-time-kind="movie"]')).toHaveCount(2);
-
-  const drive = visualization.locator('[data-time-kind="drive"]');
-  const free = visualization.locator('[data-time-kind="free"]');
-  await expect(drive).toHaveAttribute("data-minutes", "10");
-  await expect(free).toHaveAttribute("data-minutes", "40");
-  await expect(visualization).toHaveAttribute(
-    "aria-label",
-    /Driving 10 minutes, Free time 40 minutes/,
+  const card = page.locator(".itinerary-card");
+  await expect(card.locator(".showing-line")).toHaveCount(2);
+  await expect(card.locator(".itinerary-time-visualization")).toHaveCount(0);
+  const transfer = card.locator(".transfer-line");
+  await expect(transfer).toBeVisible();
+  const drive = transfer.locator(".transfer-track-drive");
+  const spare = transfer.locator(".transfer-track-free");
+  await expect(transfer.getByRole("link", { name: "10 min drive" })).toHaveAttribute(
+    "href",
+    "https://example.test/route",
   );
+  await expect(transfer.getByText("40 min spare")).toBeVisible();
+  const driveHeight = await drive.evaluate((node) => node.getBoundingClientRect().height);
+  const spareHeight = await spare.evaluate((node) => node.getBoundingClientRect().height);
+  expect(spareHeight).toBeGreaterThan(driveHeight);
 
-  const driveWidth = await drive.evaluate((node) => node.getBoundingClientRect().width);
-  const freeWidth = await free.evaluate((node) => node.getBoundingClientRect().width);
-  expect(freeWidth).toBeGreaterThan(driveWidth);
-
-  await expect(visualization.getByText("Movie time", { exact: true })).toBeVisible();
-  await expect(visualization.getByText("Driving", { exact: true })).toBeVisible();
-  await expect(visualization.getByText("Free time", { exact: true })).toBeVisible();
-  await expect(visualization.getByText("Width represents time", { exact: true })).toBeVisible();
+  const firstMovie = await card.locator(".showing-line").first().boundingBox();
+  const lastMovie = await card.locator(".showing-line").last().boundingBox();
+  const transferBox = await transfer.boundingBox();
+  expect(firstMovie).not.toBeNull();
+  expect(lastMovie).not.toBeNull();
+  expect(transferBox).not.toBeNull();
+  if (firstMovie && lastMovie && transferBox) {
+    expect(transferBox.y).toBeGreaterThanOrEqual(firstMovie.y + firstMovie.height - 1);
+    expect(transferBox.y + transferBox.height).toBeLessThanOrEqual(lastMovie.y + 1);
+  }
 });
