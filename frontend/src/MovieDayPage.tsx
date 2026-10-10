@@ -630,33 +630,43 @@ function ItineraryCard({
 function TransferTimeline({ leg }: { leg: MovieDayItinerary["legs"][number] }) {
   const driveMinutes = Math.max(0, leg.drive_minutes);
   const spareMinutes = Math.max(0, leg.gap_minutes - driveMinutes);
-  const driveHeight = Math.max(24, driveMinutes);
-  const spareHeight = Math.max(24, spareMinutes);
+  const driveHeight = driveMinutes > 0 ? Math.max(24, driveMinutes) : 0;
+  const spareHeight = spareMinutes > 0 ? Math.max(24, spareMinutes) : 0;
 
   return (
     <div className="transfer-line">
       <div className="transfer-track" aria-hidden="true">
-        <span className="transfer-track-drive" style={{ height: driveHeight }} />
+        {driveMinutes > 0 ? (
+          <span
+            className={spareMinutes > 0 ? "transfer-track-drive" : "transfer-track-drive is-neutral"}
+            style={{ height: driveHeight }}
+          />
+        ) : null}
         {spareMinutes > 0 ? (
           <span className="transfer-track-free" style={{ height: spareHeight }} />
         ) : null}
       </div>
       <div className="transfer-breakdown">
-        <div className="transfer-phase" style={{ minHeight: driveHeight }}>
-          {leg.route_source_url ? (
-            <a href={leg.route_source_url} target="_blank" rel="noreferrer">
-              {driveMinutes} min drive
-            </a>
-          ) : (
-            <span>Same theater</span>
-          )}
-        </div>
+        {driveMinutes > 0 ? (
+          <div className="transfer-phase" style={{ minHeight: driveHeight }}>
+            {leg.route_source_url ? (
+              <a href={leg.route_source_url} target="_blank" rel="noreferrer">
+                {driveMinutes} min drive
+              </a>
+            ) : (
+              <span>{driveMinutes} min drive</span>
+            )}
+          </div>
+        ) : null}
         {spareMinutes > 0 ? (
           <div className="transfer-phase" style={{ minHeight: spareHeight }}>
+            {driveMinutes === 0 ? <span>Same theater</span> : null}
             <span>{spareMinutes} min spare</span>
           </div>
-        ) : (
+        ) : driveMinutes > 0 ? (
           <span className="transfer-zero-spare">0 min spare</span>
+        ) : (
+          <span className="transfer-zero-spare">Same theater · 0 min spare</span>
         )}
       </div>
     </div>
