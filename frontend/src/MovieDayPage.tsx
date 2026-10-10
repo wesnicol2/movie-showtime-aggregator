@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { createMovieDayPlan } from "./api";
-import { MAX_MOVIES_PER_DAY } from "./movie-limits";
 import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
 import { MovieDayControlBar } from "./components/MovieDayControlBar";
 import { MoviePriorityEditor } from "./components/MoviePriorityEditor";
+import { MAX_MOVIES_PER_DAY } from "./movie-limits";
 import "./movie-day.css";
 import { readSavedMoviePlans, savedMoviePlanForDate, saveMoviePlan } from "./planner";
 import {
@@ -96,7 +96,8 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
     return candidates
       .filter(
         (movie) =>
-          showingMovies.has(movie) && (!plannedElsewhere.has(movie) || currentPlanMovies.has(movie)),
+          showingMovies.has(movie) &&
+          (!plannedElsewhere.has(movie) || currentPlanMovies.has(movie)),
       )
       .slice(0, MAX_MOVIES_PER_DAY);
   }, [
