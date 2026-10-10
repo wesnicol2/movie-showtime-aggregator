@@ -634,7 +634,7 @@ function TransferTimeline({ leg }: { leg: MovieDayItinerary["legs"][number] }) {
   const spareHeight = Math.max(24, spareMinutes);
 
   return (
-    <div className="transfer-line" aria-label="Time between movies">
+    <div className="transfer-line" role="group" aria-label="Time between movies">
       <div className="transfer-track" aria-hidden="true">
         <span className="transfer-track-drive" style={{ height: driveHeight }} />
         {spareMinutes > 0 ? (
