@@ -108,7 +108,11 @@ def letterboxd_rating(imdb_id: str, cache: ProviderCache) -> float | None:
         )
         with urllib.request.urlopen(request, timeout=5) as response:
             url = urlparse(response.geturl())
-            if url.scheme == "https" and url.hostname == "letterboxd.com" and url.path.startswith("/film/"):
+            if (
+                url.scheme == "https"
+                and url.hostname == "letterboxd.com"
+                and url.path.startswith("/film/")
+            ):
                 raw = response.read(_MAX_HTML_BYTES + 1)
                 if len(raw) <= _MAX_HTML_BYTES:
                     score = _extract_rating(raw.decode("utf-8", errors="replace"))
