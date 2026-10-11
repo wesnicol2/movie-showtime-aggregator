@@ -235,7 +235,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
             className={filter === status ? "active" : ""}
             onClick={() => setFilter(status)}
           >
-            {status === "all" ? "All" : status[0].toUpperCase() + status.slice(1)}
+            {status === "all" ? "All" : status.charAt(0).toUpperCase() + status.slice(1)}
           </button>
         ))}
       </fieldset>
