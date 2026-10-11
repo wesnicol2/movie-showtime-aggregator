@@ -4,8 +4,8 @@ import argparse
 import json
 import mimetypes
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import replace
 from datetime import date, datetime, timedelta
 from http.cookies import SimpleCookie
