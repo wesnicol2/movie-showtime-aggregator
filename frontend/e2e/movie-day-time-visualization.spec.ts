@@ -279,9 +279,7 @@ test("10 minutes driving and 20 minutes waiting occupy a one-third/two-thirds sp
   expect(spareHeight / (driveHeight + spareHeight)).toBeCloseTo(2 / 3, 2);
 });
 
-test("a 60-minute wait is taller than a 20-minute wait in the same itinerary", async ({
-  page,
-}) => {
+test("a 60-minute wait is taller than a 20-minute wait in the same itinerary", async ({ page }) => {
   await mockApi(page, { compareTransfers: true });
   await page.goto("/plan");
   await page.getByText("Advanced options", { exact: true }).click();
