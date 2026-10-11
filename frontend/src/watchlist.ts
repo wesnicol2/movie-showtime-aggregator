@@ -18,9 +18,13 @@ export function readWatchedMovies(): string[] {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(WATCHED_MOVIES_KEY) ?? "[]");
     return Array.isArray(value)
-      ? [...new Set(value.filter((movie): movie is string =>
-          typeof movie === "string" && movie.trim().length > 0,
-        ))].sort()
+      ? [
+          ...new Set(
+            value.filter(
+              (movie): movie is string => typeof movie === "string" && movie.trim().length > 0,
+            ),
+          ),
+        ].sort()
       : [];
   } catch {
     return [];
@@ -60,7 +64,8 @@ export function cacheWatchlistMetadata(
       rotten_tomatoes_score:
         screening.rotten_tomatoes_score ?? previous?.rotten_tomatoes_score ?? null,
       metacritic_score: screening.metacritic_score ?? previous?.metacritic_score ?? null,
-      initial_release_date: screening.initial_release_date ?? previous?.initial_release_date ?? null,
+      initial_release_date:
+        screening.initial_release_date ?? previous?.initial_release_date ?? null,
       letterboxd_url: screening.letterboxd_url || previous?.letterboxd_url || "",
     };
     cache[screening.movie] = next;

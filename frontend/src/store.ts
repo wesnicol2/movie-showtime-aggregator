@@ -4,8 +4,8 @@ import { MAX_MOVIES_PER_DAY } from "./movie-limits";
 import { readSavedMoviePlans } from "./planner";
 import { type ColumnFilter, createEmptyFilters, type Filters, type SortState } from "./screenings";
 import { browserDate } from "./show-date";
-import { cacheWatchlistMetadata, readWatchedMovies, writeWatchedMovies } from "./watchlist";
 import type { ColumnKey, ScreeningsResponse } from "./types";
+import { cacheWatchlistMetadata, readWatchedMovies, writeWatchedMovies } from "./watchlist";
 
 const MOVIE_SELECTION_KEY = "movie-showtime-aggregator.selected-movies.v1";
 const WANT_LIST_MIGRATION_KEY = "movie-showtime-aggregator.want-list-migration.v1";

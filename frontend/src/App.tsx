@@ -38,7 +38,8 @@ export function App() {
       if (
         event.key === "movie-showtime-aggregator.selected-movies.v1" ||
         event.key === "movie-showtime-aggregator.watched-movies.v1"
-      ) syncMovieSelection();
+      )
+        syncMovieSelection();
     };
     window.addEventListener("popstate", onPopState);
     window.addEventListener("storage", onStorage);
@@ -121,10 +122,7 @@ export function App() {
         ) : path === "/plan" ? (
           <MovieDayPage onBack={() => navigate("/movies")} onLocked={lockItinerary} />
         ) : path === "/watchlist" ? (
-          <WatchlistPage
-            onBrowse={() => navigate("/movies")}
-            onPlan={() => navigate("/")}
-          />
+          <WatchlistPage onBrowse={() => navigate("/movies")} onPlan={() => navigate("/")} />
         ) : path === "/settings" ? (
           <SettingsPage />
         ) : (

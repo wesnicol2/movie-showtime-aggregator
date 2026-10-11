@@ -27,9 +27,15 @@ export function useMovieAvailability(afterDate: string) {
     setResponse(null);
     setError(false);
     void loadAvailability(afterDate)
-      .then((result) => { if (!cancelled) setResponse(result); })
-      .catch(() => { if (!cancelled) setError(true); });
-    return () => { cancelled = true; };
+      .then((result) => {
+        if (!cancelled) setResponse(result);
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [afterDate]);
   return { response, error };
 }
@@ -39,11 +45,13 @@ export function availabilityForMovie(
   movie: string,
 ): MovieAvailabilitySummary | null {
   if (!response) return null;
-  return response.movies[movie] ?? {
-    scheduled_days: 0,
-    showtime_count: 0,
-    last_scheduled_date: null,
-  };
+  return (
+    response.movies[movie] ?? {
+      scheduled_days: 0,
+      showtime_count: 0,
+      last_scheduled_date: null,
+    }
+  );
 }
 
 export function movieAvailabilityText(
@@ -62,6 +70,9 @@ export function movieAvailabilityText(
 }
 
 export function shortAvailabilityDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone: "UTC" })
-    .format(new Date(`${value}T12:00:00Z`));
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T12:00:00Z`));
 }

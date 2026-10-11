@@ -118,34 +118,48 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
           }
           return a.localeCompare(b);
         }
-        const field = sort === "release" ? "initial_release_date"
-          : sort === "imdb" ? "imdb_rating"
-            : sort === "rotten" ? "rotten_tomatoes_score" : "metacritic_score";
+        const field =
+          sort === "release"
+            ? "initial_release_date"
+            : sort === "imdb"
+              ? "imdb_rating"
+              : sort === "rotten"
+                ? "rotten_tomatoes_score"
+                : "metacritic_score";
         const left = metadata[a]?.[field] ?? null;
         const right = metadata[b]?.[field] ?? null;
         if (left === null && right === null) return a.localeCompare(b);
         if (left === null) return 1;
         if (right === null) return -1;
-        return (sort === "release"
-          ? String(right).localeCompare(String(left))
-          : Number(right) - Number(left)) || a.localeCompare(b);
+        return (
+          (sort === "release"
+            ? String(right).localeCompare(String(left))
+            : Number(right) - Number(left)) || a.localeCompare(b)
+        );
       });
   }, [wanted, watched, query, filter, watchedSet, plannedDates, sort, availability, metadata]);
 
   function markWatched(movie: string, isWatched: boolean): void {
     if (!isWatched && plannedDates.has(movie)) {
-      if (!window.confirm(
-        `Mark “${movie}” watched? Its saved future itinerary will remain on the calendar.`,
-      )) return;
+      if (
+        !window.confirm(
+          `Mark “${movie}” watched? Its saved future itinerary will remain on the calendar.`,
+        )
+      )
+        return;
     }
     setMovieWatched(movie, !isWatched);
   }
 
   function removeMovie(movie: string): void {
     const date = plannedDates.get(movie);
-    if (date && !window.confirm(
-      `Remove “${movie}” from your watchlist? Its saved itinerary for ${shortAvailabilityDate(date)} will remain unchanged.`,
-    )) return;
+    if (
+      date &&
+      !window.confirm(
+        `Remove “${movie}” from your watchlist? Its saved itinerary for ${shortAvailabilityDate(date)} will remain unchanged.`,
+      )
+    )
+      return;
     removeWatchlistMovie(movie);
   }
 
@@ -155,7 +169,9 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
         <div>
           <p className="eyebrow">YOUR MOVIES</p>
           <h1 id="watchlist-heading">Watchlist</h1>
-          <p className="watchlist-subtitle">Keep track of what you want to see, and what you've watched.</p>
+          <p className="watchlist-subtitle">
+            Keep track of what you want to see, and what you've watched.
+          </p>
         </div>
         <button className="primary-action" type="button" onClick={onBrowse}>
           Browse showtimes →
@@ -163,10 +179,22 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
       </header>
 
       <div className="watchlist-stats">
-        <div><strong>{wanted.length}</strong><span>Want to see</span></div>
-        <div><strong>{totalPlanned}</strong><span>Planned</span></div>
-        <div><strong>{wanted.length - totalPlanned}</strong><span>Unplanned</span></div>
-        <div><strong>{watched.length}</strong><span>Watched</span></div>
+        <div>
+          <strong>{wanted.length}</strong>
+          <span>Want to see</span>
+        </div>
+        <div>
+          <strong>{totalPlanned}</strong>
+          <span>Planned</span>
+        </div>
+        <div>
+          <strong>{wanted.length - totalPlanned}</strong>
+          <span>Unplanned</span>
+        </div>
+        <div>
+          <strong>{watched.length}</strong>
+          <span>Watched</span>
+        </div>
       </div>
 
       <div className="watchlist-controls">
@@ -182,8 +210,11 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
         </label>
         <label className="watchlist-sort">
           <span>Sort</span>
-          <select aria-label="Sort watchlist" value={sort}
-            onChange={(event) => setSort(event.target.value as WatchlistSort)}>
+          <select
+            aria-label="Sort watchlist"
+            value={sort}
+            onChange={(event) => setSort(event.target.value as WatchlistSort)}
+          >
             <option value="title">Title A–Z</option>
             <option value="days">Fewest listed days</option>
             <option value="showtimes">Fewest later showtimes</option>
@@ -197,9 +228,13 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
 
       <fieldset className="watchlist-tabs" aria-label="Watchlist status">
         {(["all", "unplanned", "planned", "watched"] as const).map((status) => (
-          <button key={status} type="button" aria-pressed={filter === status}
+          <button
+            key={status}
+            type="button"
+            aria-pressed={filter === status}
             className={filter === status ? "active" : ""}
-            onClick={() => setFilter(status)}>
+            onClick={() => setFilter(status)}
+          >
             {status === "all" ? "All" : status[0].toUpperCase() + status.slice(1)}
           </button>
         ))}
@@ -207,10 +242,14 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
 
       <p className="watchlist-window">
         Later listings are counted strictly after {shortAvailabilityDate(today)} through{" "}
-        {availability ? shortAvailabilityDate(availability.window_end) : "the next 14 days"}.
-        {" "}These are published listings, not predicted theater exit dates.
+        {availability ? shortAvailabilityDate(availability.window_end) : "the next 14 days"}. These
+        are published listings, not predicted theater exit dates.
         {availability?.unavailable_dates.length ? (
-          <strong> {availability.unavailable_dates.length} dates could not be checked; counts are lower bounds.</strong>
+          <strong>
+            {" "}
+            {availability.unavailable_dates.length} dates could not be checked; counts are lower
+            bounds.
+          </strong>
         ) : null}
       </p>
 
@@ -240,8 +279,11 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
                   <div className="watchlist-item-top">
                     <h2>{movie}</h2>
                     <span className="watchlist-status">
-                      {isWatched ? "Watched" : plannedDate
-                        ? `Planned · ${shortAvailabilityDate(plannedDate)}` : "Unplanned"}
+                      {isWatched
+                        ? "Watched"
+                        : plannedDate
+                          ? `Planned · ${shortAvailabilityDate(plannedDate)}`
+                          : "Unplanned"}
                     </span>
                   </div>
                   {info?.initial_release_date ? (
@@ -252,35 +294,49 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
                       {info.imdb_rating !== null && info.imdb_rating !== undefined ? (
                         <span>IMDb {info.imdb_rating.toFixed(1)}</span>
                       ) : null}
-                      {info.rotten_tomatoes_score !== null && info.rotten_tomatoes_score !== undefined ? (
+                      {info.rotten_tomatoes_score !== null &&
+                      info.rotten_tomatoes_score !== undefined ? (
                         <span>RT {info.rotten_tomatoes_score}%</span>
                       ) : null}
                       {info.metacritic_score !== null && info.metacritic_score !== undefined ? (
                         <span>MC {info.metacritic_score}</span>
                       ) : null}
                       {info.letterboxd_url ? (
-                        <a href={info.letterboxd_url} target="_blank" rel="noreferrer">Letterboxd ↗</a>
+                        <a href={info.letterboxd_url} target="_blank" rel="noreferrer">
+                          Letterboxd ↗
+                        </a>
                       ) : null}
                     </div>
                   ) : null}
                   {!isWatched ? (
                     <div className="watchlist-availability">
-                      <strong>{movieAvailabilityText(summary, availability, availabilityError)}</strong>
+                      <strong>
+                        {movieAvailabilityText(summary, availability, availabilityError)}
+                      </strong>
                       {summary?.last_scheduled_date ? (
-                        <span>Last listed {shortAvailabilityDate(summary.last_scheduled_date)}</span>
+                        <span>
+                          Last listed {shortAvailabilityDate(summary.last_scheduled_date)}
+                        </span>
                       ) : null}
                     </div>
                   ) : null}
                   <div className="watchlist-item-actions">
                     {!isWatched && !plannedDate ? (
-                      <button type="button" onClick={onPlan}>Plan this movie</button>
+                      <button type="button" onClick={onPlan}>
+                        Plan this movie
+                      </button>
                     ) : null}
                     <button type="button" onClick={() => markWatched(movie, isWatched)}>
                       {isWatched ? "Mark unwatched" : "Mark watched"}
                     </button>
-                    <button className="watchlist-remove" type="button"
+                    <button
+                      className="watchlist-remove"
+                      type="button"
                       aria-label={`Remove ${movie} from watchlist`}
-                      onClick={() => removeMovie(movie)}>Remove</button>
+                      onClick={() => removeMovie(movie)}
+                    >
+                      Remove
+                    </button>
                   </div>
                 </div>
               </article>

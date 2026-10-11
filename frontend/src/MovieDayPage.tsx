@@ -410,8 +410,10 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
           <h2>Later showtimes for your movies</h2>
           <p>
             Counting published showtimes strictly after {shortAvailabilityDate(selectedDate)}
-            {laterAvailability ? ` through ${shortAvailabilityDate(laterAvailability.window_end)}` : " for the next 14 days"}.
-            {" "}This does not predict when a movie leaves theaters.
+            {laterAvailability
+              ? ` through ${shortAvailabilityDate(laterAvailability.window_end)}`
+              : " for the next 14 days"}
+            . This does not predict when a movie leaves theaters.
             {laterAvailability?.unavailable_dates.length
               ? " Some dates could not be checked; counts are lower bounds."
               : ""}
