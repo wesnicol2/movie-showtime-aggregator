@@ -91,7 +91,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
       }
     }
     return cached;
-  }, [plans, response, wanted, watched]);
+  }, [plans, response]);
 
   const watchedSet = useMemo(() => new Set(watched), [watched]);
   const totalPlanned = wanted.filter((movie) => plannedDates.has(movie)).length;
@@ -162,7 +162,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
         </button>
       </header>
 
-      <div className="watchlist-stats" aria-label="Watchlist summary">
+      <div className="watchlist-stats">
         <div><strong>{wanted.length}</strong><span>Want to see</span></div>
         <div><strong>{totalPlanned}</strong><span>Planned</span></div>
         <div><strong>{wanted.length - totalPlanned}</strong><span>Unplanned</span></div>
@@ -195,7 +195,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
         </label>
       </div>
 
-      <div className="watchlist-tabs" role="group" aria-label="Watchlist status">
+      <fieldset className="watchlist-tabs" aria-label="Watchlist status">
         {(["all", "unplanned", "planned", "watched"] as const).map((status) => (
           <button key={status} type="button" aria-pressed={filter === status}
             className={filter === status ? "active" : ""}
@@ -203,7 +203,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
             {status === "all" ? "All" : status[0].toUpperCase() + status.slice(1)}
           </button>
         ))}
-      </div>
+      </fieldset>
 
       <p className="watchlist-window">
         Later listings are counted strictly after {shortAvailabilityDate(today)} through{" "}
