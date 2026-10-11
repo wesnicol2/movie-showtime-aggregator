@@ -4,6 +4,12 @@ import { createMovieDayPlan } from "./api";
 import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
 import { MovieDayControlBar } from "./components/MovieDayControlBar";
 import { MoviePriorityEditor } from "./components/MoviePriorityEditor";
+import {
+  availabilityForMovie,
+  movieAvailabilityText,
+  shortAvailabilityDate,
+  useMovieAvailability,
+} from "./movie-availability";
 import { MAX_MOVIES_PER_DAY } from "./movie-limits";
 import "./movie-day.css";
 import { readSavedMoviePlans, savedMoviePlanForDate, saveMoviePlan } from "./planner";
@@ -47,13 +53,15 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   const filters = useAppStore((state) => state.filters);
   const sort = useAppStore((state) => state.sort);
   const selectedMovies = useAppStore((state) => state.selectedMovies);
+  const selectedDate = useAppStore((state) => state.selectedDate);
+  const { response: laterAvailability, error: laterError } = useMovieAvailability(selectedDate);
   const setMovieSelection = useAppStore((state) => state.setMovieSelection);
   const planningDraftDate = useAppStore((state) => state.planningDraftDate);
   const planningDraftMovies = useAppStore((state) => state.planningDraftMovies);
   const setPlanningDraft = useAppStore((state) => state.setPlanningDraft);
   const [minimumBuffer, setMinimumBuffer] = useState(0);
   const [facets, setFacets] = useState<ScreeningFacets>(EMPTY_SCREENING_FACETS);
-  const [targetMovieCount, setTargetMovieCount] = useState<MovieDayTargetCount | null>(1);
+  const [targetMovieCount, setTargetMovieCount] = useState<MovieDayTargetCount | null>("any");
   const [earliestTime, setEarliestTime] = useState("");
   const [latestTime, setLatestTime] = useState("");
   const [sortBy, setSortBy] = useState<MovieDaySort>("want");
@@ -396,6 +404,34 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
         onMinimumBufferChange={setMinimumBuffer}
         onPlan={() => void generate()}
       />
+
+      {availableSelectedMovies.length > 0 ? (
+        <section className="movie-day-later-listings" aria-label="Later published showtimes">
+          <h2>Later showtimes for your movies</h2>
+          <p>
+            Counting published showtimes strictly after {shortAvailabilityDate(selectedDate)}
+            {laterAvailability ? ` through ${shortAvailabilityDate(laterAvailability.window_end)}` : " for the next 14 days"}.
+            {" "}This does not predict when a movie leaves theaters.
+            {laterAvailability?.unavailable_dates.length
+              ? " Some dates could not be checked; counts are lower bounds."
+              : ""}
+          </p>
+          <ul>
+            {availableSelectedMovies.map((movie) => {
+              const summary = availabilityForMovie(laterAvailability, movie);
+              return (
+                <li key={movie}>
+                  <strong>{movie}</strong>
+                  <span>{movieAvailabilityText(summary, laterAvailability, laterError)}</span>
+                  {summary?.last_scheduled_date ? (
+                    <span>Last listed {shortAvailabilityDate(summary.last_scheduled_date)}</span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       {response && !homeConfigured ? (
         <div className="status-strip" role="status">

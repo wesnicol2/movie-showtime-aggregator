@@ -7,7 +7,8 @@ A React-based movie-going planner built around one simple loop:
 - the home screen is an infinite-scroll future calendar with saved plans;
 - choosing a day opens a poster-first movie picker containing only movies actually playing that date;
 - chosen titles persist as a browser-local **want list**, so movies remain remembered across days until explicitly removed;
-- the itinerary step defaults to planning one movie, while time windows, filters, ranking, pins, runtimes, and alternate sort objectives stay available behind advanced controls;
+- **Watchlist** at `/watchlist` manages wanted, planned, unplanned, and watched movies;
+- the itinerary step defaults to **Any valid count** (all feasible movie counts), while time windows, filters, ranking, pins, runtimes, and alternate sort objectives stay available behind advanced controls;
 - the spreadsheet-style showtime table remains available as a secondary inspection/power-user surface at `/showtimes`.
 
 The app discovers theaters around a configured ZIP code and radius, applies user-known preview times with a 10-minute fallback when none is set, and can optionally enrich screenings with movie ratings/posters, rough home travel times, and official AMC pricing/seating data. The Python backend remains authoritative for screening data, provider semantics, calculations, and enrichment; the React frontend consumes typed API contracts and performs only already-loaded interaction such as table sorting/filtering.
@@ -21,6 +22,28 @@ The app discovers theaters around a configured ZIP code and radius, applies user
 The app opens on the infinite-scroll calendar. Pick any future day to choose from that date's available movies. Locking an itinerary saves it to the calendar and returns directly to that day.
 
 The want list persists across dates. A wanted movie is therefore always in one of three states: already scheduled on a current/future calendar day, available as a candidate while planning the selected day, or reported by the calendar as still unplanned. Existing saved future plans are migrated into the want list so upgrading does not lose prior intent.
+
+## Watchlist and later published showtimes
+
+Open **Watchlist** or `/watchlist` to manage your persistent wanted titles. Search and sort by
+title, release date, ratings, listed showing days, or showtime count; filter to planned,
+unplanned, and watched titles. Marking a title **Watched** moves it out of the wanted
+selection into browser-local watched history, with a reversible **Mark unwatched** action.
+Removing a title deletes it from the local watchlist; neither action silently deletes
+an existing saved movie-day itinerary (a warning is shown if a future plan contains it).
+The **Plan this movie** action returns to the calendar to choose a day.
+
+The availability indicator counts **individual published showtimes** and **distinct
+listed dates** strictly *after* the reference day over the next 14 calendar days,
+using the configured ZIP and radius. The Watchlist references today; Movie Day uses
+the chosen planning date, including a future date. Later availability uses a bounded
+concurrent fetch of the existing cached base-screening provider without expensive
+OMDb, AMC, or routing enrichment. Dates that fail to load are reported and the
+counts become lower bounds. No later listings does **not** establish an actual
+theatrical exit date; it only describes currently published schedules. Wanted
+movies remain visible even with no showtimes.
+
+Browser-local watchlist state does not synchronize across devices.
 
 ## Showtimes table
 
@@ -58,7 +81,7 @@ Posters, ratings, and initial release date require an OMDb API key configured in
 
 ## Movie Day planner
 
-After movie selection, the itinerary page opens with the simplest useful request: **one movie** and **Find itineraries**. Locking an option saves it and returns to the calendar. The durable want list is not cleared when an itinerary is saved.
+After movie selection, the itinerary page defaults to **Any valid count** and **Find itineraries**. This searches feasible itineraries across movie counts, rather than forcing a single movie. A saved/default Movie Day view may explicitly override the count. Locking an option saves it and returns to the calendar. The durable want list is not cleared when an itinerary is saved.
 
 Power-user controls remain available without dominating the first-time path. **Advanced options** contains candidate editing, Start, Home by, primary/secondary sort, transfer buffer, saved views, and showing filters. **Movie priorities & runtimes** contains ranking, pins, and runtime overrides. The planner still uses any active Screening-table filters when determining eligible showtimes, but those controls are no longer required knowledge for a novice flow.
 
