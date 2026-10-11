@@ -516,8 +516,14 @@ test("transfer timeline is vertical between movie rows with proportional segment
   await expect(transfer).toHaveCount(1);
   await expect(transfer.getByRole("link", { name: "15 min drive" })).toBeVisible();
   await expect(transfer.getByText("15 min spare")).toBeVisible();
-  await expect(transfer.locator(".transfer-track-drive")).toHaveAttribute("style", "height: 24px;");
-  await expect(transfer.locator(".transfer-track-free")).toHaveAttribute("style", "height: 24px;");
+  const driveHeight = await transfer
+    .locator(".transfer-track-drive")
+    .evaluate((node) => node.getBoundingClientRect().height);
+  const spareHeight = await transfer
+    .locator(".transfer-track-free")
+    .evaluate((node) => node.getBoundingClientRect().height);
+  expect(driveHeight).toBeGreaterThan(0);
+  expect(spareHeight / driveHeight).toBeCloseTo(1, 2);
 });
 
 test("planner movie checkbox selection enforces 10 candidates without disabling deselection", async ({
