@@ -190,9 +190,7 @@ def _movie_availability_response(
     seen_showings: set[tuple[str, str]] = set()
 
     def load(show_date: date) -> list[Screening]:
-        return _SERVICE.get_screenings(
-            show_date, {}, zip_code=zip_code, radius_miles=radius_miles
-        )
+        return _SERVICE.get_screenings(show_date, {}, zip_code=zip_code, radius_miles=radius_miles)
 
     # Bound remote fanout. ScreeningService caches base results by date/location.
     with ThreadPoolExecutor(max_workers=3) as pool:
