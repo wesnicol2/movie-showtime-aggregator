@@ -187,6 +187,7 @@ def _movie_availability_response(
     successful_dates: list[str] = []
     unavailable_dates: list[str] = []
     movies: dict[str, dict[str, object]] = {}
+    seen_showings: set[tuple[str, str]] = set()
 
     def load(show_date: date) -> list[Screening]:
         return _SERVICE.get_screenings(
@@ -204,7 +205,6 @@ def _movie_availability_response(
                 unavailable_dates.append(show_date.isoformat())
                 continue
             successful_dates.append(show_date.isoformat())
-            seen_showings: set[tuple[str, str]] = set()
             for screening in screenings:
                 listing_date = screening.advertised_start.date()
                 if not after_date < listing_date <= window_end:
