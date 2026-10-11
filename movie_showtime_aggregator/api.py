@@ -4,6 +4,7 @@ import argparse
 import json
 import mimetypes
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Callable, Iterable
 from dataclasses import replace
 from datetime import date, datetime, timedelta
@@ -35,7 +36,7 @@ JSON_HEADERS = [("Content-Type", "application/json; charset=utf-8")]
 STATIC_DIR = Path(__file__).with_name("static")
 SOURCE_STATIC_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 STATIC_ROOTS = (STATIC_DIR, SOURCE_STATIC_DIR)
-SPA_ROUTES = {"/", "/movies", "/plan", "/planner", "/showtimes", "/settings"}
+SPA_ROUTES = {"/", "/movies", "/plan", "/planner", "/showtimes", "/settings", "/watchlist"}
 PREVIEW_COOKIE = "movie_preview_minutes"
 LOCATION_COOKIE = "movie_location"
 
@@ -76,6 +77,8 @@ def application(environ: dict, start_response: Callable) -> Iterable[bytes]:
         return _json_response(start_response, 200, health(), method)
     if path == "/api/screenings":
         return _screenings_response(environ, start_response, method)
+    if path == "/api/movie-availability":
+        return _movie_availability_response(environ, start_response, method)
     if path == "/api/letterboxd-rating":
         query = parse_qs(environ.get("QUERY_STRING", ""))
         imdb_ids = query.get("imdb_id", [])
@@ -157,6 +160,92 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         "screenings": [screening.to_dict() for screening in visible],
     }
     return _json_response(start_response, 200, payload, method)
+
+
+def _movie_availability_response(
+    environ: dict, start_response: Callable, method: str
+) -> Iterable[bytes]:
+    """Summarize only *published* listings after the supplied planning date.
+
+    Each date uses the normal location/radius screening cache, without AMC, OMDb,
+    travel, or other optional enrichment. Missing provider dates are never treated
+    as evidence that a movie has finished its theatrical run.
+    """
+    query = parse_qs(environ.get("QUERY_STRING", ""))
+    try:
+        raw_after = query.get("after", [])
+        if len(raw_after) != 1:
+            raise ValueError("one after date (YYYY-MM-DD) is required")
+        after_date = date.fromisoformat(raw_after[0])
+        zip_code, radius_miles = _location_from_request(environ, query)
+    except ValueError as exc:
+        return _json_response(start_response, 400, {"error": str(exc)}, method)
+
+    days = 14
+    dates = [after_date + timedelta(days=offset) for offset in range(1, days + 1)]
+    window_end = dates[-1]
+    successful_dates: list[str] = []
+    unavailable_dates: list[str] = []
+    movies: dict[str, dict[str, object]] = {}
+
+    def load(show_date: date) -> list[Screening]:
+        return _SERVICE.get_screenings(
+            show_date, {}, zip_code=zip_code, radius_miles=radius_miles
+        )
+
+    # Bound remote fanout. ScreeningService caches base results by date/location.
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        pending = {pool.submit(load, show_date): show_date for show_date in dates}
+        for future in as_completed(pending):
+            show_date = pending[future]
+            try:
+                screenings = future.result()
+            except (FandangoError, LocationError, ValueError):
+                unavailable_dates.append(show_date.isoformat())
+                continue
+            successful_dates.append(show_date.isoformat())
+            seen_showings: set[tuple[str, str]] = set()
+            for screening in screenings:
+                listing_date = screening.advertised_start.date()
+                if not after_date < listing_date <= window_end:
+                    continue
+                identity = (screening.showtime_id, screening.advertised_start.isoformat())
+                if identity in seen_showings:
+                    continue
+                seen_showings.add(identity)
+                entry = movies.setdefault(
+                    screening.movie,
+                    {"showtime_count": 0, "scheduled_dates": set()},
+                )
+                entry["showtime_count"] += 1
+                entry["scheduled_dates"].add(listing_date.isoformat())
+
+    if not successful_dates:
+        return _json_response(
+            start_response, 503, {"error": "Unable to retrieve later showtimes"}, method
+        )
+    summaries = {
+        movie: {
+            "showtime_count": entry["showtime_count"],
+            "scheduled_days": len(entry["scheduled_dates"]),
+            "last_scheduled_date": (
+                max(entry["scheduled_dates"]) if entry["scheduled_dates"] else None
+            ),
+        }
+        for movie, entry in movies.items()
+    }
+    return _json_response(
+        start_response,
+        200,
+        {
+            "after_date": after_date.isoformat(),
+            "window_end": window_end.isoformat(),
+            "checked_dates": sorted(successful_dates),
+            "unavailable_dates": sorted(unavailable_dates),
+            "movies": summaries,
+        },
+        method,
+    )
 
 
 def _movie_day_response(environ: dict, start_response: Callable, method: str) -> Iterable[bytes]:

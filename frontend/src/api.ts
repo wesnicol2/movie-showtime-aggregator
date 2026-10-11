@@ -1,5 +1,6 @@
 import { browserDate } from "./show-date";
 import type {
+  MovieAvailabilityResponse,
   MovieDayItinerary,
   MovieDayPlanRequest,
   MovieDayPlanResponse,
@@ -31,6 +32,12 @@ export function fetchScreenings(
     params.set("enrich", "0");
   }
   return requestJson<ScreeningsResponse>(`/api/screenings?${params.toString()}`);
+}
+
+export function fetchMovieAvailability(afterDate: string): Promise<MovieAvailabilityResponse> {
+  return requestJson<MovieAvailabilityResponse>(
+    `/api/movie-availability?after=${encodeURIComponent(afterDate)}`,
+  );
 }
 
 export function fetchSharedSettings(): Promise<SharedSettings> {
