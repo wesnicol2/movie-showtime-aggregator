@@ -635,8 +635,11 @@ function TransferTimeline({ leg }: { leg: MovieDayItinerary["legs"][number] }) {
   const driveMinutes = Math.max(0, leg.drive_minutes);
   const spareMinutes = Math.max(0, leg.gap_minutes - driveMinutes);
   const totalMinutes = driveMinutes + spareMinutes;
-  // Keep short transfers legible while using one scale for both phases.
-  const pixelsPerMinute = totalMinutes > 0 ? Math.max(1, 48 / totalMinutes) : 0;
+  // A shared, gently compressed time scale keeps separate itinerary gaps comparable.
+  // Within a gap, both phases still share exactly the same pixels-per-minute ratio.
+  const totalHeight =
+    totalMinutes > 0 ? Math.min(160, Math.max(32, 10 * Math.sqrt(totalMinutes))) : 0;
+  const pixelsPerMinute = totalMinutes > 0 ? totalHeight / totalMinutes : 0;
   const driveHeight = driveMinutes * pixelsPerMinute;
   const spareHeight = spareMinutes * pixelsPerMinute;
 
