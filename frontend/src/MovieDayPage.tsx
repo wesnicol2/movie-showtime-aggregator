@@ -634,8 +634,11 @@ function ItineraryCard({
 function TransferTimeline({ leg }: { leg: MovieDayItinerary["legs"][number] }) {
   const driveMinutes = Math.max(0, leg.drive_minutes);
   const spareMinutes = Math.max(0, leg.gap_minutes - driveMinutes);
-  const driveHeight = driveMinutes > 0 ? Math.max(24, driveMinutes) : 0;
-  const spareHeight = spareMinutes > 0 ? Math.max(24, spareMinutes) : 0;
+  const totalMinutes = driveMinutes + spareMinutes;
+  // Keep short transfers legible while using one scale for both phases.
+  const pixelsPerMinute = totalMinutes > 0 ? Math.max(1, 48 / totalMinutes) : 0;
+  const driveHeight = driveMinutes * pixelsPerMinute;
+  const spareHeight = spareMinutes * pixelsPerMinute;
 
   return (
     <div className="transfer-line">
