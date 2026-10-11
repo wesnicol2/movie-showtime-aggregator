@@ -505,14 +505,25 @@ def test_future_availability_counts_distinct_days_and_showtimes(monkeypatch):
             assert (zip_code, radius_miles) == ("85004", 25)
             if show_date == date(2026, 10, 21):
                 return [
-                    replace(sample_screening("Alpha"), showtime_id="a1",
-                        advertised_start=datetime(2026, 10, 21, 12)),
-                    replace(sample_screening("Alpha"), showtime_id="a2",
-                        advertised_start=datetime(2026, 10, 21, 20)),
+                    replace(
+                        sample_screening("Alpha"),
+                        showtime_id="a1",
+                        advertised_start=datetime(2026, 10, 21, 12),
+                    ),
+                    replace(
+                        sample_screening("Alpha"),
+                        showtime_id="a2",
+                        advertised_start=datetime(2026, 10, 21, 20),
+                    ),
                 ]
             if show_date == date(2026, 10, 23):
-                return [replace(sample_screening("Alpha"), showtime_id="a3",
-                    advertised_start=datetime(2026, 10, 23, 19))]
+                return [
+                    replace(
+                        sample_screening("Alpha"),
+                        showtime_id="a3",
+                        advertised_start=datetime(2026, 10, 23, 19),
+                    )
+                ]
             return []
 
     monkeypatch.setattr(api, "_SERVICE", Service())
