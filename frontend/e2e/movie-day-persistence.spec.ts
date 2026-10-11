@@ -157,7 +157,7 @@ test("each itinerary session starts simple while the want list persists", async 
   const movieDayRequestCount = await mockApi(page);
   await page.goto("/plan");
 
-  await expect(page.getByLabel("Number of movies")).toHaveValue("1");
+  await expect(page.getByLabel("Number of movies")).toHaveValue("any");
   await page.getByText("Advanced options", { exact: true }).click();
   await page.getByLabel("Movie day start").fill("09:00");
   await page.getByLabel("Movie day end").fill("14:00");
