@@ -13,6 +13,7 @@ interface Props {
   selected: string[] | null;
   open: boolean;
   searchable?: boolean;
+  maxSelections?: number;
   onOpenChange: (open: boolean) => void;
   onChange: (selected: string[] | null) => void;
 }
@@ -23,6 +24,7 @@ export function CheckboxFilter({
   selected,
   open,
   searchable = false,
+  maxSelections,
   onOpenChange,
   onChange,
 }: Props) {
@@ -31,6 +33,8 @@ export function CheckboxFilter({
   const visibleOptions = normalizedQuery
     ? options.filter((option) => option.label.toLocaleLowerCase().includes(normalizedQuery))
     : options;
+  const selectedCount = selected?.length ?? options.length;
+  const limitReached = maxSelections !== undefined && selectedCount >= maxSelections;
 
   function isChecked(value: string): boolean {
     return selected === null || selected.includes(value);
@@ -40,6 +44,7 @@ export function CheckboxFilter({
     const next = new Set(selected ?? options.map((option) => option.value));
     if (checked) next.add(value);
     else next.delete(value);
+    if (maxSelections !== undefined && next.size > maxSelections) return;
     onChange(next.size === options.length ? null : [...next]);
   }
 
@@ -77,7 +82,12 @@ export function CheckboxFilter({
           <div className="value-heading">
             <span>Values</span>
             <span className="inline-actions">
-              <button type="button" className="text-button" onClick={() => onChange(null)}>
+              <button
+                type="button"
+                className="text-button"
+                disabled={maxSelections !== undefined && options.length > maxSelections}
+                onClick={() => onChange(null)}
+              >
                 All
               </button>
               <button type="button" className="text-button" onClick={() => onChange([])}>
@@ -85,6 +95,12 @@ export function CheckboxFilter({
               </button>
             </span>
           </div>
+          {maxSelections !== undefined ? (
+            <span className="filter-selection-limit" role="status">
+              {selectedCount} of {maxSelections} max
+              {limitReached ? " · Remove one to add another" : ""}
+            </span>
+          ) : null}
           {searchable ? (
             <input
               className="value-search"
@@ -101,6 +117,7 @@ export function CheckboxFilter({
                 <input
                   type="checkbox"
                   checked={isChecked(option.value)}
+                  disabled={limitReached && !isChecked(option.value)}
                   onChange={(event) => toggleValue(option.value, event.target.checked)}
                 />
                 <span>{option.label}</span>

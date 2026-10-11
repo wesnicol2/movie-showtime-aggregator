@@ -21,6 +21,7 @@ from .experience import (
     experience_settings_payload,
 )
 from .fandango import FandangoClient, FandangoError
+from .letterboxd import letterboxd_rating
 from .location import GeoPoint, LocationError, ZipLocator
 from .metadata import OMDB_DAILY_LIMIT, OmdbClient
 from .models import Screening
@@ -75,6 +76,16 @@ def application(environ: dict, start_response: Callable) -> Iterable[bytes]:
         return _json_response(start_response, 200, health(), method)
     if path == "/api/screenings":
         return _screenings_response(environ, start_response, method)
+    if path == "/api/letterboxd-rating":
+        query = parse_qs(environ.get("QUERY_STRING", ""))
+        imdb_ids = query.get("imdb_id", [])
+        if len(imdb_ids) != 1:
+            return _json_response(start_response, 400, {"error": "one imdb_id is required"}, method)
+        try:
+            score = letterboxd_rating(imdb_ids[0], _PROVIDER_CACHE)
+        except ValueError as exc:
+            return _json_response(start_response, 400, {"error": str(exc)}, method)
+        return _json_response(start_response, 200, {"rating": score}, method)
     if path in SPA_ROUTES:
         return _static_response(start_response, "index.html", method, requested_path=path)
     if path.startswith("/assets/"):

@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 
+import type { Screening } from "../types";
 import "../movie-priority-drag.css";
 
 const LONG_PRESS_MS = 450;
@@ -14,6 +15,7 @@ const HOLD_MOVE_TOLERANCE_PX = 8;
 
 interface Props {
   movies: readonly string[];
+  screeningsByMovie: ReadonlyMap<string, Screening>;
   pinnedMovies: readonly string[];
   defaultRuntimeByMovie: Readonly<Record<string, number | null>>;
   runtimeOverrides: Readonly<Record<string, number>>;
@@ -25,6 +27,7 @@ interface Props {
 
 export function MoviePriorityEditor({
   movies,
+  screeningsByMovie,
   pinnedMovies,
   defaultRuntimeByMovie,
   runtimeOverrides,
@@ -48,6 +51,33 @@ export function MoviePriorityEditor({
   const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
   const [dragDestinationIndex, setDragDestinationIndex] = useState<number | null>(null);
   const [dragOffsetY, setDragOffsetY] = useState(0);
+  const [letterboxdRatings, setLetterboxdRatings] = useState<Record<string, number | null>>({});
+  const requestedRatings = useRef(new Set<string>());
+
+  useEffect(() => {
+    for (const movie of movies) {
+      const imdbId = screeningsByMovie.get(movie)?.imdb_id;
+      if (!imdbId || requestedRatings.current.has(imdbId)) continue;
+      requestedRatings.current.add(imdbId);
+      void fetch(`/api/letterboxd-rating?imdb_id=${encodeURIComponent(imdbId)}`)
+        .then((response) => {
+          if (!response.ok) throw new Error("Letterboxd rating unavailable");
+          return response.json() as Promise<{ rating: number | null }>;
+        })
+        .then(({ rating }) => {
+          setLetterboxdRatings((current) => ({
+            ...current,
+            [imdbId]:
+              typeof rating === "number" && Number.isFinite(rating) && rating >= 0 && rating <= 5
+                ? rating
+                : null,
+          }));
+        })
+        .catch(() => {
+          setLetterboxdRatings((current) => ({ ...current, [imdbId]: null }));
+        });
+    }
+  }, [movies, screeningsByMovie]);
 
   useEffect(
     () => () => {
@@ -252,6 +282,13 @@ export function MoviePriorityEditor({
           const wantScore = movies.length - index;
           const runtimeOverride = runtimeOverrides[movie];
           const defaultRuntime = defaultRuntimeByMovie[movie] ?? null;
+          const screening = screeningsByMovie.get(movie);
+          const letterboxdScore = screening?.imdb_id
+            ? letterboxdRatings[screening.imdb_id]
+            : undefined;
+          const letterboxdUrl =
+            screening?.letterboxd_url ||
+            `https://letterboxd.com/search/${encodeURIComponent(movie)}/`;
           const isPressing = pressingMovie === movie;
           const isDragging = draggingMovie === movie;
           const isDropTarget =
@@ -284,6 +321,37 @@ export function MoviePriorityEditor({
                 <span>
                   {wantScore} want point{wantScore === 1 ? "" : "s"}
                 </span>
+                <div className="movie-priority-ratings">
+                  <RatingItem
+                    label="Rotten Tomatoes"
+                    value={
+                      screening?.rotten_tomatoes_score === null ||
+                      screening?.rotten_tomatoes_score === undefined
+                        ? "—"
+                        : `${screening.rotten_tomatoes_score}%`
+                    }
+                    href={screening?.rotten_tomatoes_url}
+                  />
+                  <RatingItem
+                    label="Metacritic"
+                    value={
+                      screening?.metacritic_score === null ||
+                      screening?.metacritic_score === undefined
+                        ? "—"
+                        : `${screening.metacritic_score}/100`
+                    }
+                    href={screening?.metacritic_url}
+                  />
+                  <RatingItem
+                    label="Letterboxd"
+                    value={
+                      letterboxdScore === undefined || letterboxdScore === null
+                        ? "—"
+                        : `${letterboxdScore.toFixed(2)}/5`
+                    }
+                    href={letterboxdUrl}
+                  />
+                </div>
               </div>
               <label className="movie-runtime-editor">
                 <span>Runtime</span>
@@ -367,5 +435,25 @@ export function MoviePriorityEditor({
         })}
       </ol>
     </section>
+  );
+}
+
+function RatingItem({
+  label,
+  value,
+  href,
+}: {
+  label: string;
+  value: string;
+  href?: string | undefined;
+}) {
+  return href ? (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {label} <strong>{value}</strong>
+    </a>
+  ) : (
+    <span>
+      {label} <strong>{value}</strong>
+    </span>
   );
 }

@@ -78,7 +78,7 @@ async function mockScreenings(page: Page): Promise<void> {
 }
 
 function priorityTitles(page: Page) {
-  return page.locator(".movie-priority-title strong");
+  return page.locator(".movie-priority-title > strong");
 }
 
 async function dragFromTo(
