@@ -176,7 +176,7 @@ test("Any returns itineraries across every feasible movie count in global want-s
   });
 
   await page.goto("/plan");
-  await page.getByLabel("Number of movies").selectOption("any");
+  await expect(page.getByLabel("Number of movies")).toHaveValue("any");
   await page.getByRole("button", { name: "Find itineraries" }).click();
 
   await expect(
