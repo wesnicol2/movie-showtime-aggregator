@@ -172,7 +172,7 @@ test("planning transfers visualize driving and spare time vertically between mov
   await expect(transfer.getByText("40 min spare")).toBeVisible();
   const driveHeight = await drive.evaluate((node) => node.getBoundingClientRect().height);
   const spareHeight = await spare.evaluate((node) => node.getBoundingClientRect().height);
-  expect(spareHeight).toBeGreaterThan(driveHeight);
+  expect(spareHeight / driveHeight).toBeCloseTo(4, 2);
 
   const firstMovie = await card.locator(".showing-line").first().boundingBox();
   const lastMovie = await card.locator(".showing-line").last().boundingBox();
@@ -220,4 +220,25 @@ test("transfers without spare time display only gray driving", async ({ page }) 
   );
   await expect(transfer.getByRole("link", { name: "10 min drive" })).toBeVisible();
   await expect(transfer.getByText("0 min spare")).toBeVisible();
+});
+
+test("10 minutes driving and 20 minutes waiting occupy a one-third/two-thirds split", async ({
+  page,
+}) => {
+  await mockApi(page, { driveMinutes: 10, gapMinutes: 30 });
+  await page.goto("/plan");
+  await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByLabel("Number of movies").selectOption("all");
+  await page.getByRole("button", { name: "Find itineraries" }).click();
+
+  const transfer = page.locator(".itinerary-card .transfer-line");
+  const drive = transfer.locator(".transfer-track-drive");
+  const spare = transfer.locator(".transfer-track-free");
+  await expect(transfer.getByRole("link", { name: "10 min drive" })).toBeVisible();
+  await expect(transfer.getByText("20 min spare")).toBeVisible();
+
+  const driveHeight = await drive.evaluate((node) => node.getBoundingClientRect().height);
+  const spareHeight = await spare.evaluate((node) => node.getBoundingClientRect().height);
+  expect(driveHeight / (driveHeight + spareHeight)).toBeCloseTo(1 / 3, 2);
+  expect(spareHeight / (driveHeight + spareHeight)).toBeCloseTo(2 / 3, 2);
 });
