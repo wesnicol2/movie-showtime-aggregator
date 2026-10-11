@@ -636,6 +636,7 @@
 }
 
 .transfer-track {
+  align-self: start;
   gap: 0;
   overflow: hidden;
   border-radius: 5px;
