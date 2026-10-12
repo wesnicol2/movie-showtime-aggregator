@@ -26,8 +26,15 @@ const baseline = {
   route_source_url: "",
 };
 function screening(
-  id: string, movie: string, imdb: string, chain: string, theatre: string,
-  start: string, format: string, price: number, distance: number,
+  id: string,
+  movie: string,
+  imdb: string,
+  chain: string,
+  theatre: string,
+  start: string,
+  format: string,
+  price: number,
+  distance: number,
 ) {
   return {
     ...baseline,
@@ -44,11 +51,41 @@ function screening(
   };
 }
 const rows = [
-  screening("a1", "Alpha", "tt1111111", "AMC", "AMC Midtown", "2026-10-12T10:00:00", "Standard", 12, 4),
+  screening(
+    "a1",
+    "Alpha",
+    "tt1111111",
+    "AMC",
+    "AMC Midtown",
+    "2026-10-12T10:00:00",
+    "Standard",
+    12,
+    4,
+  ),
   screening("a2", "Alpha", "tt1111111", "AMC", "AMC Midtown", "2026-10-12T12:00:00", "IMAX", 14, 4),
   screening("a3", "Alpha", "tt1111111", "AMC", "AMC West", "2026-10-12T18:00:00", "IMAX", 18, 6),
-  screening("a4", "Alpha", "tt1111111", "Harkins", "Harkins North", "2026-10-12T20:00:00", "Standard", 11, 5),
-  screening("b1", "Beta", "tt2222222", "Harkins", "Harkins North", "2026-10-12T19:00:00", "Standard", 10, 5),
+  screening(
+    "a4",
+    "Alpha",
+    "tt1111111",
+    "Harkins",
+    "Harkins North",
+    "2026-10-12T20:00:00",
+    "Standard",
+    11,
+    5,
+  ),
+  screening(
+    "b1",
+    "Beta",
+    "tt2222222",
+    "Harkins",
+    "Harkins North",
+    "2026-10-12T19:00:00",
+    "Standard",
+    10,
+    5,
+  ),
 ];
 
 async function mockScreenings(page: Page) {
@@ -64,19 +101,28 @@ async function mockScreenings(page: Page) {
         enrichment_enabled: true,
         count: rows.length,
         total_count: rows.length,
-        facets: { chains: ["AMC", "Harkins"], movies: ["Alpha", "Beta"], theatres: ["AMC Midtown", "AMC West", "Harkins North"], formats: ["Standard", "IMAX"] },
+        facets: {
+          chains: ["AMC", "Harkins"],
+          movies: ["Alpha", "Beta"],
+          theatres: ["AMC Midtown", "AMC West", "Harkins North"],
+          formats: ["Standard", "IMAX"],
+        },
         screenings: rows,
       },
     });
   });
 }
 
-test("one card per movie, distinct theaters by chain, expand showtimes, and share table filters", async ({ page }) => {
+test("one card per movie, distinct theaters by chain, expand showtimes, and share table filters", async ({
+  page,
+}) => {
   await mockScreenings(page);
   await page.goto("/showtimes");
   await expect(page.getByRole("heading", { name: "Now playing" })).toBeVisible();
   await expect(page.getByTestId("showcase-movie")).toHaveCount(2);
-  const alpha = page.getByTestId("showcase-movie").filter({ has: page.getByRole("heading", { name: "Alpha" }) });
+  const alpha = page
+    .getByTestId("showcase-movie")
+    .filter({ has: page.getByRole("heading", { name: "Alpha" }) });
   await expect(alpha.getByText("AMC 2 theaters")).toBeVisible();
   await expect(alpha.getByText("Harkins 1 theater")).toBeVisible();
   await expect(alpha.getByText("4 showtimes")).toBeVisible();
@@ -108,8 +154,28 @@ test("different IMDb identities with the same title remain separate", async ({ p
         location: { zip_code: "85004", radius_miles: 15 },
         preferences: { amc_vendor_key_set: false, omdb_api_key_set: false, amc_a_list: false },
         screenings: [
-          screening("one", "The Return", "tt1111111", "AMC", "AMC Midtown", "2026-10-12T10:00:00", "Standard", 12, 4),
-          screening("two", "The Return", "tt2222222", "AMC", "AMC West", "2026-10-12T12:00:00", "Standard", 12, 5),
+          screening(
+            "one",
+            "The Return",
+            "tt1111111",
+            "AMC",
+            "AMC Midtown",
+            "2026-10-12T10:00:00",
+            "Standard",
+            12,
+            4,
+          ),
+          screening(
+            "two",
+            "The Return",
+            "tt2222222",
+            "AMC",
+            "AMC West",
+            "2026-10-12T12:00:00",
+            "Standard",
+            12,
+            5,
+          ),
         ],
       },
     });

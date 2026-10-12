@@ -17,7 +17,9 @@ function rating(name: string, score: number | null, url: string, suffix = "") {
   if (score === null) return null;
   const value = name + " " + score + suffix;
   return url ? (
-    <a href={url} target="_blank" rel="noreferrer">{value} ↗</a>
+    <a href={url} target="_blank" rel="noreferrer">
+      {value} ↗
+    </a>
   ) : (
     <span>{value}</span>
   );
@@ -49,15 +51,21 @@ export function MovieShowcase({ movies, selectedMovies, watchedMovies }: Props) 
               </div>
               <div className="showcase-subtitle">
                 {released ? <span>Released {released}</span> : null}
-                {info.runtime_minutes !== null ? <span>{duration(info.runtime_minutes)}</span> : null}
-                {movie.nearestMiles !== null ? <span>Nearest {movie.nearestMiles.toFixed(1)} mi</span> : null}
+                {info.runtime_minutes !== null ? (
+                  <span>{duration(info.runtime_minutes)}</span>
+                ) : null}
+                {movie.nearestMiles !== null ? (
+                  <span>Nearest {movie.nearestMiles.toFixed(1)} mi</span>
+                ) : null}
               </div>
               <div className="showcase-ratings">
                 {rating("IMDb", info.imdb_rating, info.imdb_url)}
                 {rating("RT", info.rotten_tomatoes_score, info.rotten_tomatoes_url, "%")}
                 {rating("MC", info.metacritic_score, info.metacritic_url)}
                 {info.letterboxd_url ? (
-                  <a href={info.letterboxd_url} target="_blank" rel="noreferrer">Letterboxd ↗</a>
+                  <a href={info.letterboxd_url} target="_blank" rel="noreferrer">
+                    Letterboxd ↗
+                  </a>
                 ) : null}
               </div>
               <div className="showcase-chain-section">
@@ -65,20 +73,34 @@ export function MovieShowcase({ movies, selectedMovies, watchedMovies }: Props) 
                 <div className="showcase-chain-list">
                   {movie.chains.map((chain) => (
                     <span className="showcase-chain" key={chain.name}>
-                      {chain.name} <strong>{chain.theaters} {chain.theaters === 1 ? "theater" : "theaters"}</strong>
+                      {chain.name}{" "}
+                      <strong>
+                        {chain.theaters} {chain.theaters === 1 ? "theater" : "theaters"}
+                      </strong>
                     </span>
                   ))}
                 </div>
               </div>
               <p className="showcase-facts">
-                <strong>{movie.theaters.length} {movie.theaters.length === 1 ? "theater" : "theaters"}</strong>
+                <strong>
+                  {movie.theaters.length} {movie.theaters.length === 1 ? "theater" : "theaters"}
+                </strong>
                 <span aria-hidden="true">·</span>
-                <span>{movie.screenings.length} {movie.screenings.length === 1 ? "showtime" : "showtimes"}</span>
+                <span>
+                  {movie.screenings.length}{" "}
+                  {movie.screenings.length === 1 ? "showtime" : "showtimes"}
+                </span>
                 {movie.formats.length > 0 ? (
-                  <><span aria-hidden="true">·</span><span>{movie.formats.join(" / ")}</span></>
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{movie.formats.join(" / ")}</span>
+                  </>
                 ) : null}
                 {movie.lowestPrice !== null ? (
-                  <><span aria-hidden="true">·</span><span>{"Tickets from $" + movie.lowestPrice.toFixed(2)}</span></>
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{"Tickets from $" + movie.lowestPrice.toFixed(2)}</span>
+                  </>
                 ) : null}
               </p>
               <details className="showcase-details">
@@ -88,16 +110,31 @@ export function MovieShowcase({ movies, selectedMovies, watchedMovies }: Props) 
                     <div className="showcase-theater" key={theater.key}>
                       <div className="showcase-theater-heading">
                         <strong>{theater.theatre}</strong>
-                        <span>{theater.chain}{theater.distance_miles !== null ? " · " + theater.distance_miles.toFixed(1) + " mi" : ""}</span>
+                        <span>
+                          {theater.chain}
+                          {theater.distance_miles !== null
+                            ? " · " + theater.distance_miles.toFixed(1) + " mi"
+                            : ""}
+                        </span>
                       </div>
                       <div className="showcase-times">
                         {theater.screenings.map((screening) => {
-                          const label = formatListedTime(screening.advertised_start)
-                            + (screening.format ? " · " + screening.format : "")
-                            + (screening.ticket_price !== null ? " · $" + screening.ticket_price.toFixed(2) : "");
+                          const label =
+                            formatListedTime(screening.advertised_start) +
+                            (screening.format ? " · " + screening.format : "") +
+                            (screening.ticket_price !== null
+                              ? " · $" + screening.ticket_price.toFixed(2)
+                              : "");
                           const key = screening.showtime_id + "|" + screening.advertised_start;
                           return screening.purchase_url ? (
-                            <a key={key} href={screening.purchase_url} target="_blank" rel="noreferrer">{label} ↗</a>
+                            <a
+                              key={key}
+                              href={screening.purchase_url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {label} ↗
+                            </a>
                           ) : (
                             <span key={key}>{label}</span>
                           );

@@ -5,8 +5,8 @@ import { MovieShowcase } from "./components/MovieShowcase";
 import { ScreeningInspector } from "./components/ScreeningInspector";
 import { ScreeningTable } from "./components/ScreeningTable";
 import { readDefaultSavedView, writeDefaultSavedView } from "./saved-view-defaults";
-import { filterAndSort, COLUMNS, isFilterActive } from "./screenings";
-import { buildShowcase, sortShowcase, type ShowcaseSort } from "./showcase";
+import { COLUMNS, filterAndSort, isFilterActive } from "./screenings";
+import { buildShowcase, type ShowcaseSort, sortShowcase } from "./showcase";
 import {
   createSavedView,
   readSavedViews,
@@ -14,8 +14,8 @@ import {
   useAppStore,
   writeSavedViews,
 } from "./store";
-import { useScreenings } from "./useScreenings";
 import type { ColumnKey } from "./types";
+import { useScreenings } from "./useScreenings";
 
 export function ScreeningsPage() {
   useScreenings();
@@ -120,7 +120,9 @@ export function ScreeningsPage() {
         <div>
           <p className="eyebrow">DECISION WORKSPACE</p>
           <h1 id="screenings-heading">Now playing</h1>
-          <p className="workflow-subtitle">One movie per listing · all theaters in your search area</p>
+          <p className="workflow-subtitle">
+            One movie per listing · all theaters in your search area
+          </p>
         </div>
         <div className="workspace-actions">
           <label className="select-label">
@@ -175,15 +177,37 @@ export function ScreeningsPage() {
           <div className="showcase-toolbar">
             <fieldset className="showcase-tabs">
               <legend className="sr-only">Showtimes display</legend>
-              <button type="button" aria-pressed={view === "movies"} onClick={() => { setView("movies"); setInspectedShowtimeId(null); }}>Movies</button>
-              <button type="button" aria-pressed={view === "table"} onClick={() => { setView("table"); setOpenColumn(null); }}>Table</button>
+              <button
+                type="button"
+                aria-pressed={view === "movies"}
+                onClick={() => {
+                  setView("movies");
+                  setInspectedShowtimeId(null);
+                }}
+              >
+                Movies
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "table"}
+                onClick={() => {
+                  setView("table");
+                  setOpenColumn(null);
+                }}
+              >
+                Table
+              </button>
             </fieldset>
             <div className="showcase-tools">
               {view === "movies" ? (
                 <>
                   <label className="select-label">
                     <span className="sr-only">Sort movies</span>
-                    <select aria-label="Sort movies" value={movieSort} onChange={(event) => changeMovieSort(event.target.value as ShowcaseSort)}>
+                    <select
+                      aria-label="Sort movies"
+                      value={movieSort}
+                      onChange={(event) => changeMovieSort(event.target.value as ShowcaseSort)}
+                    >
                       <option value="title">Title</option>
                       <option value="initial_release_date">Release date</option>
                       <option value="imdb_rating">IMDb</option>
@@ -194,7 +218,13 @@ export function ScreeningsPage() {
                       <option value="distance_miles">Nearest theater</option>
                     </select>
                   </label>
-                  <button type="button" aria-label="Reverse movie sort" onClick={() => setMovieSortDirection((direction) => direction === "asc" ? "desc" : "asc")}>
+                  <button
+                    type="button"
+                    aria-label="Reverse movie sort"
+                    onClick={() =>
+                      setMovieSortDirection((direction) => (direction === "asc" ? "desc" : "asc"))
+                    }
+                  >
                     {movieSortDirection === "asc" ? "↑ Ascending" : "↓ Descending"}
                   </button>
                 </>
@@ -203,7 +233,10 @@ export function ScreeningsPage() {
                 type="button"
                 aria-label="Toggle screening filters"
                 aria-expanded={filtersOpen}
-                onClick={() => { setFiltersOpen((open) => !open); setOpenColumn(null); }}
+                onClick={() => {
+                  setFiltersOpen((open) => !open);
+                  setOpenColumn(null);
+                }}
               >
                 Filters{activeFilterCount > 0 ? " (" + activeFilterCount + ")" : ""}
               </button>
@@ -234,7 +267,9 @@ export function ScreeningsPage() {
                 <span>·</span>
               </>
             ) : null}
-            <span>{visible.length} of {screenings.length} screenings</span>
+            <span>
+              {visible.length} of {screenings.length} screenings
+            </span>
             <span>·</span>
             <span>
               {response.location.radius_miles} mi from {response.location.zip_code}
@@ -248,7 +283,11 @@ export function ScreeningsPage() {
           </div>
           {view === "movies" ? (
             <>
-              <MovieShowcase movies={movies} selectedMovies={selectedMovies} watchedMovies={watchedMovies} />
+              <MovieShowcase
+                movies={movies}
+                selectedMovies={selectedMovies}
+                watchedMovies={watchedMovies}
+              />
               {movies.length === 0 ? (
                 <p className="empty-state">No movies match the current screening filters.</p>
               ) : null}
