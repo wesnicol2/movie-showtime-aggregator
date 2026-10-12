@@ -52,7 +52,7 @@ export function MovieShowcase({ movies, selectedMovies, watchedMovies }: Props) 
                 {info.runtime_minutes !== null ? <span>{duration(info.runtime_minutes)}</span> : null}
                 {movie.nearestMiles !== null ? <span>Nearest {movie.nearestMiles.toFixed(1)} mi</span> : null}
               </div>
-              <div className="showcase-ratings" aria-label="Ratings">
+              <div className="showcase-ratings">
                 {rating("IMDb", info.imdb_rating, info.imdb_url)}
                 {rating("RT", info.rotten_tomatoes_score, info.rotten_tomatoes_url, "%")}
                 {rating("MC", info.metacritic_score, info.metacritic_url)}
