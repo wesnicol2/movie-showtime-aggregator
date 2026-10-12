@@ -4,6 +4,7 @@ import { createMovieDayPlan } from "./api";
 import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
 import { MovieDayControlBar } from "./components/MovieDayControlBar";
 import { MoviePriorityEditor } from "./components/MoviePriorityEditor";
+import { useMovieAvailability } from "./movie-availability";
 import { MAX_MOVIES_PER_DAY } from "./movie-limits";
 import "./movie-day.css";
 import { readSavedMoviePlans, savedMoviePlanForDate, saveMoviePlan } from "./planner";
@@ -47,13 +48,15 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   const filters = useAppStore((state) => state.filters);
   const sort = useAppStore((state) => state.sort);
   const selectedMovies = useAppStore((state) => state.selectedMovies);
+  const selectedDate = useAppStore((state) => state.selectedDate);
+  const { response: laterAvailability, error: laterError } = useMovieAvailability(selectedDate);
   const setMovieSelection = useAppStore((state) => state.setMovieSelection);
   const planningDraftDate = useAppStore((state) => state.planningDraftDate);
   const planningDraftMovies = useAppStore((state) => state.planningDraftMovies);
   const setPlanningDraft = useAppStore((state) => state.setPlanningDraft);
   const [minimumBuffer, setMinimumBuffer] = useState(0);
   const [facets, setFacets] = useState<ScreeningFacets>(EMPTY_SCREENING_FACETS);
-  const [targetMovieCount, setTargetMovieCount] = useState<MovieDayTargetCount | null>(1);
+  const [targetMovieCount, setTargetMovieCount] = useState<MovieDayTargetCount | null>("any");
   const [earliestTime, setEarliestTime] = useState("");
   const [latestTime, setLatestTime] = useState("");
   const [sortBy, setSortBy] = useState<MovieDaySort>("want");
@@ -414,6 +417,9 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
           <MoviePriorityEditor
             movies={rankedMovies}
             screeningsByMovie={screeningByMovie}
+            availability={laterAvailability}
+            availabilityError={laterError}
+            selectedDate={selectedDate}
             pinnedMovies={pinnedMovies}
             defaultRuntimeByMovie={defaultRuntimeByMovie}
             runtimeOverrides={runtimeOverrides}

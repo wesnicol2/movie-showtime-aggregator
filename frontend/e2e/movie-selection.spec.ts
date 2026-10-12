@@ -302,6 +302,24 @@ test("movie selection checkbox filters cover format, listed time, and selection"
   await expect(page.getByText("1 active filters")).toBeVisible();
 });
 
+test("watched movies say Already seen and remain selectable", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("movie-showtime-aggregator.watched-movies.v1", '["Beta"]');
+    localStorage.setItem("movie-showtime-aggregator.want-list-migration.v1", "1");
+  });
+  await mockApi(page);
+  await page.goto("/movies");
+
+  const seen = page.getByRole("button", { name: "Add Beta to this day" });
+  await expect(seen.getByText("Already seen", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Add Alpha to this day" }).getByText("Available"),
+  ).toBeVisible();
+
+  await seen.click();
+  await expect(page.getByRole("button", { name: "Remove Beta from this day" })).toBeVisible();
+});
+
 test("screening saved views do not overwrite the persistent want list", async ({ page }) => {
   await mockApi(page);
   await page.goto("/movies");

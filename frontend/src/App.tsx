@@ -6,8 +6,9 @@ import { PlannerPage } from "./PlannerPage";
 import { ScreeningsPage } from "./ScreeningsPage";
 import { SettingsPage } from "./SettingsPage";
 import { useAppStore } from "./store";
+import { WatchlistPage } from "./WatchlistPage";
 
-type AppPath = "/" | "/movies" | "/plan" | "/showtimes" | "/settings";
+type AppPath = "/" | "/movies" | "/plan" | "/showtimes" | "/settings" | "/watchlist";
 
 function normalizeLocation(): AppPath {
   const path = window.location.pathname;
@@ -18,6 +19,7 @@ function normalizeLocation(): AppPath {
   if (path === "/planner") return "/";
   if (path === "/showtimes") return "/showtimes";
   if (path === "/settings") return "/settings";
+  if (path === "/watchlist") return "/watchlist";
   return "/";
 }
 
@@ -33,7 +35,11 @@ export function App() {
   useEffect(() => {
     const onPopState = () => setPath(normalizeLocation());
     const onStorage = (event: StorageEvent) => {
-      if (event.key === "movie-showtime-aggregator.selected-movies.v1") syncMovieSelection();
+      if (
+        event.key === "movie-showtime-aggregator.selected-movies.v1" ||
+        event.key === "movie-showtime-aggregator.watched-movies.v1"
+      )
+        syncMovieSelection();
     };
     window.addEventListener("popstate", onPopState);
     window.addEventListener("storage", onStorage);
@@ -85,6 +91,13 @@ export function App() {
               Calendar
             </button>
             <button
+              className={path === "/watchlist" ? "current" : ""}
+              type="button"
+              onClick={() => navigate("/watchlist")}
+            >
+              Watchlist
+            </button>
+            <button
               className={path === "/showtimes" ? "current" : ""}
               type="button"
               onClick={() => navigate("/showtimes")}
@@ -108,6 +121,8 @@ export function App() {
           <MoviesPage onBack={() => navigate("/")} onContinue={() => navigate("/plan")} />
         ) : path === "/plan" ? (
           <MovieDayPage onBack={() => navigate("/movies")} onLocked={lockItinerary} />
+        ) : path === "/watchlist" ? (
+          <WatchlistPage onBrowse={() => navigate("/movies")} onPlan={() => navigate("/")} />
         ) : path === "/settings" ? (
           <SettingsPage />
         ) : (

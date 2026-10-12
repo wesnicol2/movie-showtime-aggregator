@@ -39,6 +39,7 @@ export function MoviesPage({ onBack, onContinue }: Props) {
   const error = useAppStore((state) => state.error);
   const selectedDate = useAppStore((state) => state.selectedDate);
   const selectedMovies = useAppStore((state) => state.selectedMovies);
+  const watchedMovies = useAppStore((state) => state.watchedMovies);
   const setMovieSelection = useAppStore((state) => state.setMovieSelection);
   const planningDraftDate = useAppStore((state) => state.planningDraftDate);
   const planningDraftMovies = useAppStore((state) => state.planningDraftMovies);
@@ -337,6 +338,7 @@ export function MoviesPage({ onBack, onContinue }: Props) {
         {movies.map((movie) => {
           const screening = movie.representative;
           const wanted = selectedMovies.includes(screening.movie);
+          const alreadySeen = watchedMovies.includes(screening.movie);
           const plannedHere = plannedThisDate.has(screening.movie);
           const plannedElsewhere = plannedOnOtherDates.get(screening.movie);
           const selectedForDay = planningMovies.has(screening.movie);
@@ -355,7 +357,9 @@ export function MoviesPage({ onBack, onContinue }: Props) {
                       : "This day"
                     : wanted
                       ? "Wanted · not this day"
-                      : "Available";
+                      : alreadySeen
+                        ? "Already seen"
+                        : "Available";
 
           return (
             <button

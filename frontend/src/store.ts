@@ -5,6 +5,7 @@ import { readSavedMoviePlans } from "./planner";
 import { type ColumnFilter, createEmptyFilters, type Filters, type SortState } from "./screenings";
 import { browserDate } from "./show-date";
 import type { ColumnKey, ScreeningsResponse } from "./types";
+import { cacheWatchlistMetadata, readWatchedMovies, writeWatchedMovies } from "./watchlist";
 
 const MOVIE_SELECTION_KEY = "movie-showtime-aggregator.selected-movies.v1";
 const WANT_LIST_MIGRATION_KEY = "movie-showtime-aggregator.want-list-migration.v1";
@@ -86,7 +87,10 @@ export function writeSavedViews(views: Record<string, SavedView>): void {
   localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(sanitized));
 }
 
-const initialSelection = migrateWantList(readMovieSelection());
+const initialWatched = readWatchedMovies();
+const initialSelection = migrateWantList(readMovieSelection()).filter(
+  (movie) => !initialWatched.includes(movie),
+);
 const initialFilters = createEmptyFilters();
 
 interface AppState {
@@ -97,6 +101,7 @@ interface AppState {
   filters: Filters;
   sort: SortState;
   selectedMovies: string[];
+  watchedMovies: string[];
   planningDraftDate: string | null;
   planningDraftMovies: string[] | null;
   inspectedShowtimeId: string | null;
@@ -111,6 +116,8 @@ interface AppState {
   toggleMovie: (movie: string) => void;
   setMovieSelection: (movies: string[]) => void;
   syncMovieSelection: () => void;
+  setMovieWatched: (movie: string, watched: boolean) => void;
+  removeWatchlistMovie: (movie: string) => void;
   setPlanningDraft: (date: string, movies: string[] | null) => void;
   clearPlanningDraft: () => void;
   setInspectedShowtimeId: (showtimeId: string | null) => void;
@@ -125,12 +132,20 @@ export const useAppStore = create<AppState>((set) => ({
   filters: initialFilters,
   sort: { key: "advertised_start", direction: "asc" },
   selectedMovies: initialSelection,
+  watchedMovies: initialWatched,
   planningDraftDate: null,
   planningDraftMovies: null,
   inspectedShowtimeId: null,
 
   setLoading: () => set({ status: "loading", error: null }),
-  setResponse: (response) => set({ response, status: "ready", error: null }),
+  setResponse: (response) =>
+    set((state) => {
+      cacheWatchlistMetadata(
+        response.screenings,
+        new Set([...state.selectedMovies, ...state.watchedMovies]),
+      );
+      return { response, status: "ready", error: null };
+    }),
   setError: (message) => set({ response: null, status: "error", error: message }),
   setSelectedDate: (selectedDate) =>
     set((state) => {
@@ -163,21 +178,60 @@ export const useAppStore = create<AppState>((set) => ({
 
   toggleMovie: (movie) =>
     set((state) => {
-      const selectedMovies = state.selectedMovies.includes(movie)
-        ? state.selectedMovies.filter((value) => value !== movie)
-        : [...state.selectedMovies, movie].sort();
+      const adding = !state.selectedMovies.includes(movie);
+      const selectedMovies = adding
+        ? [...state.selectedMovies, movie].sort()
+        : state.selectedMovies.filter((value) => value !== movie);
+      const watchedMovies = adding
+        ? state.watchedMovies.filter((value) => value !== movie)
+        : state.watchedMovies;
       persistMovieSelection(selectedMovies);
-      return { selectedMovies };
+      writeWatchedMovies(watchedMovies);
+      if (adding) cacheWatchlistMetadata(state.response?.screenings ?? [], new Set([movie]));
+      return { selectedMovies, watchedMovies };
     }),
 
   setMovieSelection: (movies: string[]) =>
-    set(() => {
+    set((state) => {
       const selectedMovies = [...new Set(movies)].sort();
+      const watchedMovies = state.watchedMovies.filter((movie) => !selectedMovies.includes(movie));
       persistMovieSelection(selectedMovies);
-      return { selectedMovies };
+      writeWatchedMovies(watchedMovies);
+      cacheWatchlistMetadata(state.response?.screenings ?? [], new Set(selectedMovies));
+      return { selectedMovies, watchedMovies };
     }),
 
-  syncMovieSelection: () => set({ selectedMovies: readMovieSelection() }),
+  syncMovieSelection: () =>
+    set(() => {
+      const watchedMovies = readWatchedMovies();
+      return {
+        watchedMovies,
+        selectedMovies: readMovieSelection().filter((movie) => !watchedMovies.includes(movie)),
+      };
+    }),
+
+  setMovieWatched: (movie, watched) =>
+    set((state) => {
+      const selectedMovies = watched
+        ? state.selectedMovies.filter((value) => value !== movie)
+        : [...new Set([...state.selectedMovies, movie])].sort();
+      const watchedMovies = watched
+        ? [...new Set([...state.watchedMovies, movie])].sort()
+        : state.watchedMovies.filter((value) => value !== movie);
+      persistMovieSelection(selectedMovies);
+      writeWatchedMovies(watchedMovies);
+      if (!watched) cacheWatchlistMetadata(state.response?.screenings ?? [], new Set([movie]));
+      return { selectedMovies, watchedMovies };
+    }),
+
+  removeWatchlistMovie: (movie) =>
+    set((state) => {
+      const selectedMovies = state.selectedMovies.filter((value) => value !== movie);
+      const watchedMovies = state.watchedMovies.filter((value) => value !== movie);
+      persistMovieSelection(selectedMovies);
+      writeWatchedMovies(watchedMovies);
+      return { selectedMovies, watchedMovies };
+    }),
 
   setPlanningDraft: (planningDraftDate, movies) =>
     set({

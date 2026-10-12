@@ -67,13 +67,30 @@ Keep component boundaries clear. Avoid monolithic page files and avoid using mod
 
 ## Product surfaces
 
-The product has one primary planning workflow plus secondary inspection/settings surfaces. Preserve the orientation model: **Calendar → Movie Selection → Movie Day → Calendar**. A first-time user should not need to understand internal feature names or visit the showtime table to make a plan.
+The product has one primary planning workflow plus secondary inspection/settings surfaces. Preserve the orientation model: **Calendar → Movie Selection → Movie Day → Calendar**. A persistent Watchlist page is an independent management surface, not a replacement for Movie Selection. A first-time user should not need to understand internal feature names or visit the showtime table to make a plan.
 
 ### Calendar
 
 `/` is the infinite-scroll future calendar and the application home. It is the source of orientation: choosing a day sets the shared date and opens Movie Selection; locking an itinerary returns to the calendar focused on that same date. Saved current/future plans render inline on their dates.
 
 The browser-local movie set is a durable **want list**, not a temporary table filter or a basket that is emptied after saving a plan. A wanted movie must always be explainable as planned on a current/future saved day, a candidate for the day currently being planned, or still unplanned. The calendar must surface unplanned wanted movies rather than silently losing them. Past plans do not satisfy the current/future planned invariant.
+
+### Watchlist
+
+`/watchlist` manages the existing browser-local wanted movie set and a separate,
+reversible watched-history list. Watched titles stop being wanted without altering
+saved itineraries. Removal from either group does not silently change saved
+plans. Cache only small, non-authoritative display metadata for wanted/watched
+movies so they stay visible after their published run; the backend remains
+authoritative for showtime facts. This remains a no-account product.
+
+Future schedule visibility comes from `/api/movie-availability?after=YYYY-MM-DD`,
+which counts only published listings on distinct dates strictly after the
+reference date, within the following 14 days. It uses the configured ZIP/radius
+and cached base screenings, without AMC/OMDb/travel enrichment. Watchlist
+references today; Movie Day references the chosen planning date. Partial
+provider failures must remain explicit; no future listing is *not* evidence
+of a movie's exit date.
 
 ### Showtimes table
 
@@ -90,7 +107,7 @@ New data should normally become another ordinary typed column rather than a spec
 
 ### Movie Selection
 
-`/movies` is a poster-first, dark Now Playing grid inspired by the supplied AMC mobile layout. The poster tile itself is the checkbox; it should not become a detail-heavy card grid. The page may expose compact local filters and sorting controls, but posters remain the visual focus. When sorting by a field, show that field's value directly under each title so the ordering is auditable. Initial release date is one supported sort/filter dimension and must come from backend metadata rather than frontend inference.
+`/movies` is a poster-first, dark Now Playing grid inspired by the supplied AMC mobile layout. The poster tile itself is the checkbox; it should not become a detail-heavy card grid. The page may expose compact local filters and sorting controls, but posters remain the visual focus. When sorting by a field, show that field's value directly under each title so the ordering is auditable. Initial release date is one supported sort/filter dimension and must come from backend metadata rather than frontend inference. Show **Already seen** rather than **Available** for watched titles without disabling the poster tile.
 
 Movie Selection's local filter panel is collapsed by default behind a compact **Filters** button. Keep the active-filter count on that button while collapsed and close any open checkbox submenu when collapsing the whole panel. This is a presentation choice only; filter state survives opening/closing the panel.
 
@@ -104,7 +121,7 @@ Wanted movie titles live in browser local storage independently from the Screeni
 
 `/plan` is the final step of the calendar workflow. It consumes wanted movies that are available on the selected date while excluding movies already scheduled on another current/future day. The browser submits only eligible showtime IDs; the backend reloads canonical showtimes for the same date/location/preview cookies before planning.
 
-The novice surface intentionally exposes only **How many movies?** (default **1**) and **Find itineraries**. Start/Home by, candidate editing, primary/secondary sort, transfer buffer, saved views, and showing facets belong under **Advanced options**. Ranking, pins, and runtime overrides belong under **Movie priorities & runtimes**. Keep the optimization power available, but do not make a first-time user parse it before producing a valid one-movie plan. Locking an itinerary preserves the want list and returns directly to the calendar.
+The novice surface intentionally exposes only **How many movies?** (default **Any valid count**) and **Find itineraries**. Start/Home by, candidate editing, primary/secondary sort, transfer buffer, saved views, and showing facets belong under **Advanced options**. Ranking, pins, and runtime overrides belong under **Movie priorities & runtimes**, including date-relative future-showtime counts per ranked title. Only a complete provider search with 0–2 later days or 0–3 later showtimes should trigger a scarcity warning; missing days imply lower-bound counts, not urgency. Do not duplicate these details in a standalone Movie Day section. Keep the optimization power available, but do not make a first-time user parse it before producing a valid one-movie plan. Locking an itinerary preserves the want list and returns directly to the calendar.
 
 Movie Day priority/pin state is browser-local planner preference state, separate from the shared selected-movie set. Preserve the user's ordering as selected titles are added or removed. The ranked movie array is submitted to the backend in priority order. With `N` selected movies, rank #1 is worth `N` points, rank #2 is worth `N-1`, down to one point for the last-ranked movie; an itinerary's want score is the sum of its included movies. Pins are submitted separately as `required_movies`.
 

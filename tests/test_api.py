@@ -4,7 +4,7 @@ import io
 import json
 import re
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -497,3 +497,64 @@ def test_experience_deviation_settings_persist_and_apply_to_screenings(monkeypat
     assert code == 200
     assert payload["screenings"][0]["experience_score_adjustment"] == 0
     assert payload["screenings"][0]["experience_deviations"] == []
+
+
+def test_future_availability_counts_distinct_days_and_showtimes(monkeypatch):
+    class Service:
+        def get_screenings(self, show_date, _previews, *, zip_code, radius_miles):
+            assert (zip_code, radius_miles) == ("85004", 25)
+            if show_date == date(2026, 10, 21):
+                return [
+                    replace(
+                        sample_screening("Alpha"),
+                        showtime_id="a1",
+                        advertised_start=datetime(2026, 10, 21, 12),
+                    ),
+                    replace(
+                        sample_screening("Alpha"),
+                        showtime_id="a2",
+                        advertised_start=datetime(2026, 10, 21, 20),
+                    ),
+                ]
+            if show_date == date(2026, 10, 23):
+                return [
+                    replace(
+                        sample_screening("Alpha"),
+                        showtime_id="a3",
+                        advertised_start=datetime(2026, 10, 23, 19),
+                    )
+                ]
+            return []
+
+    monkeypatch.setattr(api, "_SERVICE", Service())
+    status, payload = call("/api/movie-availability", query="after=2026-10-20")
+    assert status == 200
+    assert payload["after_date"] == "2026-10-20"
+    assert payload["window_end"] == "2026-11-03"
+    assert len(payload["checked_dates"]) == 14
+    assert payload["unavailable_dates"] == []
+    assert payload["movies"]["Alpha"] == {
+        "scheduled_days": 2,
+        "showtime_count": 3,
+        "last_scheduled_date": "2026-10-23",
+    }
+
+
+def test_future_availability_is_explicitly_partial(monkeypatch):
+    class Service:
+        def get_screenings(self, show_date, _previews, *, zip_code, radius_miles):
+            if show_date == date(2026, 10, 22):
+                raise ValueError("provider unavailable")
+            return []
+
+    monkeypatch.setattr(api, "_SERVICE", Service())
+    status, payload = call("/api/movie-availability", query="after=2026-10-20")
+    assert status == 200
+    assert payload["unavailable_dates"] == ["2026-10-22"]
+    assert payload["movies"] == {}
+
+
+def test_future_availability_requires_reference_date():
+    status, payload = call("/api/movie-availability")
+    assert status == 400
+    assert "after" in payload["error"]

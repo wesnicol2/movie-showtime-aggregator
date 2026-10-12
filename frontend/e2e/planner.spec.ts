@@ -216,7 +216,7 @@ test("calendar-first flow keeps wanted movies and returns to the planned day aft
 
   await expect(page).toHaveURL(/\/plan$/);
   await expect(page.getByRole("heading", { name: "Build your itinerary" })).toBeVisible();
-  await expect(page.getByLabel("Number of movies")).toHaveValue("1");
+  await expect(page.getByLabel("Number of movies")).toHaveValue("any");
 
   await page.getByLabel("Number of movies").selectOption("all");
   await page.getByRole("button", { name: "Find itineraries" }).click();

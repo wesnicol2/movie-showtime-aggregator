@@ -72,6 +72,20 @@ export interface Screening {
   experience_score_adjustment?: number;
 }
 
+export interface MovieAvailabilitySummary {
+  scheduled_days: number;
+  showtime_count: number;
+  last_scheduled_date: string | null;
+}
+
+export interface MovieAvailabilityResponse {
+  after_date: string;
+  window_end: string;
+  checked_dates: string[];
+  unavailable_dates: string[];
+  movies: Record<string, MovieAvailabilitySummary>;
+}
+
 export interface PublicPreferences {
   amc_vendor_key_set: boolean;
   omdb_api_key_set: boolean;
