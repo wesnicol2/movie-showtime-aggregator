@@ -45,6 +45,14 @@ movies remain visible even with no showtimes.
 
 Browser-local watchlist state does not synchronize across devices.
 
+## Now Playing / Showtimes
+
+Open **Showtimes** or `/showtimes` to browse one poster-left card per movie playing on the selected date (today by default). Each card shows available release/runtime/ratings metadata, its formats, total matching showtimes, distinct theaters per chain, nearest distance, lowest listed ticket price, and an expandable theater/showtime listing with ticket links. The movie list can sort by title, ratings, release date, theaters, showtimes, or nearest distance.
+
+The **Movies / Table** switch preserves the original spreadsheet inspection surface. Both views share exactly the same screening filters; the movie list groups the **matching screenings** rather than counting theaters from filtered-out rows. Open **Filters** in Movies view to use the same per-column exact-value and rule controls as the table. A movie appears only once across its matching showtimes and chains; distinct verified IMDb identities remain separate even if they share a title.
+
+The list shows the movies returned by the configured provider within the selected ZIP/radius, not a guarantee that all theaters in the geographic area have published listings. Missing ratings, posters, prices, and other optional enrichment never remove a movie.
+
 ## Showtimes table
 
 Open **Showtimes** or `/showtimes` for the detailed spreadsheet-style screening view. Click a column name to sort it. Click the dropdown at the right side of any column header to filter that column. Every column supports exact-value checkboxes. Text columns add contains/equals-style rules, time columns add before/after rules, and numeric columns add less-than/greater-than rules.
