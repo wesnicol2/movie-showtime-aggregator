@@ -7,7 +7,12 @@ import {
   useState,
 } from "react";
 
-import type { Screening } from "../types";
+import {
+  availabilityForMovie,
+  movieAvailabilityText,
+  shortAvailabilityDate,
+} from "../movie-availability";
+import type { MovieAvailabilityResponse, Screening } from "../types";
 import "../movie-priority-drag.css";
 
 const LONG_PRESS_MS = 450;
@@ -16,6 +21,9 @@ const HOLD_MOVE_TOLERANCE_PX = 8;
 interface Props {
   movies: readonly string[];
   screeningsByMovie: ReadonlyMap<string, Screening>;
+  availability: MovieAvailabilityResponse | null;
+  availabilityError: boolean;
+  selectedDate: string;
   pinnedMovies: readonly string[];
   defaultRuntimeByMovie: Readonly<Record<string, number | null>>;
   runtimeOverrides: Readonly<Record<string, number>>;
@@ -28,6 +36,9 @@ interface Props {
 export function MoviePriorityEditor({
   movies,
   screeningsByMovie,
+  availability,
+  availabilityError,
+  selectedDate,
   pinnedMovies,
   defaultRuntimeByMovie,
   runtimeOverrides,
@@ -272,7 +283,8 @@ export function MoviePriorityEditor({
       <p className="movie-priority-help" id="movie-priority-help">
         Higher-ranked movies are worth more want points. Press and hold the three-line handle until
         the movie lifts, then drag it into place; use Top to jump a movie to #1. Pin a movie to
-        require it in every itinerary. Use × to remove a movie from this day. Runtime overrides
+        require it in every itinerary. Future showtimes count listings after this day, not
+        predicted theater exit dates. Use × to remove a movie from this day. Runtime overrides
         replace the fetched runtime for Movie Day planning; clear an override to use the fetched
         value again.
       </p>
@@ -283,6 +295,21 @@ export function MoviePriorityEditor({
           const runtimeOverride = runtimeOverrides[movie];
           const defaultRuntime = defaultRuntimeByMovie[movie] ?? null;
           const screening = screeningsByMovie.get(movie);
+          const later = availabilityForMovie(availability, movie);
+          // Missing dates are lower bounds, even when no provider error was reported.
+          const expectedDays = availability
+            ? (Date.parse(`${availability.window_end}T00:00:00Z`) -
+                Date.parse(`${availability.after_date}T00:00:00Z`)) /
+              86_400_000
+            : 0;
+          const limitedListings =
+            !availabilityError &&
+            availability !== null &&
+            expectedDays > 0 &&
+            availability.checked_dates.length === expectedDays &&
+            availability.unavailable_dates.length === 0 &&
+            later !== null &&
+            (later.scheduled_days <= 2 || later.showtime_count <= 3);
           const letterboxdScore = screening?.imdb_id
             ? letterboxdRatings[screening.imdb_id]
             : undefined;
@@ -351,6 +378,28 @@ export function MoviePriorityEditor({
                     }
                     href={letterboxdUrl}
                   />
+                </div>
+                <div
+                  className={`movie-priority-availability${limitedListings ? " is-limited" : ""}`}
+                  title={`Published listings after ${shortAvailabilityDate(selectedDate)}${
+                    availability
+                      ? ` through ${shortAvailabilityDate(availability.window_end)}`
+                      : " (next 14 days)"
+                  }. Not a predicted theater exit date.`}
+                >
+                  {limitedListings ? (
+                    <strong>
+                      {later?.scheduled_days === 0
+                        ? "No later showtimes listed"
+                        : "Few chances listed"}
+                    </strong>
+                  ) : null}
+                  {!limitedListings || later?.scheduled_days !== 0 ? (
+                    <span>{movieAvailabilityText(later, availability, availabilityError)}</span>
+                  ) : null}
+                  {later?.last_scheduled_date ? (
+                    <span>Last listed {shortAvailabilityDate(later.last_scheduled_date)}</span>
+                  ) : null}
                 </div>
               </div>
               <label className="movie-runtime-editor">

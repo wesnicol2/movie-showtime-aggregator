@@ -118,6 +118,60 @@ async function dragFromTo(
   await session.detach();
 }
 
+test("ranking rows display later showtimes and highlight verified scarcity", async ({ page }) => {
+  await mockScreenings(page);
+  await page.route("**/api/movie-availability?*", async (route) => {
+    await route.fulfill({
+      json: {
+        after_date: "2026-10-11",
+        window_end: "2026-10-25",
+        checked_dates: Array.from({ length: 14 }, (_, index) =>
+          `2026-10-${String(12 + index).padStart(2, "0")}`,
+        ),
+        unavailable_dates: [],
+        movies: {
+          Alpha: { scheduled_days: 1, showtime_count: 2, last_scheduled_date: "2026-10-12" },
+          Beta: { scheduled_days: 5, showtime_count: 40, last_scheduled_date: "2026-10-24" },
+          Gamma: { scheduled_days: 0, showtime_count: 0, last_scheduled_date: null },
+        },
+      },
+    });
+  });
+  await page.goto("/plan");
+  await expect(page.getByText("Later showtimes for your movies")).toHaveCount(0);
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
+  const alpha = page.locator("[data-movie-priority-row]").filter({ hasText: "Alpha" });
+  const beta = page.locator("[data-movie-priority-row]").filter({ hasText: "Beta" });
+  const gamma = page.locator("[data-movie-priority-row]").filter({ hasText: "Gamma" });
+  await expect(alpha.getByText("Few chances listed")).toBeVisible();
+  await expect(alpha.getByText("1 listed day · 2 showtimes")).toBeVisible();
+  await expect(beta.getByText("5 listed days · 40 showtimes")).toBeVisible();
+  await expect(beta.locator(".movie-priority-availability.is-limited")).toHaveCount(0);
+  await expect(gamma.getByText("No later showtimes listed")).toBeVisible();
+});
+
+test("incomplete provider dates do not trigger false scarcity warnings", async ({ page }) => {
+  await mockScreenings(page);
+  await page.route("**/api/movie-availability?*", async (route) => {
+    await route.fulfill({
+      json: {
+        after_date: "2026-10-11",
+        window_end: "2026-10-25",
+        checked_dates: ["2026-10-12"],
+        unavailable_dates: ["2026-10-13"],
+        movies: {
+          Alpha: { scheduled_days: 1, showtime_count: 2, last_scheduled_date: "2026-10-12" },
+        },
+      },
+    });
+  });
+  await page.goto("/plan");
+  await page.getByText("Movie priorities & runtimes", { exact: true }).click();
+  const alpha = page.locator("[data-movie-priority-row]").filter({ hasText: "Alpha" });
+  await expect(alpha.getByText("At least 1 listed day · 2 showtimes")).toBeVisible();
+  await expect(alpha.locator(".movie-priority-availability.is-limited")).toHaveCount(0);
+});
+
 test("priority rows use drag handles and can send a movie directly to the top", async ({
   page,
 }) => {

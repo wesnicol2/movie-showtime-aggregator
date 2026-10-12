@@ -4,12 +4,7 @@ import { createMovieDayPlan } from "./api";
 import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
 import { MovieDayControlBar } from "./components/MovieDayControlBar";
 import { MoviePriorityEditor } from "./components/MoviePriorityEditor";
-import {
-  availabilityForMovie,
-  movieAvailabilityText,
-  shortAvailabilityDate,
-  useMovieAvailability,
-} from "./movie-availability";
+import { useMovieAvailability } from "./movie-availability";
 import { MAX_MOVIES_PER_DAY } from "./movie-limits";
 import "./movie-day.css";
 import { readSavedMoviePlans, savedMoviePlanForDate, saveMoviePlan } from "./planner";
@@ -405,36 +400,6 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
         onPlan={() => void generate()}
       />
 
-      {availableSelectedMovies.length > 0 ? (
-        <section className="movie-day-later-listings" aria-label="Later published showtimes">
-          <h2>Later showtimes for your movies</h2>
-          <p>
-            Counting published showtimes strictly after {shortAvailabilityDate(selectedDate)}
-            {laterAvailability
-              ? ` through ${shortAvailabilityDate(laterAvailability.window_end)}`
-              : " for the next 14 days"}
-            . This does not predict when a movie leaves theaters.
-            {laterAvailability?.unavailable_dates.length
-              ? " Some dates could not be checked; counts are lower bounds."
-              : ""}
-          </p>
-          <ul>
-            {availableSelectedMovies.map((movie) => {
-              const summary = availabilityForMovie(laterAvailability, movie);
-              return (
-                <li key={movie}>
-                  <strong>{movie}</strong>
-                  <span>{movieAvailabilityText(summary, laterAvailability, laterError)}</span>
-                  {summary?.last_scheduled_date ? (
-                    <span>Last listed {shortAvailabilityDate(summary.last_scheduled_date)}</span>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
-
       {response && !homeConfigured ? (
         <div className="status-strip" role="status">
           <strong>Warning: no home address is set.</strong> “Home by” falls back to the final
@@ -452,6 +417,9 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
           <MoviePriorityEditor
             movies={rankedMovies}
             screeningsByMovie={screeningByMovie}
+            availability={laterAvailability}
+            availabilityError={laterError}
+            selectedDate={selectedDate}
             pinnedMovies={pinnedMovies}
             defaultRuntimeByMovie={defaultRuntimeByMovie}
             runtimeOverrides={runtimeOverrides}
