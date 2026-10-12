@@ -173,10 +173,11 @@ export function ScreeningsPage() {
       {response ? (
         <>
           <div className="showcase-toolbar">
-            <div className="showcase-tabs" role="group" aria-label="Showtimes display">
+            <fieldset className="showcase-tabs">
+              <legend className="sr-only">Showtimes display</legend>
               <button type="button" aria-pressed={view === "movies"} onClick={() => { setView("movies"); setInspectedShowtimeId(null); }}>Movies</button>
               <button type="button" aria-pressed={view === "table"} onClick={() => { setView("table"); setOpenColumn(null); }}>Table</button>
-            </div>
+            </fieldset>
             <div className="showcase-tools">
               {view === "movies" ? (
                 <>
@@ -209,7 +210,8 @@ export function ScreeningsPage() {
             </div>
           </div>
           {filtersOpen ? (
-            <div className="showcase-filters" role="group" aria-label="Screening filters">
+            <fieldset className="showcase-filters">
+              <legend className="sr-only">Screening filters</legend>
               {COLUMNS.map((column) => (
                 <div className="showcase-filter-chip" key={column.key}>
                   <span>{column.label}</span>
@@ -223,7 +225,7 @@ export function ScreeningsPage() {
                   />
                 </div>
               ))}
-            </div>
+            </fieldset>
           ) : null}
           <div className="result-strip" aria-live="polite">
             {view === "movies" ? (
