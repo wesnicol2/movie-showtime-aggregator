@@ -125,8 +125,9 @@ test("ranking rows display later showtimes and highlight verified scarcity", asy
       json: {
         after_date: "2026-10-11",
         window_end: "2026-10-25",
-        checked_dates: Array.from({ length: 14 }, (_, index) =>
-          `2026-10-${String(12 + index).padStart(2, "0")}`,
+        checked_dates: Array.from(
+          { length: 14 },
+          (_, index) => `2026-10-${String(12 + index).padStart(2, "0")}`,
         ),
         unavailable_dates: [],
         movies: {
