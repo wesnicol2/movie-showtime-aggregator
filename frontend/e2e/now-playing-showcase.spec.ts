@@ -141,6 +141,7 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
   await expect(alpha.getByText("3 showtimes")).toBeVisible();
   await expect(alpha.getByText("Harkins 1 theater")).toHaveCount(0);
 
+  await filter.getByRole("button", { name: "Close filter" }).click();
   await page.getByRole("button", { name: "Table", exact: true }).click();
   await expect(page.getByTestId("screening-table-wrap")).toBeVisible();
   await expect(page.locator(".screening-table tbody tr")).toHaveCount(3);
