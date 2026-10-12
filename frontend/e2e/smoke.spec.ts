@@ -137,9 +137,10 @@ test("calendar home and secondary navigation preserve loaded screening state", a
   expect(screeningRequestCount()).toBe(0);
 
   await page.getByRole("button", { name: "Showtimes" }).click();
-  await expect(page.getByRole("heading", { name: "Screenings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Now playing" })).toBeVisible();
   await expect(page.getByText("2 of 2 screenings")).toBeVisible();
-  await expect(page.getByText("Alpha", { exact: true }).first()).toBeVisible();
+  await expect(page.getByTestId("showcase-movie")).toHaveCount(2);
+  await expect(page.getByRole("heading", { name: "Alpha" })).toBeVisible();
   expect(screeningRequestCount()).toBe(1);
 
   await page.getByRole("button", { name: "Calendar" }).click();
