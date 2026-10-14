@@ -101,8 +101,6 @@ interface AppState {
   sort: SortState;
   selectedMovies: string[];
   watchedMovies: string[];
-  planningDraftDate: string | null;
-  planningDraftMovies: string[] | null;
   inspectedShowtimeId: string | null;
   setLoading: () => void;
   setResponse: (response: ScreeningsResponse) => void;
@@ -117,8 +115,6 @@ interface AppState {
   syncMovieSelection: () => void;
   setMovieWatched: (movie: string, watched: boolean) => void;
   removeWatchlistMovie: (movie: string) => void;
-  setPlanningDraft: (date: string, movies: string[] | null) => void;
-  clearPlanningDraft: () => void;
   setInspectedShowtimeId: (showtimeId: string | null) => void;
   applySavedView: (view: SavedView) => void;
 }
@@ -132,8 +128,6 @@ export const useAppStore = create<AppState>((set) => ({
   sort: { key: "advertised_start", direction: "asc" },
   selectedMovies: initialSelection,
   watchedMovies: initialWatched,
-  planningDraftDate: null,
-  planningDraftMovies: null,
   inspectedShowtimeId: null,
 
   setLoading: () => set({ status: "loading", error: null }),
@@ -231,15 +225,6 @@ export const useAppStore = create<AppState>((set) => ({
       writeWatchedMovies(watchedMovies);
       return { selectedMovies, watchedMovies };
     }),
-
-  setPlanningDraft: (planningDraftDate, movies) =>
-    set({
-      planningDraftDate,
-      planningDraftMovies:
-        movies === null ? null : [...new Set(movies)].sort(),
-    }),
-
-  clearPlanningDraft: () => set({ planningDraftDate: null, planningDraftMovies: null }),
 
   setInspectedShowtimeId: (inspectedShowtimeId) => set({ inspectedShowtimeId }),
 
