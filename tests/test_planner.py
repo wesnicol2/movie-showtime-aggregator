@@ -40,7 +40,6 @@ def screening(
     )
 
 
-
 def test_accepts_twenty_candidate_movies_and_rejects_twenty_one():
     names = [f"Movie {index}" for index in range(21)]
     result = plan_movie_day(
