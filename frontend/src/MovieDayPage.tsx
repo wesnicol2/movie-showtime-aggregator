@@ -266,7 +266,8 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
     // Advanced candidate edits modify wanted status too; keep global wanted
     // titles that cannot be scheduled on this date.
     const retained = selectedMovies.filter(
-      (movie) => !available.has(movie) || (plannedElsewhere.has(movie) && !currentPlanMovies.has(movie)),
+      (movie) =>
+        !available.has(movie) || (plannedElsewhere.has(movie) && !currentPlanMovies.has(movie)),
     );
     setMovieSelection([...retained, ...movies]);
   }
@@ -279,7 +280,9 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   async function generate(offset = 0): Promise<void> {
     if (!response || rankedMovies.length === 0 || targetCount === 0) return;
     if (overLimit) {
-      setPlanError(`${availableSelectedMovies.length} movies selected. Remove ${availableSelectedMovies.length - MAX_MOVIES_PER_DAY} to schedule (20 maximum).`);
+      setPlanError(
+        `${availableSelectedMovies.length} movies selected. Remove ${availableSelectedMovies.length - MAX_MOVIES_PER_DAY} to schedule (20 maximum).`,
+      );
       return;
     }
     setPlanning(true);
@@ -388,8 +391,8 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
       {overLimit ? (
         <div className="status-strip error" role="alert">
           {availableSelectedMovies.length} movies selected for this date. Remove{" "}
-          {availableSelectedMovies.length - MAX_MOVIES_PER_DAY} from wanted movies to schedule
-          (20 maximum). Nothing was silently removed.
+          {availableSelectedMovies.length - MAX_MOVIES_PER_DAY} from wanted movies to schedule (20
+          maximum). Nothing was silently removed.
         </div>
       ) : null}
 
