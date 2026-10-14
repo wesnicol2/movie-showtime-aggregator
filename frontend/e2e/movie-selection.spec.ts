@@ -297,7 +297,9 @@ test("movie selection checkbox filters cover format, listed time, and selection"
 
   await keepOnly(page, "Selection", ["Not wanted"]);
   await expect(page.getByRole("button", { name: "Add Beta to wanted movies" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Remove Alpha from wanted movies" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Remove Alpha from wanted movies" })).toHaveCount(
+    0,
+  );
 
   await expect(page.getByText("1 active filters")).toBeVisible();
 });
@@ -409,9 +411,13 @@ test("wanted movies without a showing remain visible and can be deselected", asy
   await mockApi(page);
   await page.goto("/movies");
   await expect(page.getByRole("heading", { name: "Wanted · not showing" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Remove Offscreen from wanted movies" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Remove Offscreen from wanted movies" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Remove Offscreen from wanted movies" }).click();
-  await expect(page.getByRole("button", { name: "Remove Offscreen from wanted movies" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Remove Offscreen from wanted movies" }),
+  ).toHaveCount(0);
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -421,7 +427,9 @@ test("wanted movies without a showing remain visible and can be deselected", asy
     .toEqual(["Alpha"]);
 });
 
-test("ranked candidates follow movie selection and removing from ranking updates wanted", async ({ page }) => {
+test("ranked candidates follow movie selection and removing from ranking updates wanted", async ({
+  page,
+}) => {
   await mockApi(page);
   await page.goto("/movies");
   await page.getByRole("button", { name: "Add Alpha to wanted movies" }).click();
