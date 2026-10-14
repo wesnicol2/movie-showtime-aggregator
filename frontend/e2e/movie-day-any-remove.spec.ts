@@ -198,7 +198,9 @@ test("the priority-list X removes a movie from wanted movies and ranking", async
 
   await page.getByRole("button", { name: "Remove Alpha from wanted movies" }).click();
 
-  await expect(page.getByRole("button", { name: "Remove Alpha from wanted movies" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Remove Alpha from wanted movies" })).toHaveCount(
+    0,
+  );
   const selected = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("movie-showtime-aggregator.selected-movies.v1") ?? "[]"),
   );
