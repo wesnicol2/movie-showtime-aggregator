@@ -1,6 +1,8 @@
 from dataclasses import replace
 from datetime import datetime, timedelta
 
+import pytest
+
 from movie_showtime_aggregator.location import GeoPoint
 from movie_showtime_aggregator.models import Screening
 from movie_showtime_aggregator.planner import plan_movie_day
@@ -36,6 +38,22 @@ def screening(
         theatre_longitude=point.longitude if point else None,
         drive_home_minutes=0,
     )
+
+
+
+def test_accepts_twenty_candidate_movies_and_rejects_twenty_one():
+    names = [f"Movie {index}" for index in range(21)]
+    result = plan_movie_day(
+        [screening("movie-0", names[0], 9, 0, 60)],
+        names[:20],
+        {},
+        target_movie_count=1,
+    )
+    assert result.selected_movies == tuple(names[:20])
+    assert result.total_itineraries == 1
+
+    with pytest.raises(ValueError, match="at most 20 selected movies"):
+        plan_movie_day([], names, {}, target_movie_count=1)
 
 
 def test_planner_globally_sorts_feasible_itineraries_by_minimum_elapsed_time():
