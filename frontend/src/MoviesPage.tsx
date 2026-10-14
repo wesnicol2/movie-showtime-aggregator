@@ -89,9 +89,12 @@ export function MoviesPage({ onBack, onContinue }: Props) {
   const planningMovies = useMemo(() => {
     const available = new Set(allMovies.map((movie) => movie.representative.movie));
     return new Set(
-      selectedMovies.filter((movie) => available.has(movie) && !plannedOnOtherDates.has(movie)),
+      selectedMovies.filter(
+        (movie) =>
+          available.has(movie) && (!plannedOnOtherDates.has(movie) || plannedThisDate.has(movie)),
+      ),
     );
-  }, [allMovies, plannedOnOtherDates, selectedMovies]);
+  }, [allMovies, plannedOnOtherDates, plannedThisDate, selectedMovies]);
   const overLimit = planningMovies.size > MAX_MOVIES_PER_DAY;
   const wantedNotShowing = useMemo(() => {
     const available = new Set(allMovies.map((movie) => movie.representative.movie));
@@ -116,7 +119,10 @@ export function MoviesPage({ onBack, onContinue }: Props) {
     }
     // Planned elsewhere titles stay on the global want list but cannot be
     // double-booked. Other available movies count against the daily limit.
-    if (!plannedOnOtherDates.has(movie) && planningMovies.size >= MAX_MOVIES_PER_DAY) return;
+    if (
+      (!plannedOnOtherDates.has(movie) || plannedThisDate.has(movie)) &&
+      planningMovies.size >= MAX_MOVIES_PER_DAY
+    ) return;
     setMovieSelection([...selectedMovies, movie]);
   }
 
@@ -324,7 +330,9 @@ export function MoviesPage({ onBack, onContinue }: Props) {
           const plannedElsewhere = plannedOnOtherDates.get(screening.movie);
           const selectedForDay = planningMovies.has(screening.movie);
           const full =
-            !wanted && !plannedElsewhere && planningMovies.size >= MAX_MOVIES_PER_DAY;
+            !wanted &&
+            (!plannedElsewhere || plannedHere) &&
+            planningMovies.size >= MAX_MOVIES_PER_DAY;
           const statusLabel = full
             ? "20-movie limit reached"
             : selectedForDay
@@ -365,7 +373,9 @@ export function MoviesPage({ onBack, onContinue }: Props) {
                 <span className="poster-check" aria-hidden="true">
                   ✓
                 </span>
-                <span className={`poster-status ${plannedElsewhere ? "planned" : ""}`}>{statusLabel}</span>
+                <span className={`poster-status ${plannedElsewhere ? "planned" : ""}`}>
+                {statusLabel}
+              </span>
               </span>
               <span className="movie-title">{screening.movie}</span>
               <span className="movie-sort-value">{sortValueLabel(screening, sort)}</span>
@@ -396,7 +406,9 @@ export function MoviesPage({ onBack, onContinue }: Props) {
                     ) : (
                       <span className="poster-fallback">{movie}</span>
                     )}
-                    <span className="poster-check" aria-hidden="true">✓</span>
+                    <span className="poster-check" aria-hidden="true">
+                      ✓
+                    </span>
                     <span className="poster-status">Not showing this day</span>
                   </span>
                   <span className="movie-title">{movie}</span>
