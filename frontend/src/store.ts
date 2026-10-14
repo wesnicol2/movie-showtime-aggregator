@@ -1,6 +1,5 @@
 import { create } from "zustand";
 
-import { MAX_MOVIES_PER_DAY } from "./movie-limits";
 import { readSavedMoviePlans } from "./planner";
 import { type ColumnFilter, createEmptyFilters, type Filters, type SortState } from "./screenings";
 import { browserDate } from "./show-date";
@@ -237,7 +236,7 @@ export const useAppStore = create<AppState>((set) => ({
     set({
       planningDraftDate,
       planningDraftMovies:
-        movies === null ? null : [...new Set(movies)].slice(0, MAX_MOVIES_PER_DAY).sort(),
+        movies === null ? null : [...new Set(movies)].sort(),
     }),
 
   clearPlanningDraft: () => set({ planningDraftDate: null, planningDraftMovies: null }),
