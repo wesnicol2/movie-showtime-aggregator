@@ -92,6 +92,12 @@ references today; Movie Day references the chosen planning date. Partial
 provider failures must remain explicit; no future listing is *not* evidence
 of a movie's exit date.
 
+### Now Playing showcase and Showtimes table
+
+`/showtimes` defaults to a poster-left movie list, with a Movies/Table switch. The showcase aggregates *filtered* screening rows, so all counts (unique theaters per chain, showtimes, formats, prices, nearest distance, expanded ticket links) reflect the same column filters as the original table. Count unique `(chain, theater)` combinations, not individual performances; stable IMDb identities must not be merged when films share a title. Unmatched title aliases can still be ambiguous; do not silently claim geographic completeness beyond the Fandango listings in the configured radius. Missing optional enrichment must not hide base movies.
+
+Keep the spreadsheet-style power-user inspection surface behind Table, with original per-column sorting, filters, inspector and saved views. Reuse `COLUMNS` and `ColumnFilter` in the collapsible showcase filter panel; do not implement a second incompatible set of screening-filter semantics. Keep the main planning `/movies` poster-selection workflow independent.
+
 ### Showtimes table
 
 `/showtimes` is the spreadsheet-style power-user inspection surface. Do not recreate standalone filtering panels. Every displayed column is a first-class sort/filter dimension:

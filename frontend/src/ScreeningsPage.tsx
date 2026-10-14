@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { ColumnFilter } from "./components/ColumnFilter";
+import { MovieShowcase } from "./components/MovieShowcase";
 import { ScreeningInspector } from "./components/ScreeningInspector";
 import { ScreeningTable } from "./components/ScreeningTable";
 import { readDefaultSavedView, writeDefaultSavedView } from "./saved-view-defaults";
-import { filterAndSort, isFilterActive } from "./screenings";
+import { COLUMNS, filterAndSort, isFilterActive } from "./screenings";
+import { buildShowcase, type ShowcaseSort, sortShowcase } from "./showcase";
 import {
   createSavedView,
   readSavedViews,
@@ -11,6 +14,7 @@ import {
   useAppStore,
   writeSavedViews,
 } from "./store";
+import type { ColumnKey } from "./types";
 import { useScreenings } from "./useScreenings";
 
 export function ScreeningsPage() {
@@ -19,11 +23,19 @@ export function ScreeningsPage() {
   const status = useAppStore((state) => state.status);
   const error = useAppStore((state) => state.error);
   const filters = useAppStore((state) => state.filters);
+  const updateFilter = useAppStore((state) => state.updateFilter);
+  const selectedMovies = useAppStore((state) => state.selectedMovies);
+  const watchedMovies = useAppStore((state) => state.watchedMovies);
   const sort = useAppStore((state) => state.sort);
   const clearAllFilters = useAppStore((state) => state.clearAllFilters);
   const inspectedShowtimeId = useAppStore((state) => state.inspectedShowtimeId);
   const setInspectedShowtimeId = useAppStore((state) => state.setInspectedShowtimeId);
   const applySavedView = useAppStore((state) => state.applySavedView);
+  const [view, setView] = useState<"movies" | "table">("movies");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [openColumn, setOpenColumn] = useState<ColumnKey | null>(null);
+  const [movieSort, setMovieSort] = useState<ShowcaseSort>("title");
+  const [movieSortDirection, setMovieSortDirection] = useState<"asc" | "desc">("asc");
   const [savedViews, setSavedViews] = useState(readSavedViews);
   const [selectedView, setSelectedView] = useState("");
   const [defaultView, setDefaultView] = useState(() => readDefaultSavedView("screenings"));
@@ -48,7 +60,17 @@ export function ScreeningsPage() {
     () => filterAndSort(screenings, filters, sort),
     [filters, screenings, sort],
   );
+  const allMovies = useMemo(() => buildShowcase(screenings), [screenings]);
+  const movies = useMemo(
+    () => sortShowcase(buildShowcase(visible), movieSort, movieSortDirection),
+    [visible, movieSort, movieSortDirection],
+  );
   const activeFilterCount = Object.values(filters).filter(isFilterActive).length;
+
+  function changeMovieSort(next: ShowcaseSort): void {
+    setMovieSort(next);
+    setMovieSortDirection(next === "title" || next === "distance_miles" ? "asc" : "desc");
+  }
   const inspected =
     screenings.find((screening) => screening.showtime_id === inspectedShowtimeId) ?? null;
 
@@ -97,7 +119,10 @@ export function ScreeningsPage() {
       <div className="workspace-bar">
         <div>
           <p className="eyebrow">DECISION WORKSPACE</p>
-          <h1 id="screenings-heading">Screenings</h1>
+          <h1 id="screenings-heading">Now playing</h1>
+          <p className="workflow-subtitle">
+            One movie per listing · all theaters in your search area
+          </p>
         </div>
         <div className="workspace-actions">
           <label className="select-label">
@@ -149,8 +174,102 @@ export function ScreeningsPage() {
       ) : null}
       {response ? (
         <>
+          <div className="showcase-toolbar">
+            <fieldset className="showcase-tabs">
+              <legend className="sr-only">Showtimes display</legend>
+              <button
+                type="button"
+                aria-pressed={view === "movies"}
+                onClick={() => {
+                  setView("movies");
+                  setInspectedShowtimeId(null);
+                }}
+              >
+                Movies
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "table"}
+                onClick={() => {
+                  setView("table");
+                  setOpenColumn(null);
+                }}
+              >
+                Table
+              </button>
+            </fieldset>
+            <div className="showcase-tools">
+              {view === "movies" ? (
+                <>
+                  <label className="select-label">
+                    <span className="sr-only">Sort movies</span>
+                    <select
+                      aria-label="Sort movies"
+                      value={movieSort}
+                      onChange={(event) => changeMovieSort(event.target.value as ShowcaseSort)}
+                    >
+                      <option value="title">Title</option>
+                      <option value="initial_release_date">Release date</option>
+                      <option value="imdb_rating">IMDb</option>
+                      <option value="rotten_tomatoes_score">Rotten Tomatoes</option>
+                      <option value="metacritic_score">Metacritic</option>
+                      <option value="theaters">Theaters showing</option>
+                      <option value="showtimes">Number of showtimes</option>
+                      <option value="distance_miles">Nearest theater</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    aria-label="Reverse movie sort"
+                    onClick={() =>
+                      setMovieSortDirection((direction) => (direction === "asc" ? "desc" : "asc"))
+                    }
+                  >
+                    {movieSortDirection === "asc" ? "↑ Ascending" : "↓ Descending"}
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                aria-label="Toggle screening filters"
+                aria-expanded={filtersOpen}
+                onClick={() => {
+                  setFiltersOpen((open) => !open);
+                  setOpenColumn(null);
+                }}
+              >
+                Filters{activeFilterCount > 0 ? " (" + activeFilterCount + ")" : ""}
+              </button>
+            </div>
+          </div>
+          {filtersOpen ? (
+            <fieldset className="showcase-filters">
+              <legend className="sr-only">Screening filters</legend>
+              {COLUMNS.map((column) => (
+                <div className="showcase-filter-chip" key={column.key}>
+                  <span>{column.label}</span>
+                  <ColumnFilter
+                    column={column}
+                    filter={filters[column.key]}
+                    screenings={screenings}
+                    open={openColumn === column.key}
+                    onOpenChange={(open) => setOpenColumn(open ? column.key : null)}
+                    onChange={(patch) => updateFilter(column.key, patch)}
+                  />
+                </div>
+              ))}
+            </fieldset>
+          ) : null}
           <div className="result-strip" aria-live="polite">
-            <strong>{visible.length}</strong> of {screenings.length} screenings
+            {view === "movies" ? (
+              <>
+                <strong>{movies.length}</strong> of {allMovies.length} movies
+                <span>·</span>
+              </>
+            ) : null}
+            <span>
+              {visible.length} of {screenings.length} screenings
+            </span>
             <span>·</span>
             <span>
               {response.location.radius_miles} mi from {response.location.zip_code}
@@ -162,25 +281,38 @@ export function ScreeningsPage() {
               </>
             ) : null}
           </div>
-          <div className={`screening-layout ${inspected ? "with-inspector" : ""}`}>
-            <div className="results-pane">
-              <ScreeningTable
-                screenings={visible}
-                allScreenings={screenings}
-                filters={filters}
-                sort={sort}
+          {view === "movies" ? (
+            <>
+              <MovieShowcase
+                movies={movies}
+                selectedMovies={selectedMovies}
+                watchedMovies={watchedMovies}
               />
-              {visible.length === 0 ? (
-                <p className="empty-state">No screenings match the active column filters.</p>
+              {movies.length === 0 ? (
+                <p className="empty-state">No movies match the current screening filters.</p>
+              ) : null}
+            </>
+          ) : (
+            <div className={`screening-layout ${inspected ? "with-inspector" : ""}`}>
+              <div className="results-pane">
+                <ScreeningTable
+                  screenings={visible}
+                  allScreenings={screenings}
+                  filters={filters}
+                  sort={sort}
+                />
+                {visible.length === 0 ? (
+                  <p className="empty-state">No screenings match the active column filters.</p>
+                ) : null}
+              </div>
+              {inspected ? (
+                <ScreeningInspector
+                  screening={inspected}
+                  onClose={() => setInspectedShowtimeId(null)}
+                />
               ) : null}
             </div>
-            {inspected ? (
-              <ScreeningInspector
-                screening={inspected}
-                onClose={() => setInspectedShowtimeId(null)}
-              />
-            ) : null}
-          </div>
+          )}
         </>
       ) : null}
     </section>
