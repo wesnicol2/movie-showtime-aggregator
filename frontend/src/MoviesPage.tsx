@@ -100,7 +100,7 @@ export function MoviesPage({ onBack, onContinue }: Props) {
     const available = new Set(allMovies.map((movie) => movie.representative.movie));
     return selectedMovies.filter((movie) => !available.has(movie));
   }, [allMovies, selectedMovies]);
-  const wantedMetadata = useMemo(readWatchlistMetadata, [response, selectedMovies]);
+  const wantedMetadata = readWatchlistMetadata();
 
   const movies = useMemo(
     () =>
@@ -122,7 +122,8 @@ export function MoviesPage({ onBack, onContinue }: Props) {
     if (
       (!plannedOnOtherDates.has(movie) || plannedThisDate.has(movie)) &&
       planningMovies.size >= MAX_MOVIES_PER_DAY
-    ) return;
+    )
+      return;
     setMovieSelection([...selectedMovies, movie]);
   }
 
@@ -227,8 +228,8 @@ export function MoviesPage({ onBack, onContinue }: Props) {
       {overLimit ? (
         <div className="status-strip error" role="alert">
           {planningMovies.size} movies selected for this day. Remove{" "}
-          {planningMovies.size - MAX_MOVIES_PER_DAY} to continue to scheduling.
-          Your wanted list has not been truncated.
+          {planningMovies.size - MAX_MOVIES_PER_DAY} to continue to scheduling. Your wanted list has
+          not been truncated.
         </div>
       ) : null}
 
@@ -374,8 +375,8 @@ export function MoviesPage({ onBack, onContinue }: Props) {
                   ✓
                 </span>
                 <span className={`poster-status ${plannedElsewhere ? "planned" : ""}`}>
-                {statusLabel}
-              </span>
+                  {statusLabel}
+                </span>
               </span>
               <span className="movie-title">{screening.movie}</span>
               <span className="movie-sort-value">{sortValueLabel(screening, sort)}</span>
