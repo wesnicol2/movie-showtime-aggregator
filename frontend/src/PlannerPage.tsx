@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchScreenings } from "./api";
 import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
+import { TicketLink } from "./components/TicketLink";
 import {
   deleteMoviePlan,
   PLANNER_STORAGE_KEY,
@@ -361,11 +362,7 @@ function SavedPlanDetails({
                   <strong className={screening.ticket_price === null ? "unknown" : ""}>
                     {ticketPriceLabel(screening)}
                   </strong>
-                  {screening.purchase_url ? (
-                    <a href={screening.purchase_url} target="_blank" rel="noreferrer">
-                      Tickets
-                    </a>
-                  ) : null}
+                  <TicketLink screening={screening} />
                 </div>
               </li>
             </Fragment>

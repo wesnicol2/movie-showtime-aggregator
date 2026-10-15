@@ -1,5 +1,6 @@
 import { COLUMNS, formatCell } from "../screenings";
 import type { Screening } from "../types";
+import { ticketDestination } from "../ticket-links";
 
 interface Props {
   screening: Screening;
@@ -8,7 +9,7 @@ interface Props {
 
 export function ScreeningInspector({ screening, onClose }: Props) {
   const evidence = [
-    ["Tickets", screening.purchase_url],
+    ["Tickets", ticketDestination(screening)?.url ?? ""],
     ["Letterboxd", screening.letterboxd_url],
     ["IMDb", screening.imdb_url],
     ["Rotten Tomatoes", screening.rotten_tomatoes_url],
