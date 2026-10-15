@@ -88,7 +88,9 @@ export function PlannerPage({
         .then((response) => {
           if (cancelled) return;
           const currentIds = new Set(response.screenings.map((screening) => screening.showtime_id));
-          const ticketUrls = refreshTickets ? refreshedAmcTicketUrls(plan, response.screenings) : {};
+          const ticketUrls = refreshTickets
+              ? refreshedAmcTicketUrls(plan, response.screenings)
+              : {};
           const missingIds = plan.itinerary.showtime_ids.filter((id) => !currentIds.has(id));
           if (missingIds.length === 0) {
             setVerificationByDate((current) => ({

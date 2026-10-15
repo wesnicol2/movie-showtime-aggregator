@@ -128,10 +128,7 @@ test("a mismatched live performance cannot replace the saved ticket destination"
   await page.goto("/");
   const day = page.locator(`[data-date="${date}"]`);
   await expect(day.getByText("Showtimes still available")).toBeVisible();
-  await expect(day.getByRole("link", { name: "Tickets" })).toHaveAttribute(
-    "href",
-    FANDANGO_URL,
-  );
+  await expect(day.getByRole("link", { name: "Tickets" })).toHaveAttribute("href", FANDANGO_URL);
 });
 
 test("failed enrichment retains Fandango without losing the saved itinerary", async ({ page }) => {
@@ -140,8 +137,5 @@ test("failed enrichment retains Fandango without losing the saved itinerary", as
   const day = page.locator(`[data-date="${date}"]`);
   await expect(day.getByText("Could not verify showtimes")).toBeVisible();
   await expect(day.getByText("Whalefall (2026)")).toBeVisible();
-  await expect(day.getByRole("link", { name: "Tickets" })).toHaveAttribute(
-    "href",
-    FANDANGO_URL,
-  );
+  await expect(day.getByRole("link", { name: "Tickets" })).toHaveAttribute("href", FANDANGO_URL);
 });
