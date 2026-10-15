@@ -41,7 +41,7 @@ async function seedSavedPlan(page: Page): Promise<string> {
         ticket_price: 14.99,
         seats_left_percent: null,
         amc_a_list_eligible: true,
-        amc_source_url: "https://example.test/amc-alpha",
+        amc_source_url: "https://www.amctheatres.com/showtimes/144169522/tickets",
         letterboxd_url: "",
         imdb_url: "",
         rotten_tomatoes_url: "",
@@ -152,6 +152,18 @@ test("saved calendar plans show time allocation, AMC prices, and proportional tr
   await expect(metrics.getByText("$14.99 tickets")).toBeVisible();
   await expect(ticketBlocks.getByText("$14.99", { exact: true })).toBeVisible();
   await expect(ticketBlocks.getByText("A-List $0", { exact: true })).toBeVisible();
+  await expect(ticketBlocks.first().getByRole("link", { name: "Tickets" })).toHaveAttribute(
+    "href",
+    "https://www.amctheatres.com/showtimes/144169522/tickets",
+  );
+  await expect(ticketBlocks.first().getByRole("link", { name: "Tickets" })).not.toHaveAttribute(
+    "target",
+    "_blank",
+  );
+  await expect(ticketBlocks.nth(1).getByRole("link", { name: "Tickets" })).toHaveAttribute(
+    "href",
+    "https://example.test/beta",
+  );
   await expect(day.locator(".planner-gap")).toHaveAttribute(
     "aria-label",
     "12 minutes driving, 48 minutes free",

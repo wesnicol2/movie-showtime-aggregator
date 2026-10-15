@@ -552,3 +552,28 @@ test("planner movie checkbox selection enforces 20 candidates without disabling 
   await expect(page.getByText("20 candidates", { exact: true })).toBeVisible();
   await expect(dialog.getByText("20 of 20 max · Remove one to add another")).toBeVisible();
 });
+
+
+test("AMC performance tickets use official showtime link and reject lookalike domains", async ({ page }) => {
+  await mockApi(page, {
+    Alpha: { amc_source_url: "https://www.amctheatres.com/showtimes/144169522/tickets" },
+    Beta: { amc_source_url: "https://amctheatres.com.attacker.test/showtimes/123/tickets" },
+  });
+  await page.goto("/plan");
+  await page.getByRole("button", { name: "Find itineraries" }).click();
+
+  const alpha = page.locator(".itinerary-card .showing-line").filter({
+    has: page.getByText("Alpha", { exact: true }),
+  }).first();
+  const beta = page.locator(".itinerary-card .showing-line").filter({
+    has: page.getByText("Beta", { exact: true }),
+  }).first();
+  await expect(alpha.getByRole("link", { name: "Tickets" })).toHaveAttribute(
+    "href",
+    "https://www.amctheatres.com/showtimes/144169522/tickets",
+  );
+  await expect(beta.getByRole("link", { name: "Tickets" })).toHaveAttribute(
+    "href",
+    "https://example.test/beta",
+  );
+});
