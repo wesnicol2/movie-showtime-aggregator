@@ -29,8 +29,6 @@ export function App() {
   const syncMovieSelection = useAppStore((state) => state.syncMovieSelection);
   const selectedDate = useAppStore((state) => state.selectedDate);
   const setSelectedDate = useAppStore((state) => state.setSelectedDate);
-  const setPlanningDraft = useAppStore((state) => state.setPlanningDraft);
-  const clearPlanningDraft = useAppStore((state) => state.clearPlanningDraft);
 
   useEffect(() => {
     const onPopState = () => setPath(normalizeLocation());
@@ -57,13 +55,11 @@ export function App() {
 
   function chooseDate(date: string): void {
     setSelectedDate(date);
-    setPlanningDraft(date, null);
     setCalendarFocusDate(date);
     navigate("/movies");
   }
 
   function lockItinerary(): void {
-    clearPlanningDraft();
     setCalendarFocusDate(selectedDate);
     navigate("/");
   }

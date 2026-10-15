@@ -471,8 +471,8 @@ export function MoviePriorityEditor({
                 <button
                   type="button"
                   className="movie-priority-remove"
-                  aria-label={`Remove ${movie} from this day`}
-                  title="Remove from this day"
+                  aria-label={`Remove ${movie} from wanted movies`}
+                  title="Remove from wanted movies"
                   onClick={() => onRemoveMovie(movie)}
                 >
                   ×

@@ -151,8 +151,8 @@ def plan_movie_day(
     movies = tuple(dict.fromkeys(movie.strip() for movie in selected_movies if movie.strip()))
     if not movies:
         raise ValueError("select at least one movie")
-    if len(movies) > 10:
-        raise ValueError("movie-day planning supports at most 10 selected movies")
+    if len(movies) > 20:
+        raise ValueError("movie-day planning supports at most 20 selected movies")
     target = len(movies) if target_movie_count is None else target_movie_count
     if isinstance(target, bool) or not isinstance(target, int) or not 1 <= target <= len(movies):
         raise ValueError("target_movie_count must be between 1 and the number of selected movies")

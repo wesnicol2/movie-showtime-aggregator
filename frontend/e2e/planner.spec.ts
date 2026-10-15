@@ -210,8 +210,9 @@ test("calendar-first flow keeps wanted movies and returns to the planned day aft
 
   await expect(page).toHaveURL(/\/movies$/);
   await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
-  await expect(page.locator(".movie-tile")).toHaveCount(2);
-  await expect(page.getByText("2 / 10 for this day")).toBeVisible();
+  await expect(page.locator(".movie-workspace > .movie-grid .movie-tile")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Remove Gamma from wanted movies" })).toBeVisible();
+  await expect(page.getByText("2 / 20 for this day")).toBeVisible();
   await page.getByRole("button", { name: "Continue to planner" }).click();
 
   await expect(page).toHaveURL(/\/plan$/);
@@ -391,5 +392,5 @@ test("jumping far enough forward extends the timeline and hands the date to Movi
 
   await expect(page).toHaveURL(/\/movies$/);
   await expect(page.getByRole("heading", { name: "Choose movies" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Remove Alpha from this day" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove Alpha from wanted movies" })).toBeVisible();
 });

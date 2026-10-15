@@ -190,17 +190,19 @@ test("Any returns itineraries across every feasible movie count in global want-s
   await expect(firstCardShowings.getByText("Beta", { exact: true })).toBeVisible();
 });
 
-test("the priority-list X removes a movie from this day but keeps it wanted", async ({ page }) => {
+test("the priority-list X removes a movie from wanted movies and ranking", async ({ page }) => {
   const date = today();
   await mockScreenings(page, date);
   await page.goto("/plan");
   await page.getByText("Movie priorities & runtimes", { exact: true }).click();
 
-  await page.getByRole("button", { name: "Remove Alpha from this day" }).click();
+  await page.getByRole("button", { name: "Remove Alpha from wanted movies" }).click();
 
-  await expect(page.getByRole("button", { name: "Remove Alpha from this day" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Remove Alpha from wanted movies" })).toHaveCount(
+    0,
+  );
   const selected = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("movie-showtime-aggregator.selected-movies.v1") ?? "[]"),
   );
-  expect(selected).toEqual(["Alpha", "Beta"]);
+  expect(selected).toEqual(["Beta"]);
 });

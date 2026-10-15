@@ -526,10 +526,10 @@ test("transfer timeline is vertical between movie rows with proportional segment
   expect(spareHeight / driveHeight).toBeCloseTo(1, 2);
 });
 
-test("planner movie checkbox selection enforces 10 candidates without disabling deselection", async ({
+test("planner movie checkbox selection enforces 20 candidates without disabling deselection", async ({
   page,
 }) => {
-  const extraMovies = Array.from({ length: 9 }, (_, index) => `Film ${index + 1}`);
+  const extraMovies = Array.from({ length: 19 }, (_, index) => `Film ${index + 1}`);
   await mockApi(page, {}, extraMovies);
   await page.goto("/plan");
   await page.getByText("Advanced options", { exact: true }).click();
@@ -538,17 +538,17 @@ test("planner movie checkbox selection enforces 10 candidates without disabling 
   const dialog = page.getByRole("dialog", { name: "Movies filter" });
   await expect(dialog.getByRole("button", { name: "All", exact: true })).toBeDisabled();
 
-  for (const movie of extraMovies.slice(0, 8)) {
+  for (const movie of extraMovies.slice(0, 18)) {
     await dialog.getByRole("checkbox", { name: movie, exact: true }).check();
   }
 
-  await expect(page.getByText("10 candidates", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("10 of 10 max · Remove one to add another")).toBeVisible();
-  const eleventh = dialog.getByRole("checkbox", { name: "Film 9", exact: true });
-  await expect(eleventh).toBeDisabled();
+  await expect(page.getByText("20 candidates", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("20 of 20 max · Remove one to add another")).toBeVisible();
+  const twentyFirst = dialog.getByRole("checkbox", { name: "Film 19", exact: true });
+  await expect(twentyFirst).toBeDisabled();
   await dialog.getByRole("checkbox", { name: "Alpha", exact: true }).uncheck();
-  await expect(eleventh).toBeEnabled();
-  await eleventh.check();
-  await expect(page.getByText("10 candidates", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("10 of 10 max · Remove one to add another")).toBeVisible();
+  await expect(twentyFirst).toBeEnabled();
+  await twentyFirst.check();
+  await expect(page.getByText("20 candidates", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("20 of 20 max · Remove one to add another")).toBeVisible();
 });

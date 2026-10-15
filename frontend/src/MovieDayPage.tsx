@@ -51,9 +51,6 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   const selectedDate = useAppStore((state) => state.selectedDate);
   const { response: laterAvailability, error: laterError } = useMovieAvailability(selectedDate);
   const setMovieSelection = useAppStore((state) => state.setMovieSelection);
-  const planningDraftDate = useAppStore((state) => state.planningDraftDate);
-  const planningDraftMovies = useAppStore((state) => state.planningDraftMovies);
-  const setPlanningDraft = useAppStore((state) => state.setPlanningDraft);
   const [minimumBuffer, setMinimumBuffer] = useState(0);
   const [facets, setFacets] = useState<ScreeningFacets>(EMPTY_SCREENING_FACETS);
   const [targetMovieCount, setTargetMovieCount] = useState<MovieDayTargetCount | null>("any");
@@ -91,27 +88,12 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   }, [responseDate, savedPlans]);
   const availableSelectedMovies = useMemo(() => {
     const showingMovies = new Set(allScreenings.map((screening) => screening.movie));
-    const draftMovies =
-      planningDraftDate === responseDate && planningDraftMovies !== null
-        ? planningDraftMovies
-        : null;
-    const candidates = draftMovies ?? [...new Set([...selectedMovies, ...currentPlanMovies])];
-    return candidates
-      .filter(
-        (movie) =>
-          showingMovies.has(movie) &&
-          (!plannedElsewhere.has(movie) || currentPlanMovies.has(movie)),
-      )
-      .slice(0, MAX_MOVIES_PER_DAY);
-  }, [
-    allScreenings,
-    currentPlanMovies,
-    plannedElsewhere,
-    planningDraftDate,
-    planningDraftMovies,
-    responseDate,
-    selectedMovies,
-  ]);
+    return selectedMovies.filter(
+      (movie) =>
+        showingMovies.has(movie) && (!plannedElsewhere.has(movie) || currentPlanMovies.has(movie)),
+    );
+  }, [allScreenings, currentPlanMovies, plannedElsewhere, selectedMovies]);
+  const overLimit = availableSelectedMovies.length > MAX_MOVIES_PER_DAY;
   const rankedMovies = useMemo(
     () => reconcileMovieRanking(moviePreferences.ranking, availableSelectedMovies),
     [availableSelectedMovies, moviePreferences.ranking],
@@ -263,11 +245,8 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
   }
 
   function removeMovie(movie: string): void {
-    if (!responseDate || !availableSelectedMovies.includes(movie)) return;
-    setPlanningDraft(
-      responseDate,
-      availableSelectedMovies.filter((selected) => selected !== movie),
-    );
+    if (!availableSelectedMovies.includes(movie)) return;
+    setMovieSelection(selectedMovies.filter((selected) => selected !== movie));
   }
 
   function setRuntimeOverride(movie: string, minutes: number | null): void {
@@ -283,11 +262,14 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
 
   function setAvailableMovieSelection(movies: string[]): void {
     if (!responseDate || new Set(movies).size > MAX_MOVIES_PER_DAY) return;
-    const newWantedMovies = movies.filter((movie) => !selectedMovies.includes(movie));
-    if (newWantedMovies.length > 0) {
-      setMovieSelection([...selectedMovies, ...newWantedMovies]);
-    }
-    setPlanningDraft(responseDate, movies);
+    const available = new Set(allScreenings.map((screening) => screening.movie));
+    // Advanced candidate edits modify wanted status too; keep global wanted
+    // titles that cannot be scheduled on this date.
+    const retained = selectedMovies.filter(
+      (movie) =>
+        !available.has(movie) || (plannedElsewhere.has(movie) && !currentPlanMovies.has(movie)),
+    );
+    setMovieSelection([...retained, ...movies]);
   }
 
   function changeSortBy(value: MovieDaySort): void {
@@ -297,6 +279,12 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
 
   async function generate(offset = 0): Promise<void> {
     if (!response || rankedMovies.length === 0 || targetCount === 0) return;
+    if (overLimit) {
+      setPlanError(
+        `${availableSelectedMovies.length} movies selected. Remove ${availableSelectedMovies.length - MAX_MOVIES_PER_DAY} to schedule (20 maximum).`,
+      );
+      return;
+    }
     setPlanning(true);
     setPlanError(null);
     try {
@@ -388,7 +376,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
         secondarySortBy={secondarySortBy}
         minimumBuffer={minimumBuffer}
         planning={planning}
-        disabled={status !== "ready" || availableSelectedMovies.length === 0}
+        disabled={status !== "ready" || availableSelectedMovies.length === 0 || overLimit}
         onFacetsChange={setFacets}
         onMovieSelectionChange={setAvailableMovieSelection}
         onTargetMovieCountChange={setTargetMovieCount}
@@ -399,6 +387,14 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
         onMinimumBufferChange={setMinimumBuffer}
         onPlan={() => void generate()}
       />
+
+      {overLimit ? (
+        <div className="status-strip error" role="alert">
+          {availableSelectedMovies.length} movies selected for this date. Remove{" "}
+          {availableSelectedMovies.length - MAX_MOVIES_PER_DAY} from wanted movies to schedule (20
+          maximum). Nothing was silently removed.
+        </div>
+      ) : null}
 
       {response && !homeConfigured ? (
         <div className="status-strip" role="status">
