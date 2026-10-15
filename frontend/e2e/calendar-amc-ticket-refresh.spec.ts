@@ -99,7 +99,9 @@ test("legacy saved AMC links refresh without mutating the itinerary snapshot", a
   const day = page.locator(`[data-date="${date}"]`);
   await expect(day.getByText("Showtimes still available")).toBeVisible();
   await expect(day.getByRole("link", { name: "Tickets" })).toHaveAttribute("href", AMC_URL);
-  await expect(day.locator(".planner-ticket-block").getByText("$14.50", { exact: true })).toBeVisible();
+  await expect(
+    day.locator(".planner-ticket-block").getByText("$14.50", { exact: true }),
+  ).toBeVisible();
   expect(requests).toEqual([`?date=${date}`]);
 
   const original = await page.evaluate((planDate) => {
