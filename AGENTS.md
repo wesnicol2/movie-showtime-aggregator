@@ -37,9 +37,9 @@ Before every push, commit the intended changes and run:
 bash scripts/prepush
 ```
 
-`scripts/prepush` only runs on `dev/*`, requires a clean tree, installs the pinned frontend dependencies, runs `scripts/fix`, fails if the fixer changes tracked files, then runs both `scripts/verify` and `scripts/verify-browser`. CI calls the same two repo-owned verification scripts. CI is confirmation, not an interactive debugger.
+`scripts/prepush` only runs on `dev/*` and requires a clean tree. With available tools, it installs pinned dependencies, runs `scripts/fix`, checks for formatter changes, runs `scripts/verify`, and runs `scripts/verify-browser`. It skips only the browser gate if Docker or its daemon is unavailable, explicitly recording the skipped check. CI still runs the complete source and browser gates; genuine local test failures remain blocking.
 
-Never commit directly to `feature/*` or `main` while iterating. If the current environment cannot run Docker/Playwright and therefore cannot complete `scripts/prepush`, stop and report that limitation instead of substituting CI as the first browser-test loop. A deployed Test environment is still required for behavior involving real containers, credentials, upstream services, networking, or persistent volumes.
+Use the strongest verification the active environment supports. If an environment lacks a checkout, Docker, Playwright, dependencies, or network access, attempt available static/source checks and proceed with a `dev/*` push and CI instead of repeatedly stopping. Document each unrun check in the PR; never describe it as passing. A failed runnable check is not an environment exception. Never commit to `main` directly, and preserve `dev/*` → `feature/*` → `main` review unless the user explicitly directs otherwise. Test deployment and a real Android ticket-link check are still needed for upstream/app-link behavior.
 
 ---
 
@@ -200,7 +200,7 @@ Do not block base screenings when metadata lookup fails.
 
 `amc.py` uses the official AMC developer API with `X-AMC-Vendor-Key`. It fetches nearby official AMC showtimes and matches them to Fandango rows using movie title, listed local time, and theater identity/location.
 
-Only confidently matched AMC performances may populate AMC-derived fields.
+Only confidently matched AMC performances may populate AMC-derived fields. For ticket links, prefer an HTTPS `amctheatres.com` URL from that match on AMC screenings; otherwise keep the original Fandango purchase URL. Do not infer AMC performance IDs or fabricate app URI schemes. Android may open associated HTTPS links in the AMC app, but the AMC website is the fallback.
 
 **Ticket price:** prefer a reported Adult price and include reported tax. Treat it as a display estimate; final checkout may differ.
 
