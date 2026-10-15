@@ -204,6 +204,8 @@ Do not block base screenings when metadata lookup fails.
 
 `amc.py` uses the official AMC developer API with `X-AMC-Vendor-Key`. It fetches nearby official AMC showtimes and matches them to Fandango rows using movie title, listed local time, and theater identity/location.
 
+The Calendar preserves archived screening snapshots. It checks saved showtime IDs with `enrich=0` by default, but when a future saved AMC showing lacks an official AMC link it uses the **same verification request**, with enrichment enabled, to refresh ticket destinations. Merge only official AMC URLs for identical IDs, titles, theatres, and advertised starts into the rendered view. Never overwrite saved itineraries, snapshots, prices, or routes. Past plans and complete future plans stay unenriched; request failures leave original ticket URLs untouched.
+
 Only confidently matched AMC performances may populate AMC-derived fields. Provider titles can differ by a trailing parenthesized release year (e.g. `Whalefall (2026)` versus `Whalefall`); strip only that suffix for title matching, retaining the exact venue and five-minute start-time constraints. A missing AMC key, failed AMC request, unavailable provider showtime, or title/theater/time mismatch still leaves the original Fandango link. For ticket links, prefer an HTTPS `amctheatres.com` URL from that match on AMC screenings; otherwise keep the original Fandango purchase URL. Do not infer AMC performance IDs or fabricate app URI schemes. Android may open associated HTTPS links in the AMC app, but the AMC website is the fallback.
 
 **Ticket price:** prefer a reported Adult price and include reported tax. Treat it as a display estimate; final checkout may differ.
