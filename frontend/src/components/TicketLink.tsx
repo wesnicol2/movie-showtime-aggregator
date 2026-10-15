@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { Screening } from "../types";
 import { ticketDestination } from "../ticket-links";
+import type { Screening } from "../types";
 
 interface Props {
   screening: Screening;
