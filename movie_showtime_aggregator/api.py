@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, unquote
 from wsgiref.simple_server import make_server
 
 from .amc import AMCClient
+from .build_info import build_info
 from .config import Settings
 from .enrichment import enrich_amc_details, enrich_movie_metadata, enrich_travel_times
 from .experience import (
@@ -52,8 +53,8 @@ _OMDB_CLIENTS: dict[str, OmdbClient] = {}
 _AMC_CLIENTS: dict[str, AMCClient] = {}
 
 
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict[str, object]:
+    return {"status": "ok", "build": build_info()}
 
 
 def application(environ: dict, start_response: Callable) -> Iterable[bytes]:

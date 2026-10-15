@@ -70,7 +70,9 @@ Known external values are source links:
 - Fandango-derived screening fields → the screening's Fandango purchase/listing link.
 - **Tickets** in Movie Day, saved Calendar plans, Now Playing and the inspector → the matched official AMC HTTPS ticket link for AMC showings when available; otherwise the original Fandango ticket link. On Android the AMC link may open the installed AMC app if its verified app-link association supports that URL, otherwise it opens the AMC website.
 
-`Unknown` stays plain text rather than linking to an invented source.
+`Unknown` stays plain text rather than linking to an invented source. An AMC performance is used only when its official listing matches the film title (ignoring a trailing `(YYYY)` suffix), venue, and showtime. If no match or no official purchase URL is available, **Tickets** continues to use Fandango. The AMC developer key must be configured under Settings for AMC enrichment.
+
+On the **Test** image only, a compact fixed overlay displays `TEST`, the short Git commit SHA, and its last commit timestamp (with full build details on hover). This is based on the running image’s `/health` metadata, not the current GitHub branch. Production (`latest`) never renders the overlay.
 
 **Distance** is straight-line distance from the configured ZIP center to the theater. It is not driving distance.
 

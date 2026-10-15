@@ -45,6 +45,10 @@ Use the strongest verification the active environment supports. If an environmen
 
 ---
 
+## Test-only build provenance
+
+Like Odds Fantasy, `/health` exposes Docker-baked Git commit, commit timestamp, image tag, and build timestamp. The frontend renders the small fixed `TEST`/short SHA/`Updated` badge **only** when `/health.build.image_tag` equals `test`; never on `latest`/Production or unknown/local builds. The timestamp is the Git commit time, **not** the build or deploy time. Docker build args come from the CI publish workflow because `.git` is excluded from images. Local Git lookup is a best-effort development fallback. An old image cannot report a newer commit; always read the running image, not the GitHub branch head.
+
 ## Frontend architecture
 
 The user interface is React 19 + TypeScript + Vite. Keep TypeScript strict. Biome is the only JS/TS formatter and linter. Zustand owns the small amount of explicit shared application state used to synchronize screenings, filters, Saved Views, movie selection, and inspection state.
@@ -200,7 +204,7 @@ Do not block base screenings when metadata lookup fails.
 
 `amc.py` uses the official AMC developer API with `X-AMC-Vendor-Key`. It fetches nearby official AMC showtimes and matches them to Fandango rows using movie title, listed local time, and theater identity/location.
 
-Only confidently matched AMC performances may populate AMC-derived fields. For ticket links, prefer an HTTPS `amctheatres.com` URL from that match on AMC screenings; otherwise keep the original Fandango purchase URL. Do not infer AMC performance IDs or fabricate app URI schemes. Android may open associated HTTPS links in the AMC app, but the AMC website is the fallback.
+Only confidently matched AMC performances may populate AMC-derived fields. Provider titles can differ by a trailing parenthesized release year (e.g. `Whalefall (2026)` versus `Whalefall`); strip only that suffix for title matching, retaining the exact venue and five-minute start-time constraints. A missing AMC key, failed AMC request, unavailable provider showtime, or title/theater/time mismatch still leaves the original Fandango link. For ticket links, prefer an HTTPS `amctheatres.com` URL from that match on AMC screenings; otherwise keep the original Fandango purchase URL. Do not infer AMC performance IDs or fabricate app URI schemes. Android may open associated HTTPS links in the AMC app, but the AMC website is the fallback.
 
 **Ticket price:** prefer a reported Adult price and include reported tax. Treat it as a display estimate; final checkout may differ.
 
