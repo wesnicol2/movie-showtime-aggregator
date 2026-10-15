@@ -107,7 +107,11 @@ async function mockScreenings(page: Page) {
           theatres: ["AMC Midtown", "AMC West", "Harkins North"],
           formats: ["Standard", "IMAX"],
         },
-        screenings: rows,
+        screenings: rows.map((row) =>
+          row.showtime_id === "a1"
+            ? { ...row, amc_source_url: "https://www.amctheatres.com/showtimes/144169522/tickets" }
+            : row,
+        ),
       },
     });
   });
@@ -129,6 +133,14 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
   await alpha.getByText("View theaters and showtimes").click();
   await expect(alpha.getByText("AMC Midtown", { exact: true })).toBeVisible();
   await expect(alpha.getByText("12:00 PM · IMAX · $14.00")).toBeVisible();
+  await expect(alpha.getByRole("link", { name: "10:00 AM · Standard · $12.00 ↗" })).toHaveAttribute(
+    "href",
+    "https://www.amctheatres.com/showtimes/144169522/tickets",
+  );
+  await expect(alpha.getByRole("link", { name: "12:00 PM · IMAX · $14.00 ↗" })).toHaveAttribute(
+    "href",
+    "https://example.test/a2",
+  );
 
   await page.getByRole("button", { name: "Toggle screening filters" }).click();
   await page.getByRole("button", { name: "Filter Chain" }).click();

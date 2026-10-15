@@ -1,4 +1,6 @@
 import { formatListedTime, formatReleaseDate, type ShowcaseMovie } from "../showcase";
+import { ticketDestination } from "../ticket-links";
+import { TicketLink } from "./TicketLink";
 import "./movie-showcase.css";
 
 interface Props {
@@ -126,15 +128,10 @@ export function MovieShowcase({ movies, selectedMovies, watchedMovies }: Props) 
                               ? " · $" + screening.ticket_price.toFixed(2)
                               : "");
                           const key = screening.showtime_id + "|" + screening.advertised_start;
-                          return screening.purchase_url ? (
-                            <a
-                              key={key}
-                              href={screening.purchase_url}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
+                          return ticketDestination(screening) ? (
+                            <TicketLink key={key} screening={screening}>
                               {label} ↗
-                            </a>
+                            </TicketLink>
                           ) : (
                             <span key={key}>{label}</span>
                           );
