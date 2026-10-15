@@ -103,7 +103,17 @@ class StubService:
 def test_health_is_ok():
     code, payload = call("/health")
     assert code == 200
-    assert payload == {"status": "ok"}
+    assert payload["status"] == "ok"
+    assert set(payload["build"]) == {
+        "commit",
+        "commit_short",
+        "source",
+        "dirty",
+        "image_tag",
+        "branch",
+        "commit_at",
+        "built_at",
+    }
 
 
 def test_spa_routes_serve_the_same_react_shell():

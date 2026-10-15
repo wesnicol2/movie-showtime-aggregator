@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchScreenings } from "./api";
 import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
+import { TicketLink } from "./components/TicketLink";
 import {
   deleteMoviePlan,
   PLANNER_STORAGE_KEY,
@@ -12,6 +13,7 @@ import {
 import "./planner.css";
 import { browserDate } from "./show-date";
 import { useAppStore } from "./store";
+import { ticketDestination } from "./ticket-links";
 import type { MovieDayLeg, Screening } from "./types";
 
 const INITIAL_DAY_COUNT = 35;
@@ -21,8 +23,8 @@ const TIMELINE_MAX_SEGMENT_PX = 72;
 
 type VerificationState =
   | { status: "checking" }
-  | { status: "valid" }
-  | { status: "changed"; missingMovies: string[] }
+  | { status: "valid"; ticketUrls: Record<string, string> }
+  | { status: "changed"; missingMovies: string[]; ticketUrls: Record<string, string> }
   | { status: "unavailable" };
 
 type ChooseDateHandler = (date: string) => void;
@@ -80,15 +82,20 @@ export function PlannerPage({
     );
 
     for (const plan of plans) {
-      void fetchScreenings(plan.date, false)
+      // Use the same verification request to refresh only missing future AMC links.
+      const refreshTickets = needsAmcTicketRefresh(plan, today);
+      void fetchScreenings(plan.date, refreshTickets)
         .then((response) => {
           if (cancelled) return;
           const currentIds = new Set(response.screenings.map((screening) => screening.showtime_id));
+          const ticketUrls = refreshTickets
+            ? refreshedAmcTicketUrls(plan, response.screenings)
+            : {};
           const missingIds = plan.itinerary.showtime_ids.filter((id) => !currentIds.has(id));
           if (missingIds.length === 0) {
             setVerificationByDate((current) => ({
               ...current,
-              [plan.date]: { status: "valid" },
+              [plan.date]: { status: "valid", ticketUrls },
             }));
             return;
           }
@@ -101,6 +108,7 @@ export function PlannerPage({
             [plan.date]: {
               status: "changed",
               missingMovies: [...new Set(missingMovies)],
+              ticketUrls,
             },
           }));
         })
@@ -116,7 +124,7 @@ export function PlannerPage({
     return () => {
       cancelled = true;
     };
-  }, [plans]);
+  }, [plans, today]);
 
   const dates = useMemo(
     () => Array.from({ length: daysShown }, (_, index) => addDays(today, index)),
@@ -237,6 +245,41 @@ export function PlannerPage({
   );
 }
 
+/** Save archive remains authoritative; only ticket destinations may be live. */
+function needsAmcTicketRefresh(plan: SavedMoviePlan, today: string): boolean {
+  return (
+    plan.date >= today &&
+    plan.screenings.some(
+      (screening) =>
+        (/\bamc\b/i.test(screening.chain) || /\bamc\b/i.test(screening.theatre)) &&
+        ticketDestination(screening)?.officialAmc !== true,
+    )
+  );
+}
+
+/** Do not assign a live AMC performance URL to another movie, venue or showtime. */
+function refreshedAmcTicketUrls(
+  plan: SavedMoviePlan,
+  liveScreenings: Screening[],
+): Record<string, string> {
+  const liveById = new Map(liveScreenings.map((screening) => [screening.showtime_id, screening]));
+  const ticketUrls: Record<string, string> = {};
+  for (const saved of plan.screenings) {
+    const live = liveById.get(saved.showtime_id);
+    if (
+      !live ||
+      live.movie !== saved.movie ||
+      live.theatre !== saved.theatre ||
+      live.advertised_start !== saved.advertised_start
+    ) {
+      continue;
+    }
+    const ticket = ticketDestination(live);
+    if (ticket?.officialAmc) ticketUrls[saved.showtime_id] = ticket.url;
+  }
+  return ticketUrls;
+}
+
 function MonthHeader({ date }: { date: string }) {
   return <h2 className="planner-month-header">{formatMonth(date)}</h2>;
 }
@@ -295,8 +338,16 @@ function SavedPlanDetails({
   const screeningById = new Map(
     plan.screenings.map((screening) => [screening.showtime_id, screening]),
   );
+  const freshTicketUrls =
+    verification?.status === "valid" || verification?.status === "changed"
+      ? verification.ticketUrls
+      : undefined;
   const screenings = plan.itinerary.showtime_ids
-    .map((id) => screeningById.get(id))
+    .map((id) => {
+      const saved = screeningById.get(id);
+      const freshUrl = freshTicketUrls?.[id];
+      return saved && freshUrl ? { ...saved, amc_source_url: freshUrl } : saved;
+    })
     .filter((screening): screening is Screening => screening !== undefined);
   const leaveHome = screenings[0]?.leave_home;
   const homeAt = plan.itinerary.home_at ?? screenings[screenings.length - 1]?.home_arrival ?? null;
@@ -361,11 +412,7 @@ function SavedPlanDetails({
                   <strong className={screening.ticket_price === null ? "unknown" : ""}>
                     {ticketPriceLabel(screening)}
                   </strong>
-                  {screening.purchase_url ? (
-                    <a href={screening.purchase_url} target="_blank" rel="noreferrer">
-                      Tickets
-                    </a>
-                  ) : null}
+                  <TicketLink screening={screening} />
                 </div>
               </li>
             </Fragment>

@@ -68,8 +68,11 @@ Known external values are source links:
 - AMC ticket price / seat availability → the matched AMC performance;
 - leave-home / back-home → the OpenStreetMap/OSRM route;
 - Fandango-derived screening fields → the screening's Fandango purchase/listing link.
+- **Tickets** in Movie Day, saved Calendar plans, Now Playing and the inspector → the matched official AMC HTTPS ticket link for AMC showings when available; otherwise the original Fandango ticket link. On Android the AMC link may open the installed AMC app if its verified app-link association supports that URL, otherwise it opens the AMC website.
 
-`Unknown` stays plain text rather than linking to an invented source.
+`Unknown` stays plain text rather than linking to an invented source. An AMC performance is used only when its official listing matches the film title (ignoring a trailing `(YYYY)` suffix), venue, and showtime. If no match or no official purchase URL is available, **Tickets** continues to use Fandango. The AMC developer key must be configured under Settings for AMC enrichment. Older saved Calendar plans missing AMC links refresh their ticket links on the next Calendar visit, only for future showings, through the same verification fetch with AMC enrichment. Saved itineraries, prices, timings and historical snapshots remain unchanged; failed refreshes retain original links.
+
+On the **Test** image only, a compact fixed overlay displays `TEST`, the short Git commit SHA, and its last commit timestamp (with full build details on hover). This is based on the running image’s `/health` metadata, not the current GitHub branch. Production (`latest`) never renders the overlay.
 
 **Distance** is straight-line distance from the configured ZIP center to the theater. It is not driving distance.
 
@@ -281,9 +284,12 @@ bash scripts/prepush
 
 The prepush gate only runs on a clean `dev/*` branch. It installs pinned frontend
 dependencies, runs the fixer and fails if the fixer changes tracked files, then runs
-both the deterministic source gate and the production-container browser gate. CI
-delegates to the same repo-owned scripts and uploads `test-results/` when the
-browser gate fails.
+the deterministic source gate. It runs the production-container browser gate only
+when Docker is available, explicitly logging a skip otherwise. If there is no
+local checkout or a dependency cannot run in the current environment, document
+that limitation and push for CI verification rather than treating it as a blocker.
+CI still runs the complete gates and uploads `test-results/` on browser failures;
+a genuine check failure is not treated as a missing-tool exception.
 
 A deployed Test environment remains the integration gate for real upstream credentials, networking, persistent volumes, AMC matching/seating permissions, and external-provider behavior.
 

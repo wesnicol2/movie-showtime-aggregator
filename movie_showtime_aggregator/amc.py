@@ -196,12 +196,12 @@ def match_showtime(
     theatre_point: GeoPoint | None,
     candidates: list[AMCShowtime],
 ) -> AMCShowtime | None:
-    movie_key = _normalize(movie_name)
+    movie_key = _normalize_movie(movie_name)
     theatre_key = _normalize(theatre_name)
     best: tuple[float, AMCShowtime] | None = None
 
     for candidate in candidates:
-        if _normalize(candidate.movie_name) != movie_key:
+        if _normalize_movie(candidate.movie_name) != movie_key:
             continue
         difference = abs((candidate.start_local - advertised_start).total_seconds()) / 60
         if difference > 5:
@@ -354,6 +354,13 @@ def _seat_percentage(payload: dict[str, object]) -> float | None:
     if total == 0:
         return None
     return round(100 * available / total, 1)
+
+
+def _normalize_movie(value: str) -> str:
+    # Fandango frequently appends a release year, while AMC lists the bare title.
+    # Preserve all other words to avoid linking similarly named films.
+    without_year = re.sub(r"\s*\(\s*(?:19|20)\d{2}\s*\)\s*$", "", value)
+    return _normalize(without_year)
 
 
 def _normalize(value: str) -> str:

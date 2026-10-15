@@ -63,15 +63,18 @@ Naming: `feature/kebab-case-name`, `dev/kebab-case-name`. No other prefixes.
    work, reproduce affected behavior with `bash scripts/verify-browser <test>
    --project=<project>`; inspect the retained Playwright trace/screenshot before
    changing code or assertions. Once the intended changes are committed, run
-   `bash scripts/prepush`. It requires a clean `dev/*` branch, reruns the fixer,
-   refuses to continue if the fixer changes tracked files, then runs the complete
-   source and browser gates. Do not use CI as the first lint/test/browser feedback
-   loop.
-3. Push only after `bash scripts/prepush` is green. CI reruns the same
-   `scripts/verify` and `scripts/verify-browser` contracts; nothing deploys
-   from a `dev/` branch. A red check here is a hard stop and should normally
-   indicate an environment difference or a genuinely new integration issue, not
-   formatting or a browser failure first discovered remotely.
+   `bash scripts/prepush` when a local checkout and prerequisites are available.
+   It requires a clean `dev/*` branch, reruns the fixer, refuses to continue if
+   the fixer changes tracked files, and runs the source gate. It runs the browser
+   gate when Docker is available, otherwise prints an explicit skip reason.
+   Prefer local checks to CI whenever the environment permits.
+3. Push after completing every *available* local check. If the active environment
+   cannot run `scripts/prepush` or one of its dependencies (no checkout, Docker,
+   browser, or reachable package registry), this is **not a push blocker**:
+   record exactly what was skipped, perform available static checks, and let CI
+   run the full source and browser suites. Do not claim skipped checks passed.
+   A check that actually runs and fails because of code remains a hard stop.
+   Nothing deploys from `dev/*` branches.
 4. Open a PR `dev/*` → its feature branch. Merging publishes `:test` and
    auto-deploys to **Test**. Delete the `dev/` branch as soon as it is merged.
 5. Exercise Test for at least one real session. This is the only place a change

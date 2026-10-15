@@ -4,6 +4,7 @@ import { createMovieDayPlan } from "./api";
 import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
 import { MovieDayControlBar } from "./components/MovieDayControlBar";
 import { MoviePriorityEditor } from "./components/MoviePriorityEditor";
+import { TicketLink } from "./components/TicketLink";
 import { useMovieAvailability } from "./movie-availability";
 import { MAX_MOVIES_PER_DAY } from "./movie-limits";
 import "./movie-day.css";
@@ -621,9 +622,7 @@ function ItineraryCard({
                   </span>
                   <ExperienceDeviationChips deviations={screening.experience_deviations} />
                 </div>
-                <a href={screening.purchase_url} target="_blank" rel="noreferrer">
-                  Tickets
-                </a>
+                <TicketLink screening={screening} />
               </div>
             </li>
           );
