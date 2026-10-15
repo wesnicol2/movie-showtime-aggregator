@@ -22,10 +22,10 @@ function officialAmcUrl(candidate: string): boolean {
 /** Prefer a matched AMC performance, never an invented app URI or performance ID. */
 export function ticketDestination(screening: TicketSource): TicketDestination | null {
   const isAmc = /\bamc\b/i.test(screening.chain) || /\bamc\b/i.test(screening.theatre);
-  const amc = screening.amc_source_url.trim();
+  const amc = screening.amc_source_url?.trim() ?? "";
   if (isAmc && officialAmcUrl(amc)) return { url: amc, officialAmc: true };
 
-  const fallback = screening.purchase_url.trim();
+  const fallback = screening.purchase_url?.trim() ?? "";
   if (!/^https?:\/\//i.test(fallback)) return null;
   return { url: fallback, officialAmc: false };
 }
