@@ -59,13 +59,17 @@ def _from_env() -> dict | None:
 @functools.cache
 def build_info() -> dict:
     """Report verifiable build provenance, never a guessed SHA or timestamp."""
-    info = _from_env() or _from_git() or {
-        "commit": UNKNOWN,
-        "dirty": False,
-        "source": UNKNOWN,
-        "branch": None,
-        "commit_at": None,
-    }
+    info = (
+        _from_env()
+        or _from_git()
+        or {
+            "commit": UNKNOWN,
+            "dirty": False,
+            "source": UNKNOWN,
+            "branch": None,
+            "commit_at": None,
+        }
+    )
     commit = info["commit"]
     info["commit_short"] = commit[:7] if commit != UNKNOWN else UNKNOWN
     info["image_tag"] = (os.getenv("APP_IMAGE_TAG") or "").strip() or None

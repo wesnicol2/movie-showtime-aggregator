@@ -113,13 +113,16 @@ def test_match_showtime_ignores_trailing_fandango_release_year():
         a_list_eligible=True,
         purchase_url="https://www.amctheatres.com/showtimes/144123456/tickets",
     )
-    assert match_showtime(
-        "Whalefall (2026)",
-        "AMC Desert Ridge 18",
-        datetime(2026, 10, 15, 11, 37),
-        theatre.point,
-        [candidate],
-    ) == candidate
+    assert (
+        match_showtime(
+            "Whalefall (2026)",
+            "AMC Desert Ridge 18",
+            datetime(2026, 10, 15, 11, 37),
+            theatre.point,
+            [candidate],
+        )
+        == candidate
+    )
     assert (
         match_showtime(
             "Different Movie (2026)",
