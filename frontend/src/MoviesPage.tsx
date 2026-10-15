@@ -336,14 +336,14 @@ export function MoviesPage({ onBack, onContinue }: Props) {
             planningMovies.size >= MAX_MOVIES_PER_DAY;
           const statusLabel = full
             ? "20-movie limit reached"
-            : selectedForDay
-              ? "Wanted · this day"
-              : wanted && plannedElsewhere
-                ? `Wanted · planned ${formatShortDate(plannedElsewhere)}`
-                : wanted
-                  ? "Wanted"
-                  : plannedHere
-                    ? "Currently planned"
+            : plannedHere
+              ? "Currently planned"
+              : selectedForDay
+                ? "Wanted · this day"
+                : wanted && plannedElsewhere
+                  ? `Wanted · planned ${formatShortDate(plannedElsewhere)}`
+                  : wanted
+                    ? "Wanted"
                     : plannedElsewhere
                       ? `Planned ${formatShortDate(plannedElsewhere)}`
                       : alreadySeen
