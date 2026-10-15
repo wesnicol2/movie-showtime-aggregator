@@ -100,3 +100,36 @@ def test_match_showtime_uses_title_time_and_theatre_location():
     )
 
     assert result == matching
+
+
+def test_match_showtime_ignores_trailing_fandango_release_year():
+    theatre = AMCTheatre(6, "AMC Desert Ridge 18", GeoPoint(33.679, -111.973))
+    candidate = AMCShowtime(
+        performance_id=144123456,
+        theatre=theatre,
+        movie_name="Whalefall",
+        start_local=datetime(2026, 10, 15, 11, 35),
+        ticket_price=12,
+        a_list_eligible=True,
+        purchase_url="https://www.amctheatres.com/showtimes/144123456/tickets",
+    )
+    assert (
+        match_showtime(
+            "Whalefall (2026)",
+            "AMC Desert Ridge 18",
+            datetime(2026, 10, 15, 11, 37),
+            theatre.point,
+            [candidate],
+        )
+        == candidate
+    )
+    assert (
+        match_showtime(
+            "Different Movie (2026)",
+            "AMC Desert Ridge 18",
+            datetime(2026, 10, 15, 11, 37),
+            theatre.point,
+            [candidate],
+        )
+        is None
+    )

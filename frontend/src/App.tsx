@@ -6,9 +6,17 @@ import { PlannerPage } from "./PlannerPage";
 import { ScreeningsPage } from "./ScreeningsPage";
 import { SettingsPage } from "./SettingsPage";
 import { useAppStore } from "./store";
+import type { BuildInfo, HealthResponse } from "./types";
 import { WatchlistPage } from "./WatchlistPage";
 
 type AppPath = "/" | "/movies" | "/plan" | "/showtimes" | "/settings" | "/watchlist";
+
+function buildTimestamp(value: string | null): string {
+  if (!value) return "unknown";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toISOString().replace("T", " ").replace(".000Z", " UTC");
+}
 
 function normalizeLocation(): AppPath {
   const path = window.location.pathname;
@@ -26,9 +34,26 @@ function normalizeLocation(): AppPath {
 export function App() {
   const [path, setPath] = useState(normalizeLocation);
   const [calendarFocusDate, setCalendarFocusDate] = useState<string | null>(null);
+  const [build, setBuild] = useState<BuildInfo | null>(null);
   const syncMovieSelection = useAppStore((state) => state.syncMovieSelection);
   const selectedDate = useAppStore((state) => state.selectedDate);
   const setSelectedDate = useAppStore((state) => state.setSelectedDate);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/health", { signal: controller.signal, cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error("Build status unavailable");
+        return response.json() as Promise<HealthResponse>;
+      })
+      .then((payload) => {
+        if (!controller.signal.aborted) setBuild(payload.build ?? null);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setBuild(null);
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const onPopState = () => setPath(normalizeLocation());
@@ -125,6 +150,17 @@ export function App() {
           <ScreeningsPage />
         )}
       </main>
+      {build?.image_tag === "test" ? (
+        <aside
+          className="test-build-stamp"
+          aria-label="Test build"
+          title={`Commit ${build.commit} · Commit updated ${build.commit_at ?? "unknown"} · Image built ${build.built_at ?? "unknown"}`}
+        >
+          <strong>TEST</strong>
+          <code>{build.commit_short}</code>
+          <span>Updated {buildTimestamp(build.commit_at)}</span>
+        </aside>
+      ) : null}
     </div>
   );
 }
