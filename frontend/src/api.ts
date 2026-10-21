@@ -50,9 +50,19 @@ export function getCachedScreenings(showDate: string): ScreeningsResponse | null
     const raw = sessionStorage.getItem(`${SNAPSHOT_PREFIX}${showDate}`);
     if (!raw) return null;
     const snapshot: unknown = JSON.parse(raw);
-    if (!snapshot || typeof snapshot !== "object" || !("key" in snapshot) || !("payload" in snapshot)) return null;
+    if (
+      !snapshot ||
+      typeof snapshot !== "object" ||
+      !("key" in snapshot) ||
+      !("payload" in snapshot)
+    )
+      return null;
     const item = snapshot as { key: string; payload: ScreeningsResponse };
-    if (item.key !== key || item.payload?.date !== showDate || !Array.isArray(item.payload.screenings))
+    if (
+      item.key !== key ||
+      item.payload?.date !== showDate ||
+      !Array.isArray(item.payload.screenings)
+    )
       return null;
     readyScreenings.set(key, item.payload);
     return item.payload;
@@ -64,10 +74,7 @@ export function getCachedScreenings(showDate: string): ScreeningsResponse | null
 function saveCachedScreenings(key: string, payload: ScreeningsResponse): void {
   readyScreenings.set(key, payload);
   try {
-    sessionStorage.setItem(
-      `${SNAPSHOT_PREFIX}${payload.date}`,
-      JSON.stringify({ key, payload }),
-    );
+    sessionStorage.setItem(`${SNAPSHOT_PREFIX}${payload.date}`, JSON.stringify({ key, payload }));
   } catch {
     // Large theater listings may exceed browser quota; in-memory reuse still works.
   }

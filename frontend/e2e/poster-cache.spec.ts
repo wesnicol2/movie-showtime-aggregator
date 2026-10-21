@@ -16,28 +16,37 @@ test("Movie Selection restores its day from session cache after reload", async (
         enrichment_enabled: true,
         count: 1,
         total_count: 1,
-        facets: { chains: ["AMC"], movies: ["Alpha"], theatres: ["AMC Center"], formats: ["Standard"] },
-        screenings: [{
+        facets: {
+          chains: ["AMC"],
+          movies: ["Alpha"],
+          theatres: ["AMC Center"],
+          formats: ["Standard"],
+        },
+        screenings: [
+          {
           showtime_id: "alpha-1",
           movie: "Alpha",
           theatre: "AMC Center",
           chain: "AMC",
           format: "Standard",
-          advertised_start: date + "T18:00:00",
-          actual_start: date + "T18:10:00",
-          estimated_end: date + "T20:10:00",
+          advertised_start: `${date}T18:00:00`,
+          actual_start: `${date}T18:10:00`,
+          estimated_end: `${date}T20:10:00`,
           runtime_minutes: 120,
           distance_miles: 2,
           purchase_url: "",
-          poster_url: "/api/posters/" + "a".repeat(64),
-        }],
+          poster_url: `/api/posters/${"a".repeat(64)}`,
+          },
+        ],
       },
     });
   });
-  await page.route("**/api/posters/*", (route) => route.fulfill({
-    contentType: "image/jpeg",
-    body: Buffer.from([255, 216, 255, 217]),
-  }));
+  await page.route("**/api/posters/*", (route) =>
+    route.fulfill({
+      contentType: "image/jpeg",
+      body: Buffer.from([255, 216, 255, 217]),
+    }),
+  );
 
   await page.goto("/movies");
   await expect(page.getByRole("img", { name: "Alpha poster" })).toBeVisible();

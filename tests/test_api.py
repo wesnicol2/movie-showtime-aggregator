@@ -108,7 +108,7 @@ def test_local_poster_route_has_binary_type_caching_and_head(monkeypatch, tmp_pa
     cache = PosterCache(tmp_path / "posters")
     cache.path.mkdir(parents=True)
     digest = "a" * 64
-    binary = b"\\xff\\xd8\\xffposter\\xff\\xd9"
+    binary = b"\xff\xd8\xffposter\xff\xd9"
     (cache.path / digest).write_bytes(binary)
     monkeypatch.setattr(api, "_POSTER_CACHE", cache)
     headers = {}
