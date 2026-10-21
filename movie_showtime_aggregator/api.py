@@ -797,6 +797,13 @@ def _parse_preview_minutes(values: list[str]) -> dict[str, int]:
     return previews
 
 
+def _record_status(results: list[str]) -> Callable:
+    def capture(status: str, _headers: list[tuple[str, str]]) -> None:
+        results.append(status)
+
+    return capture
+
+
 def _cache_status() -> dict[str, object]:
     with _REFRESH_LOCK:
         running = dict(_REFRESH_STATUS)
@@ -844,10 +851,7 @@ def _refresh_worker(zip_code: str, radius: int, previews: dict[str, int]) -> Non
                 # Warm the complete enriched API representation as well as the base date.
                 # Optional enrichment failure is isolated to this date.
                 result_codes: list[str] = []
-                def capture_status(status: str, _headers: list[tuple[str, str]]) -> None:
-                    result_codes.append(status)
-
-                list(_screenings_response(environ, capture_status, "GET"))
+                list(_screenings_response(environ, _record_status(result_codes), "GET"))
                 if not result_codes or not result_codes[0].startswith("200 "):
                     raise RuntimeError("Screening enrichment could not be warmed")
             except Exception as exc:
