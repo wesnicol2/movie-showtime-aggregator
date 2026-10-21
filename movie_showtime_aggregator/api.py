@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import mimetypes
 import threading
+import time
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import date, datetime, timedelta
 from http.cookies import SimpleCookie
 from pathlib import Path
-from urllib.parse import parse_qs, unquote
-from wsgiref.simple_server import make_server
+from socketserver import ThreadingMixIn
+from urllib.parse import parse_qs, unquote, urlencode
+from wsgiref.simple_server import WSGIServer, make_server
 
 from .amc import AMCClient
 from .build_info import build_info
 from .config import Settings
+from .daily_cache import DailyCache, cache_day
 from .enrichment import enrich_amc_details, enrich_movie_metadata, enrich_travel_times
 from .experience import (
     configure_experience,
@@ -42,7 +46,8 @@ PREVIEW_COOKIE = "movie_preview_minutes"
 LOCATION_COOKIE = "movie_location"
 
 _SETTINGS = Settings.from_env()
-_SERVICE = ScreeningService(FandangoClient(), _SETTINGS)
+_DAILY_CACHE = DailyCache()
+_SERVICE = ScreeningService(FandangoClient(), _SETTINGS, daily_cache=_DAILY_CACHE)
 _STORE = SettingsStore()
 _PROVIDER_CACHE = ProviderCache()
 _GEOCODER = AddressGeocoder()
@@ -51,6 +56,11 @@ _ZIP_LOCATOR = ZipLocator()
 _CLIENT_LOCK = threading.Lock()
 _OMDB_CLIENTS: dict[str, OmdbClient] = {}
 _AMC_CLIENTS: dict[str, AMCClient] = {}
+_REFRESH_LOCK = threading.Lock()
+_REFRESH_STATUS: dict[str, object] = {
+    "running": False, "completed": 0, "total": 15,
+    "started_at": None, "finished_at": None, "errors": [],
+}
 
 
 def health() -> dict[str, object]:
@@ -65,6 +75,22 @@ def application(environ: dict, start_response: Callable) -> Iterable[bytes]:
         if method not in {"GET", "HEAD", "POST"}:
             return _json_response(start_response, 405, {"error": "method not allowed"}, method)
         return _settings_response(environ, start_response, method)
+
+    if path == "/api/cache/refresh":
+        if method != "POST":
+            return _json_response(start_response, 405, {"error": "method not allowed"}, method)
+        try:
+            query = parse_qs(environ.get("QUERY_STRING", ""))
+            zip_code, radius = _location_from_request(environ, query)
+            previews = _preview_minutes_from_request(environ, query)
+        except ValueError as exc:
+            return _json_response(start_response, 400, {"error": str(exc)}, method)
+        return _json_response(start_response, 200, _start_refresh(zip_code, radius, previews), method)
+
+    if path == "/api/cache/status":
+        if method not in {"GET", "HEAD"}:
+            return _json_response(start_response, 405, {"error": "method not allowed"}, method)
+        return _json_response(start_response, 200, _cache_status(), method)
 
     if path == "/api/movie-day":
         if method != "POST":
@@ -105,13 +131,26 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         preview_minutes_by_chain = _preview_minutes_from_request(environ, query)
         zip_code, radius_miles = _location_from_request(environ, query)
         enrichment_enabled = _parse_enrichment_enabled(query.get("enrich", ["true"])[0])
+        stored = _STORE.load()
+        signature = json.dumps(
+            [show_date.isoformat(), zip_code, radius_miles, preview_minutes_by_chain,
+             enrichment_enabled, query, asdict(stored)],
+            sort_keys=True,
+        )
+        response_key = (
+            f"{zip_code}|{radius_miles}|{show_date.isoformat()}|"
+            f"{hashlib.sha256(signature.encode()).hexdigest()}"
+        )
+        cached_payload = _DAILY_CACHE.get("responses", response_key)
+        if isinstance(cached_payload, dict):
+            return _json_response(start_response, 200, cached_payload, method)
+
         all_screenings = _SERVICE.get_screenings(
             show_date,
             preview_minutes_by_chain,
             zip_code=zip_code,
             radius_miles=radius_miles,
         )
-        stored = _STORE.load()
         all_screenings = [
             _configure_screening_experience(screening, stored) for screening in all_screenings
         ]
@@ -160,6 +199,7 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         "facets": facets(all_screenings),
         "screenings": [screening.to_dict() for screening in visible],
     }
+    _DAILY_CACHE.set("responses", response_key, payload)
     return _json_response(start_response, 200, payload, method)
 
 
@@ -754,6 +794,82 @@ def _parse_preview_minutes(values: list[str]) -> dict[str, int]:
     return previews
 
 
+def _cache_status() -> dict[str, object]:
+    with _REFRESH_LOCK:
+        running = dict(_REFRESH_STATUS)
+        running["errors"] = list(_REFRESH_STATUS["errors"])
+    return {**_DAILY_CACHE.status(), **running}
+
+
+def _start_refresh(zip_code: str, radius: int, previews: dict[str, int]) -> dict[str, object]:
+    with _REFRESH_LOCK:
+        if _REFRESH_STATUS["running"]:
+            return _cache_status_unlocked()
+        _REFRESH_STATUS.update(
+            running=True, completed=0, total=15,
+            started_at=datetime.now().isoformat(), finished_at=None, errors=[],
+        )
+        worker = threading.Thread(
+            target=_refresh_worker,
+            args=(zip_code, radius, dict(previews)),
+            name="daily-showtime-cache-refresh",
+            daemon=True,
+        )
+        worker.start()
+        return _cache_status_unlocked()
+
+
+def _cache_status_unlocked() -> dict[str, object]:
+    return {**_DAILY_CACHE.status(), **_REFRESH_STATUS.copy()}
+
+
+def _refresh_worker(zip_code: str, radius: int, previews: dict[str, int]) -> None:
+    try:
+        for offset in range(15):
+            show_date = date.fromisoformat(cache_day()) + timedelta(days=offset)
+            try:
+                _SERVICE.refresh_date(show_date, zip_code=zip_code, radius_miles=radius)
+                # Keep the previous good response until base data has been refreshed.
+                _DAILY_CACHE.delete_prefix(
+                    "responses", f"{zip_code}|{radius}|{show_date.isoformat()}|"
+                )
+                params = [
+                    ("date", show_date.isoformat()), ("zip", zip_code), ("radius", str(radius)),
+                ]
+                params.extend(("preview", f"{chain}:{minutes}") for chain, minutes in previews.items())
+                environ = {"REQUEST_METHOD": "GET", "QUERY_STRING": urlencode(params)}
+                # Warm the complete enriched API representation as well as the base date.
+                # Optional enrichment failure is isolated to this date.
+                list(_screenings_response(environ, lambda *_: None, "GET"))
+            except Exception as exc:
+                with _REFRESH_LOCK:
+                    errors = _REFRESH_STATUS["errors"]
+                    if isinstance(errors, list):
+                        errors.append(f"{show_date.isoformat()}: {type(exc).__name__}")
+            finally:
+                with _REFRESH_LOCK:
+                    _REFRESH_STATUS["completed"] = offset + 1
+    finally:
+        with _REFRESH_LOCK:
+            _REFRESH_STATUS["running"] = False
+            _REFRESH_STATUS["finished_at"] = datetime.now().isoformat()
+
+
+def _daily_scheduler() -> None:
+    last_day = ""
+    while True:
+        today = cache_day()
+        if today != last_day:
+            last_day = today
+            if int(_DAILY_CACHE.status()["base_dates"]) < 15:
+                _start_refresh(_SETTINGS.zip_code, _SETTINGS.radius_miles, {})
+        time.sleep(60)
+
+
+class ThreadedWSGIServer(ThreadingMixIn, WSGIServer):
+    daemon_threads = True
+
+
 def _static_response(
     start_response: Callable,
     relative_path: str,
@@ -816,7 +932,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
 
-    with make_server(args.host, args.port, application) as httpd:
+    threading.Thread(target=_daily_scheduler, name="daily-cache-scheduler", daemon=True).start()
+    with make_server(args.host, args.port, application, server_class=ThreadedWSGIServer) as httpd:
         print(f"serving on http://{args.host}:{args.port}")
         httpd.serve_forever()
     return 0
