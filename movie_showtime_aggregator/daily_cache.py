@@ -5,7 +5,7 @@ import os
 import sqlite3
 import threading
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -98,6 +98,53 @@ class DailyCache:
             previews = {}
         return str(row[0]), int(row[1]), previews
 
+    def last_refresh_started(self) -> datetime | None:
+        """Persist the automatic/manual refresh cadence across restarts."""
+        with self._lock, self._connect() as db:
+            row = db.execute(
+                "SELECT started_at FROM refresh_schedule WHERE schedule_id=1"
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            started = datetime.fromisoformat(row[0])
+            return started if started.tzinfo is not None else None
+        except (ValueError, TypeError):
+            return None
+
+    def mark_refresh_started(self, started: datetime) -> None:
+        if started.tzinfo is None:
+            raise ValueError("Refresh timestamp must have a timezone")
+        with self._lock, self._connect() as db:
+            db.execute(
+                """
+                INSERT INTO refresh_schedule(schedule_id, started_at) VALUES(1, ?)
+                ON CONFLICT(schedule_id) DO UPDATE SET started_at=excluded.started_at
+                """,
+                (started.isoformat(),),
+            )
+
+    def replace_prefix(self, namespace: str, prefix: str, key: str, value: object) -> None:
+        """Atomically replace a day's response after successful upstream enrichment."""
+        if not key.startswith(prefix):
+            raise ValueError("Cache key must match the replaced prefix")
+        encoded = json.dumps(value, separators=(",", ":"), sort_keys=True)
+        with self._lock, self._connect() as db:
+            db.execute(
+                "DELETE FROM snapshots WHERE namespace=? AND substr(cache_key,1,?)=?",
+                (namespace, len(prefix), prefix),
+            )
+            db.execute(
+                """
+                INSERT INTO snapshots(namespace, cache_key, value, snapshot_day, saved_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(namespace, cache_key) DO UPDATE SET
+                  value=excluded.value, snapshot_day=excluded.snapshot_day,
+                  saved_at=excluded.saved_at
+                """,
+                (namespace, key, encoded, self._day(), datetime.now(PHOENIX).isoformat()),
+            )
+
     def status(self) -> dict[str, object]:
         with self._lock, self._connect() as db:
             rows = db.execute(
@@ -107,7 +154,13 @@ class DailyCache:
                 """,
                 (self._day(),),
             ).fetchall()
+        started = self.last_refresh_started()
         return {
+            "refresh_interval_hours": 4,
+            "last_refresh_started_at": started.isoformat() if started else None,
+            "next_refresh_at": (
+                (started + timedelta(hours=4)).isoformat() if started else None
+            ),
             "day": self._day(),
             "base_dates": next((count for name, count, _ in rows if name == "base"), 0),
             "responses": next((count for name, count, _ in rows if name == "responses"), 0),
@@ -138,6 +191,14 @@ class DailyCache:
                 zip_code TEXT NOT NULL,
                 radius INTEGER NOT NULL,
                 previews TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS refresh_schedule (
+                schedule_id INTEGER PRIMARY KEY CHECK (schedule_id=1),
+                started_at TEXT NOT NULL
             )
             """
         )
