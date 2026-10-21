@@ -19,7 +19,7 @@ from wsgiref.simple_server import WSGIServer, make_server
 from .amc import AMCClient
 from .build_info import build_info
 from .config import Settings
-from .daily_cache import DailyCache, cache_day
+from .daily_cache import PHOENIX, DailyCache, cache_day
 from .enrichment import enrich_amc_details, enrich_movie_metadata, enrich_travel_times
 from .experience import (
     configure_experience,
@@ -810,7 +810,7 @@ def _start_refresh(zip_code: str, radius: int, previews: dict[str, int]) -> dict
             return _cache_status_unlocked()
         _REFRESH_STATUS.update(
             running=True, completed=0, total=15,
-            started_at=datetime.now().isoformat(), finished_at=None, errors=[],
+            started_at=datetime.now(PHOENIX).isoformat(), finished_at=None, errors=[],
         )
         worker = threading.Thread(
             target=_refresh_worker,
@@ -843,7 +843,13 @@ def _refresh_worker(zip_code: str, radius: int, previews: dict[str, int]) -> Non
                 environ = {"REQUEST_METHOD": "GET", "QUERY_STRING": urlencode(params)}
                 # Warm the complete enriched API representation as well as the base date.
                 # Optional enrichment failure is isolated to this date.
-                list(_screenings_response(environ, lambda *_: None, "GET"))
+                result_codes: list[str] = []
+                def capture_status(status: str, _headers: list[tuple[str, str]]) -> None:
+                    result_codes.append(status)
+
+                list(_screenings_response(environ, capture_status, "GET"))
+                if not result_codes or not result_codes[0].startswith("200 "):
+                    raise RuntimeError("Screening enrichment could not be warmed")
             except Exception as exc:
                 with _REFRESH_LOCK:
                     errors = _REFRESH_STATUS["errors"]
@@ -855,7 +861,7 @@ def _refresh_worker(zip_code: str, radius: int, previews: dict[str, int]) -> Non
     finally:
         with _REFRESH_LOCK:
             _REFRESH_STATUS["running"] = False
-            _REFRESH_STATUS["finished_at"] = datetime.now().isoformat()
+            _REFRESH_STATUS["finished_at"] = datetime.now(PHOENIX).isoformat()
 
 
 def _daily_scheduler() -> None:
