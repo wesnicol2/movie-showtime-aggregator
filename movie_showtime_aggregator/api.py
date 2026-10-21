@@ -138,6 +138,7 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         zip_code, radius_miles = _location_from_request(environ, query)
         enrichment_enabled = _parse_enrichment_enabled(query.get("enrich", ["true"])[0])
         stored = _STORE.load()
+        _DAILY_CACHE.remember_profile(zip_code, radius_miles, preview_minutes_by_chain)
         signature = json.dumps(
             [
                 show_date.isoformat(),
@@ -832,6 +833,7 @@ def _cache_status() -> dict[str, object]:
 
 
 def _start_refresh(zip_code: str, radius: int, previews: dict[str, int]) -> dict[str, object]:
+    _DAILY_CACHE.remember_profile(zip_code, radius, previews)
     with _REFRESH_LOCK:
         if _REFRESH_STATUS["running"]:
             return _cache_status_unlocked()
@@ -903,7 +905,10 @@ def _daily_scheduler() -> None:
         if today != last_day:
             last_day = today
             if int(_DAILY_CACHE.status()["base_dates"]) < 15:
-                _start_refresh(_SETTINGS.zip_code, _SETTINGS.radius_miles, {})
+                profile = _DAILY_CACHE.last_profile()
+                if profile is None:
+                    profile = (_SETTINGS.zip_code, _SETTINGS.radius_miles, {})
+                _start_refresh(*profile)
         time.sleep(60)
 
 
