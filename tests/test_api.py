@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 import pytest
 
 import movie_showtime_aggregator.api as api
+from movie_showtime_aggregator.daily_cache import DailyCache
 from movie_showtime_aggregator.experience import ExperienceDeviation
 from movie_showtime_aggregator.location import GeoPoint
 from movie_showtime_aggregator.models import Screening
@@ -61,6 +62,7 @@ def isolated_shared_settings(monkeypatch, tmp_path):
         ProviderCache(tmp_path / "common" / "provider-cache.sqlite3"),
     )
     monkeypatch.setattr(api, "_ZIP_LOCATOR", FakeZipLocator())
+    monkeypatch.setattr(api, "_DAILY_CACHE", DailyCache(tmp_path / "data" / "daily.sqlite3"))
     api._OMDB_CLIENTS.clear()
     api._AMC_CLIENTS.clear()
 
@@ -568,3 +570,41 @@ def test_future_availability_requires_reference_date():
     status, payload = call("/api/movie-availability")
     assert status == 400
     assert "after" in payload["error"]
+
+
+def test_screening_response_uses_daily_snapshot_and_invalidates_by_region(monkeypatch):
+    service = StubService([sample_screening("First Movie")])
+    monkeypatch.setattr(api, "_SERVICE", service)
+    first_code, first = call("/api/screenings", query="date=2026-10-21&enrich=0")
+    assert first_code == 200
+    assert first["screenings"][0]["movie"] == "First Movie"
+
+    service.screenings = [sample_screening("Changed Movie")]
+    second_code, second = call("/api/screenings", query="date=2026-10-21&enrich=0")
+    assert second_code == 200
+    assert second["screenings"][0]["movie"] == "First Movie"
+
+    api._DAILY_CACHE.delete_prefix("responses", "85004|25|2026-10-21|")
+    _, refreshed = call("/api/screenings", query="date=2026-10-21&enrich=0")
+    assert refreshed["screenings"][0]["movie"] == "Changed Movie"
+
+
+def test_cache_status_and_refresh_routes_check_methods(monkeypatch):
+    class StubCacheService:
+        def __init__(self):
+            self.days = []
+
+        def refresh_date(self, show_date, *, zip_code, radius_miles):
+            self.days.append((show_date, zip_code, radius_miles))
+
+        def get_screenings(self, show_date, preview_minutes_by_chain=None, *,
+                           zip_code=None, radius_miles=None):
+            return [sample_screening()]
+
+    service = StubCacheService()
+    monkeypatch.setattr(api, "_SERVICE", service)
+    assert call("/api/cache/refresh")[0] == 405
+    code, status = call("/api/cache/status")
+    assert code == 200
+    assert status["base_dates"] == 0
+    assert status["day"]
