@@ -71,3 +71,15 @@ def test_service_reuses_persistent_base_and_force_replaces_it(tmp_path):
     restarted.refresh_date(show_date, zip_code="85004", radius_miles=25)
     assert second_client.calls == 1
     assert restarted.get_screenings(show_date, {"AMC": 0})[0].actual_start.hour == 18
+
+
+def test_last_location_profile_persists_across_startups_and_calendar_days(tmp_path):
+    day = ["2026-10-21"]
+    path = tmp_path / "daily.sqlite3"
+    original = DailyCache(path, day=lambda: day[0])
+    original.remember_profile("85020", 30, {"AMC": 15})
+    day[0] = "2026-10-22"
+    restarted = DailyCache(path, day=lambda: day[0])
+    assert restarted.last_profile() == ("85020", 30, {"AMC": 15})
+    restarted.remember_profile("85004", 25, {})
+    assert original.last_profile() == ("85004", 25, {})
