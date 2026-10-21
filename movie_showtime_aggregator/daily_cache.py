@@ -158,9 +158,7 @@ class DailyCache:
         return {
             "refresh_interval_hours": 4,
             "last_refresh_started_at": started.isoformat() if started else None,
-            "next_refresh_at": (
-                (started + timedelta(hours=4)).isoformat() if started else None
-            ),
+            "next_refresh_at": ((started + timedelta(hours=4)).isoformat() if started else None),
             "day": self._day(),
             "base_dates": next((count for name, count, _ in rows if name == "base"), 0),
             "responses": next((count for name, count, _ in rows if name == "responses"), 0),
