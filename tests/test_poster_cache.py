@@ -50,16 +50,19 @@ def test_poster_is_durable_and_downloaded_only_once(tmp_path):
 def test_rejects_nonposter_hosts_bad_protocol_and_bad_bytes(tmp_path):
     opener = FakeOpener()
     cache = PosterCache(tmp_path / "posters", opener=opener)
-    assert cache.localize(
-        [
-            "http://m.media-amazon.com/poster.jpg",
-            "https://localhost/poster.jpg",
-            "https://127.0.0.1/poster.jpg",
-            "https://m.media-amazon.com.evil.com/poster.jpg",
-            "https://m.media-amazon.com:8080/poster.jpg",
-            "file:///etc/passwd",
-        ]
-    ) == {}
+    assert (
+        cache.localize(
+            [
+                "http://m.media-amazon.com/poster.jpg",
+                "https://localhost/poster.jpg",
+                "https://127.0.0.1/poster.jpg",
+                "https://m.media-amazon.com.evil.com/poster.jpg",
+                "https://m.media-amazon.com:8080/poster.jpg",
+                "file:///etc/passwd",
+            ]
+        )
+        == {}
+    )
     assert opener.calls == 0
 
     broken = PosterCache(tmp_path / "broken", opener=FakeOpener(b"<script>bad</script>"))

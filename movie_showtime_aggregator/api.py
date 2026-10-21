@@ -206,7 +206,10 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         )
         if local_posters:
             all_screenings = [
-                replace(screening, poster_url=local_posters.get(screening.poster_url, screening.poster_url))
+                replace(
+                    screening,
+                    poster_url=local_posters.get(screening.poster_url, screening.poster_url),
+                )
                 for screening in all_screenings
             ]
 
@@ -932,9 +935,7 @@ class ThreadedWSGIServer(ThreadingMixIn, WSGIServer):
     daemon_threads = True
 
 
-def _poster_response(
-    start_response: Callable, digest: str, method: str
-) -> Iterable[bytes]:
+def _poster_response(start_response: Callable, digest: str, method: str) -> Iterable[bytes]:
     cached = _POSTER_CACHE.get(digest)
     if cached is None:
         return _json_response(start_response, 404, {"error": "poster not found"}, method)
