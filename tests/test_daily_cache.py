@@ -57,9 +57,7 @@ def test_service_reuses_persistent_base_and_force_replaces_it(tmp_path):
     cache = DailyCache(tmp_path / "daily.sqlite3")
     show_date = date(2026, 10, 21)
     first_client = CountingClient()
-    first = ScreeningService(
-        first_client, Settings(), locator=StaticLocator(), daily_cache=cache
-    )
+    first = ScreeningService(first_client, Settings(), locator=StaticLocator(), daily_cache=cache)
     assert first.get_screenings(show_date)[0].movie == "Test Movie"
     assert first_client.calls == 1
 
