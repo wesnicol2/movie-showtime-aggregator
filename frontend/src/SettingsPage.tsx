@@ -329,7 +329,7 @@ export function SettingsPage() {
           </div>
           <span className="scope-badge">This server</span>
         </div>
-        <p role="status" aria-live="polite">
+        <p aria-live="polite">
           {cacheState?.running
             ? `Refreshing ${cacheState.completed} of ${cacheState.total} dates…`
             : cacheState
