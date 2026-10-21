@@ -6,6 +6,10 @@ import type { MovieAvailabilityResponse, MovieAvailabilitySummary } from "./type
 const CACHE_LIFETIME_MS = 5 * 60 * 1000;
 const cache = new Map<string, { expires: number; pending: Promise<MovieAvailabilityResponse> }>();
 
+export function clearMovieAvailabilityCache(): void {
+  cache.clear();
+}
+
 function loadAvailability(afterDate: string): Promise<MovieAvailabilityResponse> {
   // The theater search is carried by cookies, not explicit URL parameters.
   const cacheKey = `${afterDate}|${document.cookie}`;
