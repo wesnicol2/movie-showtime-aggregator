@@ -102,6 +102,31 @@ class StubService:
         return list(self.screenings)
 
 
+def test_local_poster_route_has_binary_type_caching_and_head(monkeypatch, tmp_path):
+    from movie_showtime_aggregator.poster_cache import PosterCache
+
+    cache = PosterCache(tmp_path / "posters")
+    cache.path.mkdir(parents=True)
+    digest = "a" * 64
+    binary = b"\xff\xd8\xffposter\xff\xd9"
+    (cache.path / digest).write_bytes(binary)
+    monkeypatch.setattr(api, "_POSTER_CACHE", cache)
+    headers = {}
+
+    def capture(status, fields):
+        headers.update(dict(fields))
+        headers["status"] = status
+
+    url = f"/api/posters/{digest}"
+    assert b"".join(api.application({"PATH_INFO": url, "REQUEST_METHOD": "GET"}, capture)) == binary
+    assert headers["Content-Type"] == "image/jpeg"
+    assert headers["Cache-Control"] == "public, max-age=31536000, immutable"
+    assert b"".join(api.application({"PATH_INFO": url, "REQUEST_METHOD": "HEAD"}, capture)) == b""
+    assert call("/api/posters/" + "b" * 64)[0] == 404
+    assert call("/api/posters/../../settings.json")[0] == 404
+    assert call(url, method="POST")[0] == 405
+
+
 def test_health_is_ok():
     code, payload = call("/health")
     assert code == 200

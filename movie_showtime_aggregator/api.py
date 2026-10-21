@@ -32,6 +32,7 @@ from .location import GeoPoint, LocationError, ZipLocator
 from .metadata import OMDB_DAILY_LIMIT, OmdbClient
 from .models import Screening
 from .planner import plan_movie_day, theatre_points
+from .poster_cache import PosterCache
 from .provider_cache import ProviderCache
 from .routing import AddressGeocoder, GeocodingError, OsrmRouter, RoutingError
 from .service import ScreeningFilters, ScreeningService, facets, filter_screenings
@@ -47,6 +48,7 @@ LOCATION_COOKIE = "movie_location"
 
 _SETTINGS = Settings.from_env()
 _DAILY_CACHE = DailyCache()
+_POSTER_CACHE = PosterCache()
 _SERVICE = ScreeningService(FandangoClient(), _SETTINGS, daily_cache=_DAILY_CACHE)
 _STORE = SettingsStore()
 _PROVIDER_CACHE = ProviderCache()
@@ -112,6 +114,8 @@ def application(environ: dict, start_response: Callable) -> Iterable[bytes]:
         return _screenings_response(environ, start_response, method)
     if path == "/api/movie-availability":
         return _movie_availability_response(environ, start_response, method)
+    if path.startswith("/api/posters/"):
+        return _poster_response(start_response, path.removeprefix("/api/posters/"), method)
     if path == "/api/letterboxd-rating":
         query = parse_qs(environ.get("QUERY_STRING", ""))
         imdb_ids = query.get("imdb_id", [])
@@ -158,6 +162,7 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
                     )
                 },
                 asdict(stored),
+                "poster-cache-v1",
             ],
             sort_keys=True,
         )
@@ -193,6 +198,20 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
                     a_list_enabled=stored.amc_a_list,
                 )
             all_screenings = enrich_travel_times(all_screenings, _home_point(stored), _ROUTER)
+
+        # Prefetch the actual image bytes before saving the daily API snapshot.
+        # Unsupported/broken poster hosts keep their original URL as a fallback.
+        local_posters = _POSTER_CACHE.localize(
+            screening.poster_url for screening in all_screenings if screening.poster_url
+        )
+        if local_posters:
+            all_screenings = [
+                replace(
+                    screening,
+                    poster_url=local_posters.get(screening.poster_url, screening.poster_url),
+                )
+                for screening in all_screenings
+            ]
 
         filters = ScreeningFilters(
             movies=frozenset(query.get("movie", [])),
@@ -914,6 +933,23 @@ def _daily_scheduler() -> None:
 
 class ThreadedWSGIServer(ThreadingMixIn, WSGIServer):
     daemon_threads = True
+
+
+def _poster_response(start_response: Callable, digest: str, method: str) -> Iterable[bytes]:
+    cached = _POSTER_CACHE.get(digest)
+    if cached is None:
+        return _json_response(start_response, 404, {"error": "poster not found"}, method)
+    contents, mime_type = cached
+    start_response(
+        "200 OK",
+        [
+            ("Content-Type", mime_type),
+            ("Content-Length", str(len(contents))),
+            ("Cache-Control", "public, max-age=31536000, immutable"),
+            ("X-Content-Type-Options", "nosniff"),
+        ],
+    )
+    return [] if method == "HEAD" else [contents]
 
 
 def _static_response(
