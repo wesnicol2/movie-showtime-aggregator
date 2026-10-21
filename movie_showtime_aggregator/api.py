@@ -59,6 +59,7 @@ _CLIENT_LOCK = threading.Lock()
 _OMDB_CLIENTS: dict[str, OmdbClient] = {}
 _AMC_CLIENTS: dict[str, AMCClient] = {}
 _REFRESH_LOCK = threading.Lock()
+_REFRESH_INTERVAL = timedelta(hours=4)
 _REFRESH_STATUS: dict[str, object] = {
     "running": False,
     "completed": 0,
@@ -170,7 +171,8 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
             f"{zip_code}|{radius_miles}|{show_date.isoformat()}|"
             f"{hashlib.sha256(signature.encode()).hexdigest()}"
         )
-        cached_payload = _DAILY_CACHE.get("responses", response_key)
+        rebuilding = environ.get("MOVIE_CACHE_REBUILD") is True
+        cached_payload = None if rebuilding else _DAILY_CACHE.get("responses", response_key)
         if isinstance(cached_payload, dict):
             return _json_response(start_response, 200, cached_payload, method)
 
@@ -242,7 +244,16 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         "facets": facets(all_screenings),
         "screenings": [screening.to_dict() for screening in visible],
     }
-    _DAILY_CACHE.set("responses", response_key, payload)
+    if rebuilding:
+        # Preserve the old complete response until the new one is ready.
+        _DAILY_CACHE.replace_prefix(
+            "responses",
+            f"{zip_code}|{radius_miles}|{show_date.isoformat()}|",
+            response_key,
+            payload,
+        )
+    else:
+        _DAILY_CACHE.set("responses", response_key, payload)
     return _json_response(start_response, 200, payload, method)
 
 
@@ -856,6 +867,7 @@ def _start_refresh(zip_code: str, radius: int, previews: dict[str, int]) -> dict
     with _REFRESH_LOCK:
         if _REFRESH_STATUS["running"]:
             return _cache_status_unlocked()
+        _DAILY_CACHE.mark_refresh_started(datetime.now(PHOENIX))
         _REFRESH_STATUS.update(
             running=True,
             completed=0,
@@ -884,10 +896,7 @@ def _refresh_worker(zip_code: str, radius: int, previews: dict[str, int]) -> Non
             show_date = date.fromisoformat(cache_day()) + timedelta(days=offset)
             try:
                 _SERVICE.refresh_date(show_date, zip_code=zip_code, radius_miles=radius)
-                # Keep the previous good response until base data has been refreshed.
-                _DAILY_CACHE.delete_prefix(
-                    "responses", f"{zip_code}|{radius}|{show_date.isoformat()}|"
-                )
+                # Keep the old enriched response until the replacement succeeds.
                 params = [
                     ("date", show_date.isoformat()),
                     ("zip", zip_code),
@@ -896,7 +905,11 @@ def _refresh_worker(zip_code: str, radius: int, previews: dict[str, int]) -> Non
                 params.extend(
                     ("preview", f"{chain}:{minutes}") for chain, minutes in previews.items()
                 )
-                environ = {"REQUEST_METHOD": "GET", "QUERY_STRING": urlencode(params)}
+                environ = {
+                    "REQUEST_METHOD": "GET",
+                    "QUERY_STRING": urlencode(params),
+                    "MOVIE_CACHE_REBUILD": True,
+                }
                 # Warm the complete enriched API representation as well as the base date.
                 # Optional enrichment failure is isolated to this date.
                 result_codes: list[str] = []
@@ -917,17 +930,33 @@ def _refresh_worker(zip_code: str, radius: int, previews: dict[str, int]) -> Non
             _REFRESH_STATUS["finished_at"] = datetime.now(PHOENIX).isoformat()
 
 
+def _scheduled_refresh_due(now: datetime, started: datetime | None, base_dates: int) -> bool:
+    if started is None:
+        return True
+    # At midnight yesterday's date-scoped snapshots expire.
+    if started.astimezone(PHOENIX).date() != now.astimezone(PHOENIX).date():
+        if base_dates < 15:
+            return True
+    return now - started >= _REFRESH_INTERVAL
+
+
+def _scheduled_refresh_tick(now: datetime) -> bool:
+    if not _scheduled_refresh_due(
+        now,
+        _DAILY_CACHE.last_refresh_started(),
+        int(_DAILY_CACHE.status()["base_dates"]),
+    ):
+        return False
+    profile = _DAILY_CACHE.last_profile()
+    if profile is None:
+        profile = (_SETTINGS.zip_code, _SETTINGS.radius_miles, {})
+    _start_refresh(*profile)
+    return True
+
+
 def _daily_scheduler() -> None:
-    last_day = ""
     while True:
-        today = cache_day()
-        if today != last_day:
-            last_day = today
-            if int(_DAILY_CACHE.status()["base_dates"]) < 15:
-                profile = _DAILY_CACHE.last_profile()
-                if profile is None:
-                    profile = (_SETTINGS.zip_code, _SETTINGS.radius_miles, {})
-                _start_refresh(*profile)
+        _scheduled_refresh_tick(datetime.now(PHOENIX))
         time.sleep(60)
 
 
