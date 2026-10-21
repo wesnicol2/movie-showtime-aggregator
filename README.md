@@ -21,7 +21,7 @@ The app discovers theaters around a configured ZIP code and radius, applies user
 
 Showtime listings are saved in the server's `./data` volume and refreshed
 at the beginning of each Phoenix calendar day. A background refresh warms today
-and the next 14 days. Settings → **Daily showtime cache** shows progress and
+and the next 14 days for the most recently used browser theater location. Settings → **Daily showtime cache** shows progress and
 includes **Force refresh** for this browser's ZIP code, radius, and preview settings.
 Requests for known dates reuse cached data, even after server restarts. Test and
 Production use separate storage.
