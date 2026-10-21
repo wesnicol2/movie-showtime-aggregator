@@ -33,9 +33,57 @@ export interface DailyCacheStatus {
 }
 
 const screeningsCache = new Map<string, Promise<ScreeningsResponse>>();
+const readyScreenings = new Map<string, ScreeningsResponse>();
+const SNAPSHOT_PREFIX = "movie-showtime-aggregator.screenings.v2.";
+
+function screeningCacheKey(showDate: string, enrich: boolean): string {
+  return `${browserDate()}|${showDate}|${enrich}|${document.cookie}`;
+}
+
+// A successfully loaded day's data can be shown synchronously on revisit or
+// reload; the server remains authoritative and Force refresh clears this copy.
+export function getCachedScreenings(showDate: string): ScreeningsResponse | null {
+  const key = screeningCacheKey(showDate, true);
+  const ready = readyScreenings.get(key);
+  if (ready) return ready;
+  try {
+    const raw = sessionStorage.getItem(`${SNAPSHOT_PREFIX}${showDate}`);
+    if (!raw) return null;
+    const snapshot: unknown = JSON.parse(raw);
+    if (!snapshot || typeof snapshot !== "object" || !("key" in snapshot) || !("payload" in snapshot)) return null;
+    const item = snapshot as { key: string; payload: ScreeningsResponse };
+    if (item.key !== key || item.payload?.date !== showDate || !Array.isArray(item.payload.screenings))
+      return null;
+    readyScreenings.set(key, item.payload);
+    return item.payload;
+  } catch {
+    return null; // Session storage can be disabled, full, or corrupted.
+  }
+}
+
+function saveCachedScreenings(key: string, payload: ScreeningsResponse): void {
+  readyScreenings.set(key, payload);
+  try {
+    sessionStorage.setItem(
+      `${SNAPSHOT_PREFIX}${payload.date}`,
+      JSON.stringify({ key, payload }),
+    );
+  } catch {
+    // Large theater listings may exceed browser quota; in-memory reuse still works.
+  }
+}
 
 export function clearScreeningsCache(): void {
   screeningsCache.clear();
+  readyScreenings.clear();
+  try {
+    for (let index = sessionStorage.length - 1; index >= 0; index--) {
+      const key = sessionStorage.key(index);
+      if (key?.startsWith(SNAPSHOT_PREFIX)) sessionStorage.removeItem(key);
+    }
+  } catch {
+    // Session storage may be unavailable in privacy-restricted browsers.
+  }
 }
 
 export function fetchDailyCacheStatus(): Promise<DailyCacheStatus> {
@@ -59,15 +107,20 @@ export function fetchScreenings(
     params.set("enrich", "0");
   }
   // Cookie scope covers theater radius and preview minutes; day scope expires at midnight.
-  const cacheKey = `${browserDate()}|${showDate}|${enrich}|${document.cookie}`;
+  const cacheKey = screeningCacheKey(showDate, enrich);
   const existing = screeningsCache.get(cacheKey);
   if (existing) return existing;
-  const pending = requestJson<ScreeningsResponse>(`/api/screenings?${params.toString()}`).catch(
-    (error: unknown) => {
+  const saved = enrich ? getCachedScreenings(showDate) : null;
+  if (saved) return Promise.resolve(saved);
+  const pending = requestJson<ScreeningsResponse>(`/api/screenings?${params.toString()}`)
+    .then((payload) => {
+      if (enrich && payload.date === showDate) saveCachedScreenings(cacheKey, payload);
+      return payload;
+    })
+    .catch((error: unknown) => {
       screeningsCache.delete(cacheKey);
       throw error;
-    },
-  );
+    });
   if (screeningsCache.size >= 48) screeningsCache.delete(screeningsCache.keys().next().value ?? "");
   screeningsCache.set(cacheKey, pending);
   return pending;

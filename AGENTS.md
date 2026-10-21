@@ -73,6 +73,27 @@ changes or completed forced refreshes, Settings clears this client cache.
 The separate arbitrary itinerary optimization remains request-dependent.
 A forced refresh also invalidates the Watchlist's in-memory future-availability cache.
 
+## Poster and browser snapshot caching
+
+`poster_cache.py` downloads deduplicated poster bytes into the per-environment
+`./data/posters/` volume when an enriched or plain date response is assembled,
+including during the daily background warm. It serves stable same-origin
+`/api/posters/<sha256-of-source-URL>` paths with immutable browser caching.
+The downloader rejects arbitrary hosts, redirects, oversized responses, and
+non-image magic signatures; unsupported/broken CDN URLs fall back to the
+provider's original URL. Poster assets survive midnight and restarts to
+avoid re-downloading identical movie art on 15 warmed dates. The daily
+response signature includes a cache-version marker to bypass pre-upgrade
+external-poster snapshots.
+
+`frontend/src/api.ts` retains successful enriched date responses in
+sessionStorage keyed by Phoenix-local browser day, requested show date,
+and browser cookie preferences. Zustand reads that synchronous snapshot on
+initialization and date changes rather than flashing a loading screen while
+revisiting known data. A Force refresh, server settings edit, ZIP change,
+or preview edit invalidates both session and in-memory copies. Quota/full
+storage is best-effort; the server remains canonical.
+
 ## Test-only build provenance
 
 Like Odds Fantasy, `/health` exposes Docker-baked Git commit, commit timestamp, image tag, and build timestamp. The frontend renders the small fixed `TEST`/short SHA/`Updated` badge **only** when `/health.build.image_tag` equals `test`; never on `latest`/Production or unknown/local builds. The timestamp is the Git commit time, **not** the build or deploy time. Docker build args come from the CI publish workflow because `.git` is excluded from images. Local Git lookup is a best-effort development fallback. An old image cannot report a newer commit; always read the running image, not the GitHub branch head.
