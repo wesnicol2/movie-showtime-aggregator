@@ -58,8 +58,12 @@ _OMDB_CLIENTS: dict[str, OmdbClient] = {}
 _AMC_CLIENTS: dict[str, AMCClient] = {}
 _REFRESH_LOCK = threading.Lock()
 _REFRESH_STATUS: dict[str, object] = {
-    "running": False, "completed": 0, "total": 15,
-    "started_at": None, "finished_at": None, "errors": [],
+    "running": False,
+    "completed": 0,
+    "total": 15,
+    "started_at": None,
+    "finished_at": None,
+    "errors": [],
 }
 
 
@@ -85,7 +89,9 @@ def application(environ: dict, start_response: Callable) -> Iterable[bytes]:
             previews = _preview_minutes_from_request(environ, query)
         except ValueError as exc:
             return _json_response(start_response, 400, {"error": str(exc)}, method)
-        return _json_response(start_response, 200, _start_refresh(zip_code, radius, previews), method)
+        return _json_response(
+            start_response, 200, _start_refresh(zip_code, radius, previews), method
+        )
 
     if path == "/api/cache/status":
         if method not in {"GET", "HEAD"}:
@@ -133,11 +139,25 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         enrichment_enabled = _parse_enrichment_enabled(query.get("enrich", ["true"])[0])
         stored = _STORE.load()
         signature = json.dumps(
-            [show_date.isoformat(), zip_code, radius_miles, preview_minutes_by_chain,
-             enrichment_enabled,
-             {field: query.get(field, []) for field in
-              ("movie", "theatre", "format", "start_after", "start_before", "end_by")},
-             asdict(stored)],
+            [
+                show_date.isoformat(),
+                zip_code,
+                radius_miles,
+                preview_minutes_by_chain,
+                enrichment_enabled,
+                {
+                    field: query.get(field, [])
+                    for field in (
+                        "movie",
+                        "theatre",
+                        "format",
+                        "start_after",
+                        "start_before",
+                        "end_by",
+                    )
+                },
+                asdict(stored),
+            ],
             sort_keys=True,
         )
         response_key = (
@@ -816,8 +836,12 @@ def _start_refresh(zip_code: str, radius: int, previews: dict[str, int]) -> dict
         if _REFRESH_STATUS["running"]:
             return _cache_status_unlocked()
         _REFRESH_STATUS.update(
-            running=True, completed=0, total=15,
-            started_at=datetime.now(PHOENIX).isoformat(), finished_at=None, errors=[],
+            running=True,
+            completed=0,
+            total=15,
+            started_at=datetime.now(PHOENIX).isoformat(),
+            finished_at=None,
+            errors=[],
         )
         worker = threading.Thread(
             target=_refresh_worker,
@@ -844,9 +868,13 @@ def _refresh_worker(zip_code: str, radius: int, previews: dict[str, int]) -> Non
                     "responses", f"{zip_code}|{radius}|{show_date.isoformat()}|"
                 )
                 params = [
-                    ("date", show_date.isoformat()), ("zip", zip_code), ("radius", str(radius)),
+                    ("date", show_date.isoformat()),
+                    ("zip", zip_code),
+                    ("radius", str(radius)),
                 ]
-                params.extend(("preview", f"{chain}:{minutes}") for chain, minutes in previews.items())
+                params.extend(
+                    ("preview", f"{chain}:{minutes}") for chain, minutes in previews.items()
+                )
                 environ = {"REQUEST_METHOD": "GET", "QUERY_STRING": urlencode(params)}
                 # Warm the complete enriched API representation as well as the base date.
                 # Optional enrichment failure is isolated to this date.
