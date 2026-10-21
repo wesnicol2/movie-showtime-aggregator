@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { getCachedScreenings } from "./api";
+
 import { readSavedMoviePlans } from "./planner";
 import { type ColumnFilter, createEmptyFilters, type Filters, type SortState } from "./screenings";
 import { browserDate } from "./show-date";
@@ -97,6 +99,7 @@ interface AppState {
   status: "idle" | "loading" | "ready" | "error";
   error: string | null;
   selectedDate: string;
+  screeningsRevision: number;
   filters: Filters;
   sort: SortState;
   selectedMovies: string[];
@@ -119,11 +122,15 @@ interface AppState {
   applySavedView: (view: SavedView) => void;
 }
 
+const initialDate = browserDate();
+const initialResponse = getCachedScreenings(initialDate);
+
 export const useAppStore = create<AppState>((set) => ({
-  response: null,
-  status: "idle",
+  response: initialResponse,
+  status: initialResponse ? "ready" : "idle",
   error: null,
-  selectedDate: browserDate(),
+  selectedDate: initialDate,
+  screeningsRevision: 0,
   filters: initialFilters,
   sort: { key: "advertised_start", direction: "asc" },
   selectedMovies: initialSelection,
@@ -143,15 +150,22 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedDate: (selectedDate) =>
     set((state) => {
       if (!selectedDate || selectedDate === state.selectedDate) return {};
+      const cached = getCachedScreenings(selectedDate);
       return {
         selectedDate,
-        response: null,
-        status: "idle",
+        response: cached,
+        status: cached ? "ready" : "idle",
         error: null,
         inspectedShowtimeId: null,
       };
     }),
-  invalidateScreenings: () => set({ response: null, status: "idle", error: null }),
+  invalidateScreenings: () =>
+    set((state) => ({
+      response: null,
+      status: "idle",
+      error: null,
+      screeningsRevision: state.screeningsRevision + 1,
+    })),
 
   toggleSort: (key) =>
     set((state) => ({

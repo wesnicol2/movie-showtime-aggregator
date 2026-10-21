@@ -19,6 +19,102 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Pro
   return payload;
 }
 
+export interface DailyCacheStatus {
+  day: string;
+  base_dates: number;
+  responses: number;
+  updated_at: string | null;
+  refresh_interval_hours?: number;
+  last_refresh_started_at?: string | null;
+  next_refresh_at?: string | null;
+  running: boolean;
+  completed: number;
+  total: number;
+  started_at: string | null;
+  finished_at: string | null;
+  errors: string[];
+}
+
+const SCREENINGS_REVALIDATE_MS = 10 * 60 * 1000;
+const screeningsCache = new Map<
+  string,
+  { pending: Promise<ScreeningsResponse>; expiresAt: number }
+>();
+const readyScreenings = new Map<string, { payload: ScreeningsResponse; savedAt: number }>();
+const SNAPSHOT_PREFIX = "movie-showtime-aggregator.screenings.v2.";
+
+function screeningCacheKey(showDate: string, enrich: boolean): string {
+  return `${browserDate()}|${showDate}|${enrich}|${document.cookie}`;
+}
+
+// A successfully loaded day's data can be shown synchronously on revisit or
+// reload; the server remains authoritative and Force refresh clears this copy.
+export function getCachedScreenings(showDate: string): ScreeningsResponse | null {
+  const key = screeningCacheKey(showDate, true);
+  const ready = readyScreenings.get(key);
+  if (ready) return ready.payload;
+  try {
+    const raw = sessionStorage.getItem(`${SNAPSHOT_PREFIX}${showDate}`);
+    if (!raw) return null;
+    const snapshot: unknown = JSON.parse(raw);
+    if (
+      !snapshot ||
+      typeof snapshot !== "object" ||
+      !("key" in snapshot) ||
+      !("payload" in snapshot)
+    )
+      return null;
+    const item = snapshot as { key: string; payload: ScreeningsResponse; savedAt?: number };
+    if (
+      item.key !== key ||
+      item.payload?.date !== showDate ||
+      !Array.isArray(item.payload.screenings)
+    )
+      return null;
+    readyScreenings.set(key, {
+      payload: item.payload,
+      savedAt: typeof item.savedAt === "number" ? item.savedAt : 0,
+    });
+    return item.payload;
+  } catch {
+    return null; // Session storage can be disabled, full, or corrupted.
+  }
+}
+
+function saveCachedScreenings(key: string, payload: ScreeningsResponse): void {
+  const savedAt = Date.now();
+  readyScreenings.set(key, { payload, savedAt });
+  try {
+    sessionStorage.setItem(
+      `${SNAPSHOT_PREFIX}${payload.date}`,
+      JSON.stringify({ key, payload, savedAt }),
+    );
+  } catch {
+    // Large theater listings may exceed browser quota; in-memory reuse still works.
+  }
+}
+
+export function clearScreeningsCache(): void {
+  screeningsCache.clear();
+  readyScreenings.clear();
+  try {
+    for (let index = sessionStorage.length - 1; index >= 0; index--) {
+      const key = sessionStorage.key(index);
+      if (key?.startsWith(SNAPSHOT_PREFIX)) sessionStorage.removeItem(key);
+    }
+  } catch {
+    // Session storage may be unavailable in privacy-restricted browsers.
+  }
+}
+
+export function fetchDailyCacheStatus(): Promise<DailyCacheStatus> {
+  return requestJson<DailyCacheStatus>("/api/cache/status");
+}
+
+export function forceRefreshDailyCache(): Promise<DailyCacheStatus> {
+  return requestJson<DailyCacheStatus>("/api/cache/refresh", { method: "POST" });
+}
+
 export function fetchScreenings(enrich?: boolean): Promise<ScreeningsResponse>;
 export function fetchScreenings(showDate: string, enrich?: boolean): Promise<ScreeningsResponse>;
 export function fetchScreenings(
@@ -31,7 +127,28 @@ export function fetchScreenings(
   if (!enrich) {
     params.set("enrich", "0");
   }
-  return requestJson<ScreeningsResponse>(`/api/screenings?${params.toString()}`);
+  // Cookie scope covers theater radius and preview minutes; day scope expires at midnight.
+  const cacheKey = screeningCacheKey(showDate, enrich);
+  const existing = screeningsCache.get(cacheKey);
+  if (existing && existing.expiresAt > Date.now()) return existing.pending;
+  const saved = enrich ? getCachedScreenings(showDate) : null;
+  const ready = readyScreenings.get(cacheKey);
+  if (saved && ready && Date.now() - ready.savedAt < SCREENINGS_REVALIDATE_MS)
+    return Promise.resolve(saved);
+  // A stale session snapshot stays visible while the server is asked for new
+  // listings. The response replaces the snapshot only after a successful fetch.
+  const pending = requestJson<ScreeningsResponse>(`/api/screenings?${params.toString()}`)
+    .then((payload) => {
+      if (enrich && payload.date === showDate) saveCachedScreenings(cacheKey, payload);
+      return payload;
+    })
+    .catch((error: unknown) => {
+      screeningsCache.delete(cacheKey);
+      throw error;
+    });
+  if (screeningsCache.size >= 48) screeningsCache.delete(screeningsCache.keys().next().value ?? "");
+  screeningsCache.set(cacheKey, { pending, expiresAt: Date.now() + SCREENINGS_REVALIDATE_MS });
+  return pending;
 }
 
 export function fetchMovieAvailability(afterDate: string): Promise<MovieAvailabilityResponse> {

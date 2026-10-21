@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 import pytest
 
 import movie_showtime_aggregator.api as api
+from movie_showtime_aggregator.daily_cache import DailyCache
 from movie_showtime_aggregator.experience import ExperienceDeviation
 from movie_showtime_aggregator.location import GeoPoint
 from movie_showtime_aggregator.models import Screening
@@ -61,6 +62,7 @@ def isolated_shared_settings(monkeypatch, tmp_path):
         ProviderCache(tmp_path / "common" / "provider-cache.sqlite3"),
     )
     monkeypatch.setattr(api, "_ZIP_LOCATOR", FakeZipLocator())
+    monkeypatch.setattr(api, "_DAILY_CACHE", DailyCache(tmp_path / "data" / "daily.sqlite3"))
     api._OMDB_CLIENTS.clear()
     api._AMC_CLIENTS.clear()
 
@@ -98,6 +100,31 @@ class StubService:
         self.preview_minutes_by_chain = preview_minutes_by_chain
         self.location = (zip_code, radius_miles)
         return list(self.screenings)
+
+
+def test_local_poster_route_has_binary_type_caching_and_head(monkeypatch, tmp_path):
+    from movie_showtime_aggregator.poster_cache import PosterCache
+
+    cache = PosterCache(tmp_path / "posters")
+    cache.path.mkdir(parents=True)
+    digest = "a" * 64
+    binary = b"\xff\xd8\xffposter\xff\xd9"
+    (cache.path / digest).write_bytes(binary)
+    monkeypatch.setattr(api, "_POSTER_CACHE", cache)
+    headers = {}
+
+    def capture(status, fields):
+        headers.update(dict(fields))
+        headers["status"] = status
+
+    url = f"/api/posters/{digest}"
+    assert b"".join(api.application({"PATH_INFO": url, "REQUEST_METHOD": "GET"}, capture)) == binary
+    assert headers["Content-Type"] == "image/jpeg"
+    assert headers["Cache-Control"] == "public, max-age=31536000, immutable"
+    assert b"".join(api.application({"PATH_INFO": url, "REQUEST_METHOD": "HEAD"}, capture)) == b""
+    assert call("/api/posters/" + "b" * 64)[0] == 404
+    assert call("/api/posters/../../settings.json")[0] == 404
+    assert call(url, method="POST")[0] == 405
 
 
 def test_health_is_ok():
@@ -568,3 +595,120 @@ def test_future_availability_requires_reference_date():
     status, payload = call("/api/movie-availability")
     assert status == 400
     assert "after" in payload["error"]
+
+
+def test_screening_response_uses_daily_snapshot_and_invalidates_by_region(monkeypatch):
+    service = StubService([sample_screening("First Movie")])
+    monkeypatch.setattr(api, "_SERVICE", service)
+    first_code, first = call("/api/screenings", query="date=2026-10-21&enrich=0")
+    assert first_code == 200
+    assert first["screenings"][0]["movie"] == "First Movie"
+
+    service.screenings = [sample_screening("Changed Movie")]
+    second_code, second = call("/api/screenings", query="date=2026-10-21&enrich=0")
+    assert second_code == 200
+    assert second["screenings"][0]["movie"] == "First Movie"
+
+    api._DAILY_CACHE.delete_prefix("responses", "85004|25|2026-10-21|")
+    _, refreshed = call("/api/screenings", query="date=2026-10-21&enrich=0")
+    assert refreshed["screenings"][0]["movie"] == "Changed Movie"
+
+
+def test_cache_status_and_refresh_routes_check_methods(monkeypatch):
+    class StubCacheService:
+        def __init__(self):
+            self.days = []
+
+        def refresh_date(self, show_date, *, zip_code, radius_miles):
+            self.days.append((show_date, zip_code, radius_miles))
+
+        def get_screenings(
+            self, show_date, preview_minutes_by_chain=None, *, zip_code=None, radius_miles=None
+        ):
+            return [sample_screening()]
+
+    service = StubCacheService()
+    monkeypatch.setattr(api, "_SERVICE", service)
+    assert call("/api/cache/refresh")[0] == 405
+    code, status = call("/api/cache/status")
+    assert code == 200
+    assert status["base_dates"] == 0
+    assert status["day"]
+
+
+def test_four_hour_background_refresh_due_and_rollover():
+    from zoneinfo import ZoneInfo
+
+    phx = ZoneInfo("America/Phoenix")
+    first = datetime(2026, 10, 21, 8, 0, tzinfo=phx)
+    assert api._scheduled_refresh_due(first, None, 0)
+    assert not api._scheduled_refresh_due(
+        first + timedelta(hours=3, minutes=59), first, 15, completed=first + timedelta(minutes=1)
+    )
+    assert api._scheduled_refresh_due(
+        first + timedelta(hours=4), first, 15, completed=first + timedelta(minutes=1)
+    )
+    assert api._scheduled_refresh_due(
+        datetime(2026, 10, 22, 0, 5, tzinfo=phx),
+        datetime(2026, 10, 21, 23, 58, tzinfo=phx),
+        0,
+        completed=datetime(2026, 10, 21, 23, 59, tzinfo=phx),
+    )
+    assert not api._scheduled_refresh_due(
+        datetime(2026, 10, 22, 0, 5, tzinfo=phx),
+        datetime(2026, 10, 21, 23, 58, tzinfo=phx),
+        15,
+        completed=datetime(2026, 10, 21, 23, 59, tzinfo=phx),
+    )
+
+
+def test_scheduler_tick_uses_remembered_location_without_browser(monkeypatch):
+    from zoneinfo import ZoneInfo
+
+    now = datetime(2026, 10, 21, 12, tzinfo=ZoneInfo("America/Phoenix"))
+    api._DAILY_CACHE.remember_profile("85020", 30, {"AMC": 0})
+    calls = []
+    monkeypatch.setattr(api, "_start_refresh", lambda *args: calls.append(args))
+    assert api._scheduled_refresh_tick(now)
+    assert calls == [("85020", 30, {"AMC": 0})]
+    api._DAILY_CACHE.mark_refresh_started(now)
+    api._DAILY_CACHE.mark_refresh_completed(now + timedelta(minutes=1))
+    assert not api._scheduled_refresh_tick(now + timedelta(hours=1))
+
+
+def test_rebuilding_response_keeps_existing_snapshot_until_ready(monkeypatch):
+    service = StubService([sample_screening("Old Movie")])
+    monkeypatch.setattr(api, "_SERVICE", service)
+    query = "date=2026-10-21&enrich=0"
+    assert call("/api/screenings", query=query)[1]["screenings"][0]["movie"] == "Old Movie"
+    service.screenings = [sample_screening("New Movie")]
+    assert call("/api/screenings", query=query)[1]["screenings"][0]["movie"] == "Old Movie"
+
+    codes = []
+    body = b"".join(
+        api._screenings_response(
+            {
+                "REQUEST_METHOD": "GET",
+                "QUERY_STRING": query,
+                "MOVIE_CACHE_REBUILD": True,
+            },
+            lambda status, _headers: codes.append(status),
+            "GET",
+        )
+    )
+    assert codes == ["200 OK"]
+    assert b'"New Movie"' in body
+    assert call("/api/screenings", query=query)[1]["screenings"][0]["movie"] == "New Movie"
+
+
+def test_unfinished_refresh_is_due_after_restart():
+    from zoneinfo import ZoneInfo
+
+    phoenix = ZoneInfo("America/Phoenix")
+    start = datetime(2026, 10, 21, 8, tzinfo=phoenix)
+    current = start + timedelta(minutes=10)
+    assert api._scheduled_refresh_due(current, start, 15, completed=None)
+    assert api._scheduled_refresh_due(current, start, 15, completed=start - timedelta(hours=3))
+    assert not api._scheduled_refresh_due(
+        current, start, 15, completed=start + timedelta(minutes=5)
+    )

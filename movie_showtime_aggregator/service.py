@@ -8,6 +8,7 @@ from time import monotonic
 from typing import Protocol
 
 from .config import Settings
+from .daily_cache import DailyCache, cache_day
 from .location import GeoPoint, ZipLocator, bearing_degrees, distance_miles
 from .models import Screening, apply_preview_minutes, normalize_showtime
 
@@ -38,12 +39,15 @@ class ScreeningService:
         client: ShowtimeClient,
         settings: Settings,
         locator: LocationClient | None = None,
+        daily_cache: DailyCache | None = None,
     ) -> None:
         self.client = client
         self.settings = settings
         self.locator = locator or ZipLocator()
-        self._cache: dict[tuple[date, str, int], tuple[float, list[Screening]]] = {}
+        self.daily_cache = daily_cache
+        self._cache: dict[tuple[date, str, int], tuple[float, str, list[Screening]]] = {}
         self._lock = threading.Lock()
+        self._flight_locks: dict[tuple[date, str, int], threading.Lock] = {}
 
     def get_screenings(
         self,
@@ -74,42 +78,79 @@ class ScreeningService:
         )
         return screenings
 
+    def refresh_date(self, show_date: date, *, zip_code: str, radius_miles: int) -> None:
+        """Rebuild a date without replacing its last-good snapshot on failure."""
+        self._get_base_screenings(show_date, zip_code, radius_miles, force=True)
+
     def _get_base_screenings(
         self,
         show_date: date,
         zip_code: str,
         radius_miles: int,
+        *,
+        force: bool = False,
     ) -> list[Screening]:
         cache_key = (show_date, zip_code, radius_miles)
+        today = cache_day()
         now = monotonic()
         with self._lock:
             cached = self._cache.get(cache_key)
-            if cached is not None and now - cached[0] < self.settings.cache_ttl_seconds:
-                return list(cached[1])
+            if (
+                not force
+                and cached is not None
+                and cached[1] == today
+                and now - cached[0] < self.settings.cache_ttl_seconds
+            ):
+                return list(cached[2])
+            flight_lock = self._flight_locks.setdefault(cache_key, threading.Lock())
 
-        origin = self.locator.lookup_zip(zip_code)
-        raw_showtimes = self._fetch_radius_showtimes(
-            zip_code,
-            show_date,
-            origin,
-            radius_miles,
-        )
-        screenings: list[Screening] = []
-        for raw in raw_showtimes:
-            distance = _raw_distance_miles(origin, raw)
-            if distance is None or distance > radius_miles:
-                continue
+        with flight_lock:
+            # Only one upstream request per date/location; others reuse the result.
+            with self._lock:
+                cached = self._cache.get(cache_key)
+                if (
+                    not force
+                    and cached is not None
+                    and cached[1] == cache_day()
+                    and monotonic() - cached[0] < self.settings.cache_ttl_seconds
+                ):
+                    return list(cached[2])
 
-            located_raw = dict(raw)
-            located_raw["distanceMiles"] = round(distance, 1)
-            screening = normalize_showtime(located_raw)
-            if screening is not None:
-                screenings.append(screening)
+            disk_key = (
+                f"{show_date.isoformat()}|{zip_code}|{radius_miles}|"
+                f"{self.settings.market_page_limit}"
+            )
+            located_raw = (
+                self.daily_cache.get("base", disk_key)
+                if self.daily_cache is not None and not force
+                else None
+            )
+            if not isinstance(located_raw, list):
+                origin = self.locator.lookup_zip(zip_code)
+                raw_showtimes = self._fetch_radius_showtimes(
+                    zip_code, show_date, origin, radius_miles
+                )
+                located_raw = []
+                for raw in raw_showtimes:
+                    distance = _raw_distance_miles(origin, raw)
+                    if distance is None or distance > radius_miles:
+                        continue
+                    item = dict(raw)
+                    item["distanceMiles"] = round(distance, 1)
+                    located_raw.append(item)
+                if self.daily_cache is not None:
+                    self.daily_cache.set("base", disk_key, located_raw)
 
-        screenings.sort(key=lambda screening: screening.advertised_start)
-        with self._lock:
-            self._cache[cache_key] = (now, screenings)
-        return list(screenings)
+            screenings: list[Screening] = []
+            for raw in located_raw:
+                if isinstance(raw, dict):
+                    screening = normalize_showtime(raw)
+                    if screening is not None:
+                        screenings.append(screening)
+            screenings.sort(key=lambda screening: screening.advertised_start)
+            with self._lock:
+                self._cache[cache_key] = (monotonic(), cache_day(), screenings)
+            return list(screenings)
 
     def _fetch_radius_showtimes(
         self,

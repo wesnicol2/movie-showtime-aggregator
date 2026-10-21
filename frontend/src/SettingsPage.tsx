@@ -1,6 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchScreenings, fetchSharedSettings, saveSharedSettings } from "./api";
+import {
+  clearScreeningsCache,
+  type DailyCacheStatus,
+  fetchDailyCacheStatus,
+  fetchScreenings,
+  fetchSharedSettings,
+  forceRefreshDailyCache,
+  saveSharedSettings,
+} from "./api";
+import { clearMovieAvailabilityCache } from "./movie-availability";
 import { useAppStore } from "./store";
 import type { ExperienceDeviationSetting, ProviderUsage, SharedSettings } from "./types";
 
@@ -95,6 +104,9 @@ export function SettingsPage() {
     [],
   );
   const [status, setStatus] = useState("");
+  const [cacheState, setCacheState] = useState<DailyCacheStatus | null>(null);
+  const [cacheError, setCacheError] = useState("");
+  const refreshWasRunning = useRef(false);
   const [error, setError] = useState("");
 
   async function loadSettings(): Promise<void> {
@@ -128,6 +140,53 @@ export function SettingsPage() {
     void loadSettings();
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    async function pollCache(): Promise<void> {
+      try {
+        const snapshot = await fetchDailyCacheStatus();
+        if (!active) return;
+        if (refreshWasRunning.current && !snapshot.running) {
+          clearScreeningsCache();
+          clearMovieAvailabilityCache();
+          invalidateScreenings();
+          setStatus(
+            snapshot.errors.length
+              ? `Cache refresh finished with ${snapshot.errors.length} failed dates`
+              : "Cache refresh completed",
+          );
+        }
+        refreshWasRunning.current = snapshot.running;
+        setCacheState(snapshot);
+        setCacheError("");
+      } catch (caught) {
+        if (active)
+          setCacheError(caught instanceof Error ? caught.message : "Cache status unavailable");
+      }
+    }
+    void pollCache();
+    const interval = window.setInterval(() => void pollCache(), 2000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [invalidateScreenings]);
+
+  async function refreshCache(): Promise<void> {
+    try {
+      setCacheError("");
+      setStatus("Refreshing showtimes in the background…");
+      const snapshot = await forceRefreshDailyCache();
+      setCacheState(snapshot);
+      refreshWasRunning.current = snapshot.running;
+      clearScreeningsCache();
+      clearMovieAvailabilityCache();
+      invalidateScreenings();
+    } catch (caught) {
+      setCacheError(caught instanceof Error ? caught.message : "Could not start refresh");
+    }
+  }
+
   async function persistShared(
     changes: Parameters<typeof saveSharedSettings>[0],
     success: string,
@@ -141,6 +200,7 @@ export function SettingsPage() {
       setExperienceDeviations(payload.experience_deviations ?? []);
       setAmcKey("");
       setOmdbKey("");
+      clearScreeningsCache();
       invalidateScreenings();
       setStatus(success);
     } catch (caught) {
@@ -163,6 +223,7 @@ export function SettingsPage() {
     current.location = location;
     writeBrowserSettings(current);
     writeCookie(LOCATION_COOKIE, location);
+    clearScreeningsCache();
     invalidateScreenings();
     setStatus("Saved · refreshing theaters…");
     try {
@@ -189,6 +250,7 @@ export function SettingsPage() {
     current.previewMinutes = parsed;
     writeBrowserSettings(current);
     writeCookie(PREVIEW_COOKIE, parsed);
+    clearScreeningsCache();
     invalidateScreenings();
     setStatus("Preview times saved");
   }
@@ -199,6 +261,7 @@ export function SettingsPage() {
     current.previewMinutes = {};
     writeBrowserSettings(current);
     writeCookie(PREVIEW_COOKIE, {});
+    clearScreeningsCache();
     invalidateScreenings();
     setStatus("Preview times cleared; blank chains use the 10-minute default");
   }
@@ -257,6 +320,49 @@ export function SettingsPage() {
           {error}
         </div>
       ) : null}
+
+      <div className="settings-section">
+        <div className="settings-section-heading">
+          <div>
+            <h2>Daily showtime cache</h2>
+            <p>
+              The server refreshes every four hours—even when nobody is using the app—and at Phoenix
+              midnight. Cached listings stay visible while new data loads.
+            </p>
+          </div>
+          <span className="scope-badge">This server</span>
+        </div>
+        <p aria-live="polite">
+          {cacheState?.running
+            ? `Refreshing ${cacheState.completed} of ${cacheState.total} dates…`
+            : cacheState
+              ? `${cacheState.base_dates} dates cached · ${cacheState.responses} page snapshots`
+              : "Checking cache…"}
+          {cacheState?.updated_at
+            ? ` · Last updated ${new Date(cacheState.updated_at).toLocaleString()}`
+            : ""}
+        </p>
+        {cacheState?.next_refresh_at ? (
+          <p className="settings-note">
+            Next background refresh: {new Date(cacheState.next_refresh_at).toLocaleString()}
+          </p>
+        ) : null}
+        {cacheState?.errors.length ? (
+          <p role="alert">
+            {cacheState.errors.length} dates failed to refresh. The provider may be temporarily
+            unavailable.
+          </p>
+        ) : null}
+        {cacheError ? <p role="alert">{cacheError}</p> : null}
+        <button
+          type="button"
+          className="primary-action"
+          disabled={cacheState?.running ?? false}
+          onClick={() => void refreshCache()}
+        >
+          {cacheState?.running ? "Refreshing…" : "Force refresh"}
+        </button>
+      </div>
 
       <div className="settings-section">
         <div className="settings-section-heading">

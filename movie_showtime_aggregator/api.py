@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import mimetypes
 import threading
+import time
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import date, datetime, timedelta
 from http.cookies import SimpleCookie
 from pathlib import Path
-from urllib.parse import parse_qs, unquote
-from wsgiref.simple_server import make_server
+from socketserver import ThreadingMixIn
+from urllib.parse import parse_qs, unquote, urlencode
+from wsgiref.simple_server import WSGIServer, make_server
 
 from .amc import AMCClient
 from .build_info import build_info
 from .config import Settings
+from .daily_cache import PHOENIX, DailyCache, cache_day
 from .enrichment import enrich_amc_details, enrich_movie_metadata, enrich_travel_times
 from .experience import (
     configure_experience,
@@ -28,6 +32,7 @@ from .location import GeoPoint, LocationError, ZipLocator
 from .metadata import OMDB_DAILY_LIMIT, OmdbClient
 from .models import Screening
 from .planner import plan_movie_day, theatre_points
+from .poster_cache import PosterCache
 from .provider_cache import ProviderCache
 from .routing import AddressGeocoder, GeocodingError, OsrmRouter, RoutingError
 from .service import ScreeningFilters, ScreeningService, facets, filter_screenings
@@ -42,7 +47,9 @@ PREVIEW_COOKIE = "movie_preview_minutes"
 LOCATION_COOKIE = "movie_location"
 
 _SETTINGS = Settings.from_env()
-_SERVICE = ScreeningService(FandangoClient(), _SETTINGS)
+_DAILY_CACHE = DailyCache()
+_POSTER_CACHE = PosterCache()
+_SERVICE = ScreeningService(FandangoClient(), _SETTINGS, daily_cache=_DAILY_CACHE)
 _STORE = SettingsStore()
 _PROVIDER_CACHE = ProviderCache()
 _GEOCODER = AddressGeocoder()
@@ -51,6 +58,16 @@ _ZIP_LOCATOR = ZipLocator()
 _CLIENT_LOCK = threading.Lock()
 _OMDB_CLIENTS: dict[str, OmdbClient] = {}
 _AMC_CLIENTS: dict[str, AMCClient] = {}
+_REFRESH_LOCK = threading.Lock()
+_REFRESH_INTERVAL = timedelta(hours=4)
+_REFRESH_STATUS: dict[str, object] = {
+    "running": False,
+    "completed": 0,
+    "total": 15,
+    "started_at": None,
+    "finished_at": None,
+    "errors": [],
+}
 
 
 def health() -> dict[str, object]:
@@ -66,6 +83,24 @@ def application(environ: dict, start_response: Callable) -> Iterable[bytes]:
             return _json_response(start_response, 405, {"error": "method not allowed"}, method)
         return _settings_response(environ, start_response, method)
 
+    if path == "/api/cache/refresh":
+        if method != "POST":
+            return _json_response(start_response, 405, {"error": "method not allowed"}, method)
+        try:
+            query = parse_qs(environ.get("QUERY_STRING", ""))
+            zip_code, radius = _location_from_request(environ, query)
+            previews = _preview_minutes_from_request(environ, query)
+        except ValueError as exc:
+            return _json_response(start_response, 400, {"error": str(exc)}, method)
+        return _json_response(
+            start_response, 200, _start_refresh(zip_code, radius, previews), method
+        )
+
+    if path == "/api/cache/status":
+        if method not in {"GET", "HEAD"}:
+            return _json_response(start_response, 405, {"error": "method not allowed"}, method)
+        return _json_response(start_response, 200, _cache_status(), method)
+
     if path == "/api/movie-day":
         if method != "POST":
             return _json_response(start_response, 405, {"error": "method not allowed"}, method)
@@ -80,6 +115,8 @@ def application(environ: dict, start_response: Callable) -> Iterable[bytes]:
         return _screenings_response(environ, start_response, method)
     if path == "/api/movie-availability":
         return _movie_availability_response(environ, start_response, method)
+    if path.startswith("/api/posters/"):
+        return _poster_response(start_response, path.removeprefix("/api/posters/"), method)
     if path == "/api/letterboxd-rating":
         query = parse_qs(environ.get("QUERY_STRING", ""))
         imdb_ids = query.get("imdb_id", [])
@@ -105,13 +142,46 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         preview_minutes_by_chain = _preview_minutes_from_request(environ, query)
         zip_code, radius_miles = _location_from_request(environ, query)
         enrichment_enabled = _parse_enrichment_enabled(query.get("enrich", ["true"])[0])
+        stored = _STORE.load()
+        _DAILY_CACHE.remember_profile(zip_code, radius_miles, preview_minutes_by_chain)
+        signature = json.dumps(
+            [
+                show_date.isoformat(),
+                zip_code,
+                radius_miles,
+                preview_minutes_by_chain,
+                enrichment_enabled,
+                {
+                    field: query.get(field, [])
+                    for field in (
+                        "movie",
+                        "theatre",
+                        "format",
+                        "start_after",
+                        "start_before",
+                        "end_by",
+                    )
+                },
+                asdict(stored),
+                "poster-cache-v1",
+            ],
+            sort_keys=True,
+        )
+        response_key = (
+            f"{zip_code}|{radius_miles}|{show_date.isoformat()}|"
+            f"{hashlib.sha256(signature.encode()).hexdigest()}"
+        )
+        rebuilding = environ.get("MOVIE_CACHE_REBUILD") is True
+        cached_payload = None if rebuilding else _DAILY_CACHE.get("responses", response_key)
+        if isinstance(cached_payload, dict):
+            return _json_response(start_response, 200, cached_payload, method)
+
         all_screenings = _SERVICE.get_screenings(
             show_date,
             preview_minutes_by_chain,
             zip_code=zip_code,
             radius_miles=radius_miles,
         )
-        stored = _STORE.load()
         all_screenings = [
             _configure_screening_experience(screening, stored) for screening in all_screenings
         ]
@@ -130,6 +200,20 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
                     a_list_enabled=stored.amc_a_list,
                 )
             all_screenings = enrich_travel_times(all_screenings, _home_point(stored), _ROUTER)
+
+        # Prefetch the actual image bytes before saving the daily API snapshot.
+        # Unsupported/broken poster hosts keep their original URL as a fallback.
+        local_posters = _POSTER_CACHE.localize(
+            screening.poster_url for screening in all_screenings if screening.poster_url
+        )
+        if local_posters:
+            all_screenings = [
+                replace(
+                    screening,
+                    poster_url=local_posters.get(screening.poster_url, screening.poster_url),
+                )
+                for screening in all_screenings
+            ]
 
         filters = ScreeningFilters(
             movies=frozenset(query.get("movie", [])),
@@ -160,6 +244,16 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         "facets": facets(all_screenings),
         "screenings": [screening.to_dict() for screening in visible],
     }
+    if rebuilding:
+        # Preserve the old complete response until the new one is ready.
+        _DAILY_CACHE.replace_prefix(
+            "responses",
+            f"{zip_code}|{radius_miles}|{show_date.isoformat()}|",
+            response_key,
+            payload,
+        )
+    else:
+        _DAILY_CACHE.set("responses", response_key, payload)
     return _json_response(start_response, 200, payload, method)
 
 
@@ -754,6 +848,149 @@ def _parse_preview_minutes(values: list[str]) -> dict[str, int]:
     return previews
 
 
+def _record_status(results: list[str]) -> Callable:
+    def capture(status: str, _headers: list[tuple[str, str]]) -> None:
+        results.append(status)
+
+    return capture
+
+
+def _cache_status() -> dict[str, object]:
+    with _REFRESH_LOCK:
+        running = dict(_REFRESH_STATUS)
+        running["errors"] = list(_REFRESH_STATUS["errors"])
+    return {**_DAILY_CACHE.status(), **running}
+
+
+def _start_refresh(zip_code: str, radius: int, previews: dict[str, int]) -> dict[str, object]:
+    _DAILY_CACHE.remember_profile(zip_code, radius, previews)
+    with _REFRESH_LOCK:
+        if _REFRESH_STATUS["running"]:
+            return _cache_status_unlocked()
+        _DAILY_CACHE.mark_refresh_started(datetime.now(PHOENIX))
+        _REFRESH_STATUS.update(
+            running=True,
+            completed=0,
+            total=15,
+            started_at=datetime.now(PHOENIX).isoformat(),
+            finished_at=None,
+            errors=[],
+        )
+        worker = threading.Thread(
+            target=_refresh_worker,
+            args=(zip_code, radius, dict(previews)),
+            name="daily-showtime-cache-refresh",
+            daemon=True,
+        )
+        worker.start()
+        return _cache_status_unlocked()
+
+
+def _cache_status_unlocked() -> dict[str, object]:
+    return {**_DAILY_CACHE.status(), **_REFRESH_STATUS.copy()}
+
+
+def _refresh_worker(zip_code: str, radius: int, previews: dict[str, int]) -> None:
+    try:
+        for offset in range(15):
+            show_date = date.fromisoformat(cache_day()) + timedelta(days=offset)
+            try:
+                _SERVICE.refresh_date(show_date, zip_code=zip_code, radius_miles=radius)
+                # Keep the old enriched response until the replacement succeeds.
+                params = [
+                    ("date", show_date.isoformat()),
+                    ("zip", zip_code),
+                    ("radius", str(radius)),
+                ]
+                params.extend(
+                    ("preview", f"{chain}:{minutes}") for chain, minutes in previews.items()
+                )
+                environ = {
+                    "REQUEST_METHOD": "GET",
+                    "QUERY_STRING": urlencode(params),
+                    "MOVIE_CACHE_REBUILD": True,
+                }
+                # Warm the complete enriched API representation as well as the base date.
+                # Optional enrichment failure is isolated to this date.
+                result_codes: list[str] = []
+                list(_screenings_response(environ, _record_status(result_codes), "GET"))
+                if not result_codes or not result_codes[0].startswith("200 "):
+                    raise RuntimeError("Screening enrichment could not be warmed")
+            except Exception as exc:
+                with _REFRESH_LOCK:
+                    errors = _REFRESH_STATUS["errors"]
+                    if isinstance(errors, list):
+                        errors.append(f"{show_date.isoformat()}: {type(exc).__name__}")
+            finally:
+                with _REFRESH_LOCK:
+                    _REFRESH_STATUS["completed"] = offset + 1
+    finally:
+        finished = datetime.now(PHOENIX)
+        _DAILY_CACHE.mark_refresh_completed(finished)
+        with _REFRESH_LOCK:
+            _REFRESH_STATUS["running"] = False
+            _REFRESH_STATUS["finished_at"] = finished.isoformat()
+
+
+def _scheduled_refresh_due(
+    now: datetime,
+    started: datetime | None,
+    base_dates: int,
+    completed: datetime | None = None,
+) -> bool:
+    if started is None or (completed is not None and completed < started):
+        return True
+    if completed is None:
+        return True
+        return True
+    # At midnight yesterday's date-scoped snapshots expire.
+    if started.astimezone(PHOENIX).date() != now.astimezone(PHOENIX).date() and base_dates < 15:
+        return True
+    return now - started >= _REFRESH_INTERVAL
+
+
+def _scheduled_refresh_tick(now: datetime) -> bool:
+    if not _scheduled_refresh_due(
+        now,
+        _DAILY_CACHE.last_refresh_started(),
+        int(_DAILY_CACHE.status()["base_dates"]),
+        _DAILY_CACHE.last_refresh_completed(),
+    ):
+        return False
+    profile = _DAILY_CACHE.last_profile()
+    if profile is None:
+        profile = (_SETTINGS.zip_code, _SETTINGS.radius_miles, {})
+    _start_refresh(*profile)
+    return True
+
+
+def _daily_scheduler() -> None:
+    while True:
+        _scheduled_refresh_tick(datetime.now(PHOENIX))
+        time.sleep(60)
+
+
+class ThreadedWSGIServer(ThreadingMixIn, WSGIServer):
+    daemon_threads = True
+
+
+def _poster_response(start_response: Callable, digest: str, method: str) -> Iterable[bytes]:
+    cached = _POSTER_CACHE.get(digest)
+    if cached is None:
+        return _json_response(start_response, 404, {"error": "poster not found"}, method)
+    contents, mime_type = cached
+    start_response(
+        "200 OK",
+        [
+            ("Content-Type", mime_type),
+            ("Content-Length", str(len(contents))),
+            ("Cache-Control", "public, max-age=31536000, immutable"),
+            ("X-Content-Type-Options", "nosniff"),
+        ],
+    )
+    return [] if method == "HEAD" else [contents]
+
+
 def _static_response(
     start_response: Callable,
     relative_path: str,
@@ -816,7 +1053,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
 
-    with make_server(args.host, args.port, application) as httpd:
+    threading.Thread(target=_daily_scheduler, name="daily-cache-scheduler", daemon=True).start()
+    with make_server(args.host, args.port, application, server_class=ThreadedWSGIServer) as httpd:
         print(f"serving on http://{args.host}:{args.port}")
         httpd.serve_forever()
     return 0

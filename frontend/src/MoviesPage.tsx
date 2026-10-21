@@ -293,7 +293,9 @@ export function MoviesPage({ onBack, onContinue }: Props) {
         </div>
       </details>
 
-      {status === "loading" ? <div className="status-strip">Loading posters…</div> : null}
+      {status === "loading" && !response ? (
+        <div className="status-strip">Loading movie listings…</div>
+      ) : null}
       {error ? (
         <div className="status-strip error" role="alert">
           {error}

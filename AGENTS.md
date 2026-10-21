@@ -45,6 +45,62 @@ Use the strongest verification the active environment supports. If an environmen
 
 ---
 
+## Daily snapshot performance model
+
+`daily_cache.py` stores date-versioned JSON in the environment-specific
+`./data/daily-showtimes.sqlite3` volume. Dates roll over at Phoenix local
+midnight, not UTC midnight. The service caches location-filtered raw showtimes
+by date, ZIP, radius, and provider page limit; previews are still applied to
+freshly reconstructed Screening objects per request. Per-key locks prevent
+concurrent cold misses from making duplicate provider requests.
+
+The API also caches completed screening responses (including optional AMC,
+OMDb, and routing enrichment) per date/location/previews/filters and the hash of
+server preferences. Do not put actual API keys into cache identifiers.
+The scheduler warms today through 14 future dates for the last-seen
+browser location and preview configuration, retained across restarts (falling
+back to the configured server defaults), every four hours and when
+Phoenix calendar-day rollover expires the date-scoped snapshots. The worker
+runs inside the server container even with no connected browsers. Its last
+start/completion timestamps are durable in SQLite to avoid redundant work on restarts
+and retry an interrupted job after process or container restart. `POST /api/cache/refresh` queues a background refresh
+using the requesting browser's location and previews; `GET /api/cache/status`
+reports progress. Completed base snapshots are replaced only after a successful
+upstream fetch, with enriched responses atomically replaced only after a
+successful rebuild: stale but complete pages stay usable during refresh.
+The WSGI HTTP server is threaded so refresh work cannot block unrelated
+page requests. Test and Production intentionally keep distinct snapshot volumes.
+
+The typed frontend API keeps an in-memory, day-scoped request cache and
+coalesces identical requests for fast page navigation. Loaded browser
+snapshots also have a ten-minute freshness TTL; pages render stale local
+data immediately and quietly revalidate on entry, visibility changes, and
+while a page is open. Transient failures retain the prior usable page. On browser preference
+changes or completed forced refreshes, Settings clears this client cache.
+The separate arbitrary itinerary optimization remains request-dependent.
+A forced refresh also invalidates the Watchlist's in-memory future-availability cache.
+
+## Poster and browser snapshot caching
+
+`poster_cache.py` downloads deduplicated poster bytes into the per-environment
+`./data/posters/` volume when an enriched or plain date response is assembled,
+including during the daily background warm. It serves stable same-origin
+`/api/posters/<sha256-of-source-URL>` paths with immutable browser caching.
+The downloader rejects arbitrary hosts, redirects, oversized responses, and
+non-image magic signatures; unsupported/broken CDN URLs fall back to the
+provider's original URL. Poster assets survive midnight and restarts to
+avoid re-downloading identical movie art on 15 warmed dates. The daily
+response signature includes a cache-version marker to bypass pre-upgrade
+external-poster snapshots.
+
+`frontend/src/api.ts` retains successful enriched date responses in
+sessionStorage keyed by Phoenix-local browser day, requested show date,
+and browser cookie preferences. Zustand reads that synchronous snapshot on
+initialization and date changes rather than flashing a loading screen while
+revisiting known data. A Force refresh, server settings edit, ZIP change,
+or preview edit invalidates both session and in-memory copies. Quota/full
+storage is best-effort; the server remains canonical.
+
 ## Test-only build provenance
 
 Like Odds Fantasy, `/health` exposes Docker-baked Git commit, commit timestamp, image tag, and build timestamp. The frontend renders the small fixed `TEST`/short SHA/`Updated` badge **only** when `/health.build.image_tag` equals `test`; never on `latest`/Production or unknown/local builds. The timestamp is the Git commit time, **not** the build or deploy time. Docker build args come from the CI publish workflow because `.git` is excluded from images. Local Git lookup is a best-effort development fallback. An old image cannot report a newer commit; always read the running image, not the GitHub branch head.
