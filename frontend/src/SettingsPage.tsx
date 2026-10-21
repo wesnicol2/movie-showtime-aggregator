@@ -326,8 +326,8 @@ export function SettingsPage() {
           <div>
             <h2>Daily showtime cache</h2>
             <p>
-              The server refreshes every four hours—even when nobody is using the app—and
-              at Phoenix midnight. Cached listings stay visible while new data loads.
+              The server refreshes every four hours—even when nobody is using the app—and at Phoenix
+              midnight. Cached listings stay visible while new data loads.
             </p>
           </div>
           <span className="scope-badge">This server</span>

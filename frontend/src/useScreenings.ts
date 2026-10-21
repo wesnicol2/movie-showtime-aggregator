@@ -13,6 +13,7 @@ export function useScreenings(): void {
   const setResponse = useAppStore((state) => state.setResponse);
   const setError = useAppStore((state) => state.setError);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: screeningsRevision forces fresh loads after explicit cache invalidation.
   useEffect(() => {
     let active = true;
     if (!useAppStore.getState().response) setLoading();
