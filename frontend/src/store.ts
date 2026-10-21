@@ -99,6 +99,7 @@ interface AppState {
   status: "idle" | "loading" | "ready" | "error";
   error: string | null;
   selectedDate: string;
+  screeningsRevision: number;
   filters: Filters;
   sort: SortState;
   selectedMovies: string[];
@@ -129,6 +130,7 @@ export const useAppStore = create<AppState>((set) => ({
   status: initialResponse ? "ready" : "idle",
   error: null,
   selectedDate: initialDate,
+  screeningsRevision: 0,
   filters: initialFilters,
   sort: { key: "advertised_start", direction: "asc" },
   selectedMovies: initialSelection,
@@ -157,7 +159,13 @@ export const useAppStore = create<AppState>((set) => ({
         inspectedShowtimeId: null,
       };
     }),
-  invalidateScreenings: () => set({ response: null, status: "idle", error: null }),
+  invalidateScreenings: () =>
+    set((state) => ({
+      response: null,
+      status: "idle",
+      error: null,
+      screeningsRevision: state.screeningsRevision + 1,
+    })),
 
   toggleSort: (key) =>
     set((state) => ({

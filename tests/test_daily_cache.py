@@ -83,3 +83,50 @@ def test_last_location_profile_persists_across_startups_and_calendar_days(tmp_pa
     assert restarted.last_profile() == ("85020", 30, {"AMC": 15})
     restarted.remember_profile("85004", 25, {})
     assert original.last_profile() == ("85004", 25, {})
+
+
+def test_refresh_start_time_survives_restart_and_reports_next_run(tmp_path):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    path = tmp_path / "daily.sqlite3"
+    now = datetime(2026, 10, 21, 8, 30, tzinfo=ZoneInfo("America/Phoenix"))
+    original = DailyCache(path)
+    assert original.last_refresh_started() is None
+    original.mark_refresh_started(now)
+    restarted = DailyCache(path)
+    assert restarted.last_refresh_started() == now
+    status = restarted.status()
+    assert status["refresh_interval_hours"] == 4
+    assert status["last_refresh_started_at"] == now.isoformat()
+    assert status["next_refresh_at"] == "2026-10-21T12:30:00-07:00"
+
+
+def test_replacement_of_date_response_is_targeted(tmp_path):
+    cache = DailyCache(tmp_path / "cache.sqlite3")
+    cache.set("responses", "85004|25|2026-10-21|old", {"count": 12})
+    cache.set("responses", "85004|25|2026-10-22|untouched", {"count": 4})
+    cache.replace_prefix(
+        "responses",
+        "85004|25|2026-10-21|",
+        "85004|25|2026-10-21|new",
+        {"count": 15},
+    )
+    assert cache.get("responses", "85004|25|2026-10-21|old") is None
+    assert cache.get("responses", "85004|25|2026-10-21|new") == {"count": 15}
+    assert cache.get("responses", "85004|25|2026-10-22|untouched") == {"count": 4}
+
+
+def test_interrupted_refresh_can_be_retried_after_restart(tmp_path):
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    now = datetime(2026, 10, 21, 12, 0, tzinfo=ZoneInfo("America/Phoenix"))
+    path = tmp_path / "cache.sqlite3"
+    cache = DailyCache(path)
+    cache.mark_refresh_started(now)
+    assert DailyCache(path).status()["interrupted_refresh"] is True
+    cache.mark_refresh_completed(now + timedelta(minutes=5))
+    assert DailyCache(path).status()["interrupted_refresh"] is False
+    cache.mark_refresh_started(now + timedelta(hours=4))
+    assert DailyCache(path).status()["interrupted_refresh"] is True

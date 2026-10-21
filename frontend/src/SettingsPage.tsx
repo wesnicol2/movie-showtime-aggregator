@@ -326,8 +326,8 @@ export function SettingsPage() {
           <div>
             <h2>Daily showtime cache</h2>
             <p>
-              Schedules refresh automatically each Phoenix morning. Previously saved listings stay
-              available while new data loads.
+              The server refreshes every four hours—even when nobody is using the app—and at Phoenix
+              midnight. Cached listings stay visible while new data loads.
             </p>
           </div>
           <span className="scope-badge">This server</span>
@@ -342,6 +342,11 @@ export function SettingsPage() {
             ? ` · Last updated ${new Date(cacheState.updated_at).toLocaleString()}`
             : ""}
         </p>
+        {cacheState?.next_refresh_at ? (
+          <p className="settings-note">
+            Next background refresh: {new Date(cacheState.next_refresh_at).toLocaleString()}
+          </p>
+        ) : null}
         {cacheState?.errors.length ? (
           <p role="alert">
             {cacheState.errors.length} dates failed to refresh. The provider may be temporarily

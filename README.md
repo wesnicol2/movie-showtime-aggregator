@@ -20,8 +20,9 @@ The app discovers theaters around a configured ZIP code and radius, applies user
 ## Daily showtime cache
 
 Showtime listings are saved in the server's `./data` volume and refreshed
-at the beginning of each Phoenix calendar day. A background refresh warms today
-and the next 14 days for the most recently used browser theater location. Settings → **Daily showtime cache** shows progress and
+automatically every four hours and at Phoenix midnight, even when no
+browser is connected. A server-side background worker warms today and the next
+14 days for the most recently used browser theater location. Settings → **Daily showtime cache** shows progress and
 includes **Force refresh** for this browser's ZIP code, radius, and preview settings.
 Requests for known dates reuse cached data, even after server restarts. Poster
 images from supported Fandango/OMDb CDNs are downloaded once into the same
@@ -30,6 +31,8 @@ browser separately. A successful movie listing is also kept in browser session
 storage to make reopening the same date immediate. Test and Production use
 separate storage.
 
+Existing cached pages remain available throughout each refresh, and the browser
+revalidates old session snapshots silently every ten minutes while visible.
 The refresh runs without blocking screen navigation. Initial loads of dates outside
 the 15-day window, newly changed preferences, and uncached combinations may still
 need a provider request. Posters that fail to download or use other hosts still
