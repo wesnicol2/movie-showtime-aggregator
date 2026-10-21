@@ -934,9 +934,8 @@ def _scheduled_refresh_due(now: datetime, started: datetime | None, base_dates: 
     if started is None:
         return True
     # At midnight yesterday's date-scoped snapshots expire.
-    if started.astimezone(PHOENIX).date() != now.astimezone(PHOENIX).date():
-        if base_dates < 15:
-            return True
+    if started.astimezone(PHOENIX).date() != now.astimezone(PHOENIX).date() and base_dates < 15:
+        return True
     return now - started >= _REFRESH_INTERVAL
 
 
