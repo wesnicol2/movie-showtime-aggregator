@@ -17,6 +17,19 @@ The app discovers theaters around a configured ZIP code and radius, applies user
 > [docs/new-repo-checklist.md](docs/new-repo-checklist.md) first. It covers the
 > handful of things GitHub does not copy when you click *Use this template*.
 
+## Daily showtime cache
+
+Showtime listings are saved in the server's `./data` volume and refreshed
+at the beginning of each Phoenix calendar day. A background refresh warms today
+and the next 14 days for the most recently used browser theater location. Settings → **Daily showtime cache** shows progress and
+includes **Force refresh** for this browser's ZIP code, radius, and preview settings.
+Requests for known dates reuse cached data, even after server restarts. Test and
+Production use separate storage.
+
+The refresh runs without blocking screen navigation. Initial loads of dates outside
+the 15-day window, newly changed preferences, and uncached combinations may still
+need a provider request. Complex itinerary computation is not precomputed.
+
 ## Calendar-first planning
 
 The app opens on the infinite-scroll calendar. Pick any future day to choose from that date's available movies. Locking an itinerary saves it to the calendar and returns directly to that day.

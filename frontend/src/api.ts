@@ -19,6 +19,33 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Pro
   return payload;
 }
 
+export interface DailyCacheStatus {
+  day: string;
+  base_dates: number;
+  responses: number;
+  updated_at: string | null;
+  running: boolean;
+  completed: number;
+  total: number;
+  started_at: string | null;
+  finished_at: string | null;
+  errors: string[];
+}
+
+const screeningsCache = new Map<string, Promise<ScreeningsResponse>>();
+
+export function clearScreeningsCache(): void {
+  screeningsCache.clear();
+}
+
+export function fetchDailyCacheStatus(): Promise<DailyCacheStatus> {
+  return requestJson<DailyCacheStatus>("/api/cache/status");
+}
+
+export function forceRefreshDailyCache(): Promise<DailyCacheStatus> {
+  return requestJson<DailyCacheStatus>("/api/cache/refresh", { method: "POST" });
+}
+
 export function fetchScreenings(enrich?: boolean): Promise<ScreeningsResponse>;
 export function fetchScreenings(showDate: string, enrich?: boolean): Promise<ScreeningsResponse>;
 export function fetchScreenings(
@@ -31,7 +58,19 @@ export function fetchScreenings(
   if (!enrich) {
     params.set("enrich", "0");
   }
-  return requestJson<ScreeningsResponse>(`/api/screenings?${params.toString()}`);
+  // Cookie scope covers theater radius and preview minutes; day scope expires at midnight.
+  const cacheKey = `${browserDate()}|${showDate}|${enrich}|${document.cookie}`;
+  const existing = screeningsCache.get(cacheKey);
+  if (existing) return existing;
+  const pending = requestJson<ScreeningsResponse>(`/api/screenings?${params.toString()}`).catch(
+    (error: unknown) => {
+      screeningsCache.delete(cacheKey);
+      throw error;
+    },
+  );
+  if (screeningsCache.size >= 48) screeningsCache.delete(screeningsCache.keys().next().value ?? "");
+  screeningsCache.set(cacheKey, pending);
+  return pending;
 }
 
 export function fetchMovieAvailability(afterDate: string): Promise<MovieAvailabilityResponse> {
