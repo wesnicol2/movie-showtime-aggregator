@@ -55,4 +55,19 @@ test("Movie Selection restores its day from session cache after reload", async (
   await expect(page.getByRole("img", { name: "Alpha poster" })).toBeVisible();
   expect(hits).toBe(1);
   await expect(page.getByText("Loading movie listings…")).toHaveCount(0);
+
+  // Stale browser snapshot renders immediately, then refreshes silently.
+  await page.evaluate(() => {
+    for (let index = 0; index < sessionStorage.length; index++) {
+      const key = sessionStorage.key(index);
+      if (!key?.startsWith("movie-showtime-aggregator.screenings.v2.")) continue;
+      const entry = JSON.parse(sessionStorage.getItem(key) ?? "{}");
+      entry.savedAt = Date.now() - 11 * 60 * 1000;
+      sessionStorage.setItem(key, JSON.stringify(entry));
+    }
+  });
+  await page.reload();
+  await expect(page.getByRole("img", { name: "Alpha poster" })).toBeVisible();
+  await expect.poll(() => hits).toBe(2);
+  await expect(page.getByText("Loading movie listings…")).toHaveCount(0);
 });

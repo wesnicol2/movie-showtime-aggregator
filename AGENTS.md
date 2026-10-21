@@ -59,16 +59,22 @@ OMDb, and routing enrichment) per date/location/previews/filters and the hash of
 server preferences. Do not put actual API keys into cache identifiers.
 The scheduler warms today through 14 future dates for the last-seen
 browser location and preview configuration, retained across restarts (falling
-back to the configured server defaults), on startup and at local
-calendar-day rollover. `POST /api/cache/refresh` queues a background refresh
+back to the configured server defaults), every four hours and when
+Phoenix calendar-day rollover expires the date-scoped snapshots. The worker
+runs inside the server container even with no connected browsers. Its last
+start timestamp is durable in SQLite to avoid redundant work on restarts. `POST /api/cache/refresh` queues a background refresh
 using the requesting browser's location and previews; `GET /api/cache/status`
 reports progress. Completed base snapshots are replaced only after a successful
-upstream fetch, with enriched responses invalidated per completed date.
+upstream fetch, with enriched responses atomically replaced only after a
+successful rebuild: stale but complete pages stay usable during refresh.
 The WSGI HTTP server is threaded so refresh work cannot block unrelated
 page requests. Test and Production intentionally keep distinct snapshot volumes.
 
 The typed frontend API keeps an in-memory, day-scoped request cache and
-coalesces identical requests for fast page navigation. On browser preference
+coalesces identical requests for fast page navigation. Loaded browser
+snapshots also have a ten-minute freshness TTL; pages render stale local
+data immediately and quietly revalidate on entry, visibility changes, and
+while a page is open. Transient failures retain the prior usable page. On browser preference
 changes or completed forced refreshes, Settings clears this client cache.
 The separate arbitrary itinerary optimization remains request-dependent.
 A forced refresh also invalidates the Watchlist's in-memory future-availability cache.

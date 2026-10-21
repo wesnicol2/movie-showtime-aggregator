@@ -33,14 +33,8 @@ export interface DailyCacheStatus {
 }
 
 const SCREENINGS_REVALIDATE_MS = 10 * 60 * 1000;
-const screeningsCache = new Map<
-  string,
-  { pending: Promise<ScreeningsResponse>; expiresAt: number }
->();
-const readyScreenings = new Map<
-  string,
-  { payload: ScreeningsResponse; savedAt: number }
->();
+const screeningsCache = new Map<string, { pending: Promise<ScreeningsResponse>; expiresAt: number }>();
+const readyScreenings = new Map<string, { payload: ScreeningsResponse; savedAt: number }>();
 const SNAPSHOT_PREFIX = "movie-showtime-aggregator.screenings.v2.";
 
 function screeningCacheKey(showDate: string, enrich: boolean): string {

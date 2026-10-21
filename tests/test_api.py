@@ -634,3 +634,61 @@ def test_cache_status_and_refresh_routes_check_methods(monkeypatch):
     assert code == 200
     assert status["base_dates"] == 0
     assert status["day"]
+
+
+def test_four_hour_background_refresh_due_and_rollover():
+    from zoneinfo import ZoneInfo
+
+    phx = ZoneInfo("America/Phoenix")
+    first = datetime(2026, 10, 21, 8, 0, tzinfo=phx)
+    assert api._scheduled_refresh_due(first, None, 0)
+    assert not api._scheduled_refresh_due(first + timedelta(hours=3, minutes=59), first, 15)
+    assert api._scheduled_refresh_due(first + timedelta(hours=4), first, 15)
+    assert api._scheduled_refresh_due(
+        datetime(2026, 10, 22, 0, 5, tzinfo=phx),
+        datetime(2026, 10, 21, 23, 58, tzinfo=phx),
+        0,
+    )
+    assert not api._scheduled_refresh_due(
+        datetime(2026, 10, 22, 0, 5, tzinfo=phx),
+        datetime(2026, 10, 21, 23, 58, tzinfo=phx),
+        15,
+    )
+
+
+def test_scheduler_tick_uses_remembered_location_without_browser(monkeypatch):
+    from zoneinfo import ZoneInfo
+
+    now = datetime(2026, 10, 21, 12, tzinfo=ZoneInfo("America/Phoenix"))
+    api._DAILY_CACHE.remember_profile("85020", 30, {"AMC": 0})
+    calls = []
+    monkeypatch.setattr(api, "_start_refresh", lambda *args: calls.append(args))
+    assert api._scheduled_refresh_tick(now)
+    assert calls == [("85020", 30, {"AMC": 0})]
+    api._DAILY_CACHE.mark_refresh_started(now)
+    assert not api._scheduled_refresh_tick(now + timedelta(hours=1))
+
+
+def test_rebuilding_response_keeps_existing_snapshot_until_ready(monkeypatch):
+    service = StubService([sample_screening("Old Movie")])
+    monkeypatch.setattr(api, "_SERVICE", service)
+    query = "date=2026-10-21&enrich=0"
+    assert call("/api/screenings", query=query)[1]["screenings"][0]["movie"] == "Old Movie"
+    service.screenings = [sample_screening("New Movie")]
+    assert call("/api/screenings", query=query)[1]["screenings"][0]["movie"] == "Old Movie"
+
+    codes = []
+    body = b"".join(
+        api._screenings_response(
+            {
+                "REQUEST_METHOD": "GET",
+                "QUERY_STRING": query,
+                "MOVIE_CACHE_REBUILD": True,
+            },
+            lambda status, _headers: codes.append(status),
+            "GET",
+        )
+    )
+    assert codes == ["200 OK"]
+    assert b'"New Movie"' in body
+    assert call("/api/screenings", query=query)[1]["screenings"][0]["movie"] == "New Movie"
