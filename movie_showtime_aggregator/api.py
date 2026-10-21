@@ -134,7 +134,10 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         stored = _STORE.load()
         signature = json.dumps(
             [show_date.isoformat(), zip_code, radius_miles, preview_minutes_by_chain,
-             enrichment_enabled, query, asdict(stored)],
+             enrichment_enabled,
+             {field: query.get(field, []) for field in
+              ("movie", "theatre", "format", "start_after", "start_before", "end_by")},
+             asdict(stored)],
             sort_keys=True,
         )
         response_key = (
