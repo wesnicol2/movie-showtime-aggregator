@@ -57,7 +57,9 @@ concurrent cold misses from making duplicate provider requests.
 The API also caches completed screening responses (including optional AMC,
 OMDb, and routing enrichment) per date/location/previews/filters and the hash of
 server preferences. Do not put actual API keys into cache identifiers.
-The scheduler warms today through 14 future dates on startup and at local
+The scheduler warms today through 14 future dates for the last-seen
+browser location and preview configuration, retained across restarts (falling
+back to the configured server defaults), on startup and at local
 calendar-day rollover. `POST /api/cache/refresh` queues a background refresh
 using the requesting browser's location and previews; `GET /api/cache/status`
 reports progress. Completed base snapshots are replaced only after a successful
@@ -69,6 +71,7 @@ The typed frontend API keeps an in-memory, day-scoped request cache and
 coalesces identical requests for fast page navigation. On browser preference
 changes or completed forced refreshes, Settings clears this client cache.
 The separate arbitrary itinerary optimization remains request-dependent.
+A forced refresh also invalidates the Watchlist's in-memory future-availability cache.
 
 ## Test-only build provenance
 
