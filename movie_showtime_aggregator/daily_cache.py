@@ -69,6 +69,35 @@ class DailyCache:
                 (namespace, len(prefix), prefix),
             )
 
+    def remember_profile(self, zip_code: str, radius: int, previews: dict[str, int]) -> None:
+        """Persist the last browser location so daily warming uses actual preferences."""
+        with self._lock, self._connect() as db:
+            db.execute(
+                """
+                INSERT INTO warm_profile(profile_id, zip_code, radius, previews)
+                VALUES (1, ?, ?, ?)
+                ON CONFLICT(profile_id) DO UPDATE SET
+                    zip_code=excluded.zip_code, radius=excluded.radius,
+                    previews=excluded.previews
+                """,
+                (zip_code, radius, json.dumps(previews, sort_keys=True)),
+            )
+
+    def last_profile(self) -> tuple[str, int, dict[str, int]] | None:
+        with self._lock, self._connect() as db:
+            row = db.execute(
+                "SELECT zip_code, radius, previews FROM warm_profile WHERE profile_id=1"
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            previews = json.loads(row[2])
+        except (TypeError, json.JSONDecodeError):
+            previews = {}
+        if not isinstance(previews, dict):
+            previews = {}
+        return str(row[0]), int(row[1]), previews
+
     def status(self) -> dict[str, object]:
         with self._lock, self._connect() as db:
             rows = db.execute(
@@ -99,6 +128,16 @@ class DailyCache:
                 snapshot_day TEXT NOT NULL,
                 saved_at TEXT NOT NULL,
                 PRIMARY KEY(namespace, cache_key)
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS warm_profile (
+                profile_id INTEGER PRIMARY KEY CHECK (profile_id=1),
+                zip_code TEXT NOT NULL,
+                radius INTEGER NOT NULL,
+                previews TEXT NOT NULL
             )
             """
         )
