@@ -9,6 +9,7 @@ import {
   forceRefreshDailyCache,
   saveSharedSettings,
 } from "./api";
+import { clearMovieAvailabilityCache } from "./movie-availability";
 import { useAppStore } from "./store";
 import type { ExperienceDeviationSetting, ProviderUsage, SharedSettings } from "./types";
 
@@ -147,6 +148,7 @@ export function SettingsPage() {
         if (!active) return;
         if (refreshWasRunning.current && !snapshot.running) {
           clearScreeningsCache();
+          clearMovieAvailabilityCache();
           invalidateScreenings();
           setStatus(
             snapshot.errors.length
@@ -178,6 +180,7 @@ export function SettingsPage() {
       setCacheState(snapshot);
       refreshWasRunning.current = snapshot.running;
       clearScreeningsCache();
+      clearMovieAvailabilityCache();
       invalidateScreenings();
     } catch (caught) {
       setCacheError(caught instanceof Error ? caught.message : "Could not start refresh");
