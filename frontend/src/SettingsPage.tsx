@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   clearScreeningsCache,
+  type DailyCacheStatus,
   fetchDailyCacheStatus,
   fetchScreenings,
   fetchSharedSettings,
   forceRefreshDailyCache,
   saveSharedSettings,
-  type DailyCacheStatus,
 } from "./api";
 import { useAppStore } from "./store";
 import type { ExperienceDeviationSetting, ProviderUsage, SharedSettings } from "./types";
@@ -158,7 +158,8 @@ export function SettingsPage() {
         setCacheState(snapshot);
         setCacheError("");
       } catch (caught) {
-        if (active) setCacheError(caught instanceof Error ? caught.message : "Cache status unavailable");
+        if (active)
+          setCacheError(caught instanceof Error ? caught.message : "Cache status unavailable");
       }
     }
     void pollCache();
@@ -322,8 +323,8 @@ export function SettingsPage() {
           <div>
             <h2>Daily showtime cache</h2>
             <p>
-              Schedules refresh automatically each Phoenix morning. Previously saved listings
-              stay available while new data loads.
+              Schedules refresh automatically each Phoenix morning. Previously saved listings stay
+              available while new data loads.
             </p>
           </div>
           <span className="scope-badge">This server</span>
