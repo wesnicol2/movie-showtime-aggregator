@@ -642,17 +642,24 @@ def test_four_hour_background_refresh_due_and_rollover():
     phx = ZoneInfo("America/Phoenix")
     first = datetime(2026, 10, 21, 8, 0, tzinfo=phx)
     assert api._scheduled_refresh_due(first, None, 0)
-    assert not api._scheduled_refresh_due(first + timedelta(hours=3, minutes=59), first, 15)
-    assert api._scheduled_refresh_due(first + timedelta(hours=4), first, 15)
+    assert not api._scheduled_refresh_due(
+        first + timedelta(hours=3, minutes=59), first, 15,
+        completed=first + timedelta(minutes=1)
+    )
+    assert api._scheduled_refresh_due(
+        first + timedelta(hours=4), first, 15, completed=first + timedelta(minutes=1)
+    )
     assert api._scheduled_refresh_due(
         datetime(2026, 10, 22, 0, 5, tzinfo=phx),
         datetime(2026, 10, 21, 23, 58, tzinfo=phx),
         0,
+        completed=datetime(2026, 10, 21, 23, 59, tzinfo=phx),
     )
     assert not api._scheduled_refresh_due(
         datetime(2026, 10, 22, 0, 5, tzinfo=phx),
         datetime(2026, 10, 21, 23, 58, tzinfo=phx),
         15,
+        completed=datetime(2026, 10, 21, 23, 59, tzinfo=phx),
     )
 
 
@@ -666,6 +673,7 @@ def test_scheduler_tick_uses_remembered_location_without_browser(monkeypatch):
     assert api._scheduled_refresh_tick(now)
     assert calls == [("85020", 30, {"AMC": 0})]
     api._DAILY_CACHE.mark_refresh_started(now)
+    api._DAILY_CACHE.mark_refresh_completed(now + timedelta(minutes=1))
     assert not api._scheduled_refresh_tick(now + timedelta(hours=1))
 
 
