@@ -183,9 +183,8 @@ class DailyCache:
         completed = self.last_refresh_completed()
         return {
             "last_refresh_completed_at": completed.isoformat() if completed else None,
-            "interrupted_refresh": started is not None and (
-                completed is None or completed < started
-            ),
+            "interrupted_refresh": started is not None
+            and (completed is None or completed < started),
             "refresh_interval_hours": 4,
             "last_refresh_started_at": started.isoformat() if started else None,
             "next_refresh_at": ((started + timedelta(hours=4)).isoformat() if started else None),
