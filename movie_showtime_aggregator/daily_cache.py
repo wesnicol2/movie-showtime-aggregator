@@ -112,14 +112,39 @@ class DailyCache:
         except (ValueError, TypeError):
             return None
 
+    def last_refresh_completed(self) -> datetime | None:
+        with self._lock, self._connect() as db:
+            row = db.execute(
+                "SELECT finished_at FROM refresh_schedule WHERE schedule_id=1"
+            ).fetchone()
+        if row is None or row[0] is None:
+            return None
+        try:
+            completed = datetime.fromisoformat(row[0])
+            return completed if completed.tzinfo is not None else None
+        except (ValueError, TypeError):
+            return None
+
+    def mark_refresh_completed(self, completed: datetime) -> None:
+        if completed.tzinfo is None:
+            raise ValueError("Refresh timestamp must have a timezone")
+        with self._lock, self._connect() as db:
+            db.execute(
+                "UPDATE refresh_schedule SET finished_at=? WHERE schedule_id=1",
+                (completed.isoformat(),),
+            )
+
     def mark_refresh_started(self, started: datetime) -> None:
         if started.tzinfo is None:
             raise ValueError("Refresh timestamp must have a timezone")
         with self._lock, self._connect() as db:
             db.execute(
                 """
-                INSERT INTO refresh_schedule(schedule_id, started_at) VALUES(1, ?)
-                ON CONFLICT(schedule_id) DO UPDATE SET started_at=excluded.started_at
+                INSERT INTO refresh_schedule(schedule_id, started_at, finished_at)
+                VALUES(1, ?, NULL)
+                ON CONFLICT(schedule_id) DO UPDATE SET
+                    started_at=excluded.started_at,
+                    finished_at=NULL
                 """,
                 (started.isoformat(),),
             )
@@ -155,7 +180,12 @@ class DailyCache:
                 (self._day(),),
             ).fetchall()
         started = self.last_refresh_started()
+        completed = self.last_refresh_completed()
         return {
+            "last_refresh_completed_at": completed.isoformat() if completed else None,
+            "interrupted_refresh": started is not None and (
+                completed is None or completed < started
+            ),
             "refresh_interval_hours": 4,
             "last_refresh_started_at": started.isoformat() if started else None,
             "next_refresh_at": ((started + timedelta(hours=4)).isoformat() if started else None),
@@ -196,7 +226,8 @@ class DailyCache:
             """
             CREATE TABLE IF NOT EXISTS refresh_schedule (
                 schedule_id INTEGER PRIMARY KEY CHECK (schedule_id=1),
-                started_at TEXT NOT NULL
+                started_at TEXT NOT NULL,
+                finished_at TEXT
             )
             """
         )

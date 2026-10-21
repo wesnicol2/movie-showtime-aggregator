@@ -62,7 +62,8 @@ browser location and preview configuration, retained across restarts (falling
 back to the configured server defaults), every four hours and when
 Phoenix calendar-day rollover expires the date-scoped snapshots. The worker
 runs inside the server container even with no connected browsers. Its last
-start timestamp is durable in SQLite to avoid redundant work on restarts. `POST /api/cache/refresh` queues a background refresh
+start/completion timestamps are durable in SQLite to avoid redundant work on restarts
+and retry an interrupted job after process or container restart. `POST /api/cache/refresh` queues a background refresh
 using the requesting browser's location and previews; `GET /api/cache/status`
 reports progress. Completed base snapshots are replaced only after a successful
 upstream fetch, with enriched responses atomically replaced only after a

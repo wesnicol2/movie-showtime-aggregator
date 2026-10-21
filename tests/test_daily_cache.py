@@ -115,3 +115,18 @@ def test_replacement_of_date_response_is_targeted(tmp_path):
     assert cache.get("responses", "85004|25|2026-10-21|old") is None
     assert cache.get("responses", "85004|25|2026-10-21|new") == {"count": 15}
     assert cache.get("responses", "85004|25|2026-10-22|untouched") == {"count": 4}
+
+
+def test_interrupted_refresh_can_be_retried_after_restart(tmp_path):
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    now = datetime(2026, 10, 21, 12, 0, tzinfo=ZoneInfo("America/Phoenix"))
+    path = tmp_path / "cache.sqlite3"
+    cache = DailyCache(path)
+    cache.mark_refresh_started(now)
+    assert DailyCache(path).status()["interrupted_refresh"] is True
+    cache.mark_refresh_completed(now + timedelta(minutes=5))
+    assert DailyCache(path).status()["interrupted_refresh"] is False
+    cache.mark_refresh_started(now + timedelta(hours=4))
+    assert DailyCache(path).status()["interrupted_refresh"] is True

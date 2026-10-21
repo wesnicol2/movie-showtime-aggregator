@@ -692,3 +692,18 @@ def test_rebuilding_response_keeps_existing_snapshot_until_ready(monkeypatch):
     assert codes == ["200 OK"]
     assert b'"New Movie"' in body
     assert call("/api/screenings", query=query)[1]["screenings"][0]["movie"] == "New Movie"
+
+
+def test_unfinished_refresh_is_due_after_restart():
+    from zoneinfo import ZoneInfo
+
+    phoenix = ZoneInfo("America/Phoenix")
+    start = datetime(2026, 10, 21, 8, tzinfo=phoenix)
+    current = start + timedelta(minutes=10)
+    assert api._scheduled_refresh_due(current, start, 15, completed=None)
+    assert api._scheduled_refresh_due(
+        current, start, 15, completed=start - timedelta(hours=3)
+    )
+    assert not api._scheduled_refresh_due(
+        current, start, 15, completed=start + timedelta(minutes=5)
+    )

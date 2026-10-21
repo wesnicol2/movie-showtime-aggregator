@@ -925,13 +925,23 @@ def _refresh_worker(zip_code: str, radius: int, previews: dict[str, int]) -> Non
                 with _REFRESH_LOCK:
                     _REFRESH_STATUS["completed"] = offset + 1
     finally:
+        finished = datetime.now(PHOENIX)
+        _DAILY_CACHE.mark_refresh_completed(finished)
         with _REFRESH_LOCK:
             _REFRESH_STATUS["running"] = False
-            _REFRESH_STATUS["finished_at"] = datetime.now(PHOENIX).isoformat()
+            _REFRESH_STATUS["finished_at"] = finished.isoformat()
 
 
-def _scheduled_refresh_due(now: datetime, started: datetime | None, base_dates: int) -> bool:
-    if started is None:
+def _scheduled_refresh_due(
+    now: datetime,
+    started: datetime | None,
+    base_dates: int,
+    completed: datetime | None = None,
+) -> bool:
+    if started is None or (completed is not None and completed < started):
+        return True
+    if completed is None:
+        return True
         return True
     # At midnight yesterday's date-scoped snapshots expire.
     if started.astimezone(PHOENIX).date() != now.astimezone(PHOENIX).date() and base_dates < 15:
@@ -944,6 +954,7 @@ def _scheduled_refresh_tick(now: datetime) -> bool:
         now,
         _DAILY_CACHE.last_refresh_started(),
         int(_DAILY_CACHE.status()["base_dates"]),
+        _DAILY_CACHE.last_refresh_completed(),
     ):
         return False
     profile = _DAILY_CACHE.last_profile()
