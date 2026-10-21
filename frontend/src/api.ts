@@ -24,6 +24,9 @@ export interface DailyCacheStatus {
   base_dates: number;
   responses: number;
   updated_at: string | null;
+  refresh_interval_hours?: number;
+  last_refresh_started_at?: string | null;
+  next_refresh_at?: string | null;
   running: boolean;
   completed: number;
   total: number;
