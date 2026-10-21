@@ -597,8 +597,9 @@ def test_cache_status_and_refresh_routes_check_methods(monkeypatch):
         def refresh_date(self, show_date, *, zip_code, radius_miles):
             self.days.append((show_date, zip_code, radius_miles))
 
-        def get_screenings(self, show_date, preview_minutes_by_chain=None, *,
-                           zip_code=None, radius_miles=None):
+        def get_screenings(
+            self, show_date, preview_minutes_by_chain=None, *, zip_code=None, radius_miles=None
+        ):
             return [sample_screening()]
 
     service = StubCacheService()
