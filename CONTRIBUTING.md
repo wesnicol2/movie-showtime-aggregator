@@ -75,15 +75,41 @@ Naming: `feature/kebab-case-name`, `dev/kebab-case-name`. No other prefixes.
    run the full source and browser suites. Do not claim skipped checks passed.
    A check that actually runs and fails because of code remains a hard stop.
    Nothing deploys from `dev/*` branches.
-4. Open a PR `dev/*` → its feature branch. Merging publishes `:test` and
-   auto-deploys to **Test**. Delete the `dev/` branch as soon as it is merged.
-5. Exercise Test for at least one real session. This is the only place a change
-   is seen running before production, so it is not optional. Unit tests catch
-   regressions in the logic; they don't catch "this endpoint times out against
-   real upstream data."
-6. Open a PR `feature/*` → `main` and get a review from the repo owner. Merging
-   publishes `:latest` and auto-deploys to **Production**. Delete the `feature/`
-   branch as soon as it is merged.
+4. Open a PR `dev/*` → its feature branch. **The implementing agent
+   owns this intermediate PR**: after its CI and browser checks pass, merge it
+   into `feature/*` without waiting for the repo owner to review it. Delete
+   the merged `dev/` branch. This feature-branch merge triggers the `:test`
+   image build/publish for **Test**.
+5. Verify the feature-branch CI checks pass and the `:test` image has actually
+   published. Check build/commit provenance when accessible. Watchtower pulls
+   the image separately, so a successful publish alone does **not** prove the
+   Test container updated; be explicit if live container verification is
+   unavailable.
+6. **The implementing agent opens a non-draft `feature/*` → `main` PR**
+   with concise Test instructions and the verification/deployment status.
+   This is the mandatory handoff point for completed work. Never stop at an
+   open `dev/*` → `feature/*` PR and call it "ready for review." If blocked,
+   investigate/fix what can be fixed and report the exact blocker instead.
+7. **The repo owner tests the change on the Test container and reviews/approves
+   the `feature/*` → `main` PR.** The agent must not perform this approval
+   or merge to `main` without explicit owner authorization. Owner testing
+   happens with the final PR already open; it is not a prerequisite to opening
+   that PR. After owner approval and merging, `main` publishes `:latest`
+   to Production. Delete the merged `feature/` branch.
+
+## Agent handoff / definition of ready
+
+For user-requested implementation, "ready", "done", or "ready for review" means
+**a non-draft feature-to-main PR is open**, the `dev/*` changes have already
+been merged into `feature/*`, and feature-branch verification and `:test`
+publishing have succeeded. Give the owner the final PR URL, relevant commit
+SHA, and concrete manual checks. The owner alone exercises the Test container
+and approves the final PR before any production merge. Intermediate dev PRs
+are internal implementation milestones, never the deliverable.
+
+If feature CI or publish fails, repair it before claiming readiness. If Test
+container availability cannot be observed from available tools, describe
+publication as confirmed and live deployment as unverified; do not equate them.
 
 ## Pull request descriptions
 
