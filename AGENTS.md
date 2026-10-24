@@ -8,6 +8,28 @@
 
 **Do not touch without explicit human approval — `CONTRIBUTING.md` and `docs/*.md`.** These are human-owned contracts.
 
+## Agent delivery contract: feature-to-main handoff
+
+For implementation requests, the assistant/engineering agent owns the whole
+delivery path **through a non-draft `feature/*` → `main` PR ready for owner
+review**. This includes resolving implementation blockers, preparing and
+merging the internal `dev/*` → `feature/*` PR after green checks, confirming
+the feature-branch verification and `:test` image publication, and opening
+the final PR with concrete Test instructions. Do **not** tell the owner a
+`dev/*` PR is "ready" as if that finishes the task, or hand off an
+intermediate merge for the owner to do.
+
+The **owner**, not the agent, manually tests on the Test container and
+reviews/approves the final `feature/*` → `main` PR; the agent does not
+merge to production without explicit owner authorization. Open the final PR
+*before* owner manual testing so it is already waiting for approval. A
+successful GHCR `:test` publish does not itself prove Watchtower has updated
+the running Test container. Report observed CI, image publication, and
+running-container status distinctly. If blocked, state the specific obstacle
+rather than claiming the final PR is ready.
+
+See `CONTRIBUTING.md` for the authoritative promotion workflow.
+
 ## Local fix and verification contract
 
 After editing frontend or Python code, run:
