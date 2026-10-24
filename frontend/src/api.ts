@@ -272,6 +272,14 @@ function compareMetric(
 ): number {
   if (sortBy === "want") return right.want_score - left.want_score;
   if (sortBy === "driving") return left.travel_minutes - right.travel_minutes;
+  if (sortBy === "home") {
+    // Match the backend: unknown return trips sort after known home arrivals.
+    // With no home configured, both are null and the movie end time is the fallback.
+    if (left.home_at && right.home_at) return left.home_at.localeCompare(right.home_at);
+    if (left.home_at) return -1;
+    if (right.home_at) return 1;
+    return left.ends_at.localeCompare(right.ends_at);
+  }
   return left.elapsed_minutes - right.elapsed_minutes;
 }
 
