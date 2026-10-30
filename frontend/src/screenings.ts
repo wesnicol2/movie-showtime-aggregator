@@ -144,7 +144,7 @@ function matchesRule(
 }
 
 function matchesFilter(
-  screening: Screening,
+  screening: Pick<Screening, ColumnKey>,
   column: ColumnDefinition,
   filter: ColumnFilter,
 ): boolean {
