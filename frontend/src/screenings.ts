@@ -84,7 +84,7 @@ function compareCanonical(left: string, right: string, column: ColumnDefinition)
   return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
 }
 
-function timeBoundary(screening: Screening, operand: string): number | null {
+function timeBoundary(screening: Pick<Screening, ColumnKey>, operand: string): number | null {
   if (!/^\d{2}:\d{2}$/.test(operand)) return null;
   const datePart = screening.advertised_start.slice(0, 10);
   const parsed = Date.parse(`${datePart}T${operand}:00`);
@@ -92,7 +92,7 @@ function timeBoundary(screening: Screening, operand: string): number | null {
 }
 
 function matchesRule(
-  screening: Screening,
+  screening: Pick<Screening, ColumnKey>,
   column: ColumnDefinition,
   filter: ColumnFilter,
   value: string,
@@ -153,11 +153,11 @@ function matchesFilter(
   return matchesRule(screening, column, filter, value);
 }
 
-export function filterAndSort(
-  screenings: Screening[],
+export function filterAndSort<T extends Pick<Screening, ColumnKey>>(
+  screenings: T[],
   filters: Filters,
   sort: SortState,
-): Screening[] {
+): T[] {
   const sortColumn = COLUMNS.find((column) => column.key === sort.key) ?? COLUMNS[0];
   if (!sortColumn) return [...screenings];
   return screenings
