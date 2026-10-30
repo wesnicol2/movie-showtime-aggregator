@@ -74,9 +74,7 @@ test("an unavailable future scan does not hide watchlist titles", async ({ page 
   await page.route("**/api/movie-availability?*", (route) =>
     route.fulfill({ status: 503, json: { error: "Unavailable" } }),
   );
-  await page.route("**/api/screenings?*", (route) =>
-    route.fulfill({ json: { screenings: [] } }),
-  );
+  await page.route("**/api/screenings?*", (route) => route.fulfill({ json: { screenings: [] } }));
   await page.goto("/watchlist");
   await page.getByRole("checkbox", { name: "Only movies with upcoming showtimes" }).check();
   await expect(
