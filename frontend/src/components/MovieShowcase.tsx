@@ -110,7 +110,8 @@ export function MovieShowcase({
                 {other ? (
                   <p className="showcase-later">
                     {otherVenue ? "Later at another theater/chain" : "Later outside filters"}:{" "}
-                    {formatListingDateTime(other.advertised_start)} · {other.theatre} ({other.chain})
+                    {formatListingDateTime(other.advertised_start)} · {other.theatre} ({other.chain}
+                    )
                   </p>
                 ) : null}
                 {latest.laterUnverified ? (
