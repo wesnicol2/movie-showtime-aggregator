@@ -151,10 +151,13 @@ export function fetchScreenings(
   return pending;
 }
 
-export function fetchMovieAvailability(afterDate: string): Promise<MovieAvailabilityResponse> {
-  return requestJson<MovieAvailabilityResponse>(
-    `/api/movie-availability?after=${encodeURIComponent(afterDate)}`,
-  );
+export function fetchMovieAvailability(
+  afterDate: string,
+  includeScreenings = false,
+): Promise<MovieAvailabilityResponse> {
+  const params = new URLSearchParams({ after: afterDate });
+  if (includeScreenings) params.set("include_screenings", "1");
+  return requestJson<MovieAvailabilityResponse>(`/api/movie-availability?${params.toString()}`);
 }
 
 export function fetchSharedSettings(): Promise<SharedSettings> {
