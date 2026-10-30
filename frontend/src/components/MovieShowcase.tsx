@@ -1,8 +1,8 @@
 import { formatListingDateTime, latestListedForMovie } from "../last-listed";
 import type { Filters } from "../screenings";
 import { formatListedTime, formatReleaseDate, type ShowcaseMovie } from "../showcase";
-import type { MovieAvailabilityResponse, Screening } from "../types";
 import { ticketDestination } from "../ticket-links";
+import type { MovieAvailabilityResponse, Screening } from "../types";
 import { TicketLink } from "./TicketLink";
 import "./movie-showcase.css";
 
