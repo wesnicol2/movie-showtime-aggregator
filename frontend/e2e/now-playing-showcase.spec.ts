@@ -209,7 +209,9 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
     "Wed, Oct 14 · 5:30 PM · AMC Midtown (AMC)",
   );
   await expect(alpha.getByTestId("last-listed")).toContainText("Later at another theater/chain:");
-  await expect(alpha.getByTestId("last-listed")).toContainText("Fri, Oct 16 · 7:30 PM · Harkins North (Harkins)");
+  await expect(alpha.getByTestId("last-listed")).toContainText(
+    "Fri, Oct 16 · 7:30 PM · Harkins North (Harkins)",
+  );
   await expect(alpha.getByText("Harkins 1 theater")).toHaveCount(0);
 
   await filter.getByRole("button", { name: "Close filter" }).click();
