@@ -1,4 +1,4 @@
-import { filterAndSort, isFilterActive, type Filters } from "./screenings";
+import { type Filters, filterAndSort, isFilterActive } from "./screenings";
 import type { ShowcaseMovie } from "./showcase";
 import type { ColumnKey, FutureScreening, Screening } from "./types";
 
