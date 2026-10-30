@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ColumnFilter } from "./components/ColumnFilter";
-import { shortAvailabilityDate, useMovieAvailability } from "./movie-availability";
 import { MovieShowcase } from "./components/MovieShowcase";
 import { ScreeningInspector } from "./components/ScreeningInspector";
 import { ScreeningTable } from "./components/ScreeningTable";
+import { shortAvailabilityDate, useMovieAvailability } from "./movie-availability";
 import { readDefaultSavedView, writeDefaultSavedView } from "./saved-view-defaults";
 import { COLUMNS, filterAndSort, isFilterActive } from "./screenings";
 import { buildShowcase, type ShowcaseSort, sortShowcase } from "./showcase";
@@ -22,7 +22,10 @@ export function ScreeningsPage() {
   useScreenings();
   const response = useAppStore((state) => state.response);
   const selectedDate = useAppStore((state) => state.selectedDate);
-  const { response: futureAvailability, error: futureError } = useMovieAvailability(selectedDate, true);
+  const { response: futureAvailability, error: futureError } = useMovieAvailability(
+    selectedDate,
+    true,
+  );
   const status = useAppStore((state) => state.status);
   const error = useAppStore((state) => state.error);
   const filters = useAppStore((state) => state.filters);
