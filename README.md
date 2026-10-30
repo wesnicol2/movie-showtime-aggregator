@@ -74,6 +74,8 @@ The **Movies / Table** switch preserves the original spreadsheet inspection surf
 
 The list shows the movies returned by the configured provider within the selected ZIP/radius, not a guarantee that all theaters in the geographic area have published listings. Missing ratings, posters, prices, and other optional enrichment never remove a movie.
 
+Each movie card also identifies the **latest published screening matching your active Showtimes filters**, with its listed date, time, theater, and chain. If an even later listing exists outside those filters, the card names its theater/chain (or labels a same-venue filter mismatch). The comparison covers the selected date plus the next **14 days** within the selected ZIP/radius; it is **not** a verified final theatrical showing. The backend reuses its cached daily base listings for this comparison, so no future AMC/OMDb/travel enrichment is requested. Filters requiring future enriched data (ratings, ticket prices/seats, home times) are explicitly reported as unverifiable rather than silently claiming a last screening; provider failures also make the checked range incomplete.
+
 ## Showtimes table
 
 Open **Showtimes** or `/showtimes` for the detailed spreadsheet-style screening view. Click a column name to sort it. Click the dropdown at the right side of any column header to filter that column. Every column supports exact-value checkboxes. Text columns add contains/equals-style rules, time columns add before/after rules, and numeric columns add less-than/greater-than rules.
