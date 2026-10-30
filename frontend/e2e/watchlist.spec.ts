@@ -26,9 +26,15 @@ test("watchlist preserves wanted and watched titles and displays published avail
     });
   });
 
+  await page.route("**/api/screenings?*", (route) =>
+    route.fulfill({ json: { screenings: [] } }),
+  );
+
   await page.goto("/watchlist");
   await expect(page.getByRole("heading", { name: "Watchlist" })).toBeVisible();
   await expect(page.getByText("2 listed days · 7 showtimes")).toBeVisible();
+  await expect(page.getByText("Seen", { exact: true })).toHaveCount(0);
+  await page.getByRole("checkbox", { name: "Include movies without upcoming showtimes" }).check();
   await expect(page.getByText("Seen", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Mark watched" }).click();
