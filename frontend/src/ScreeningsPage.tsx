@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ColumnFilter } from "./components/ColumnFilter";
+import { shortAvailabilityDate, useMovieAvailability } from "./movie-availability";
 import { MovieShowcase } from "./components/MovieShowcase";
 import { ScreeningInspector } from "./components/ScreeningInspector";
 import { ScreeningTable } from "./components/ScreeningTable";
@@ -20,6 +21,8 @@ import { useScreenings } from "./useScreenings";
 export function ScreeningsPage() {
   useScreenings();
   const response = useAppStore((state) => state.response);
+  const selectedDate = useAppStore((state) => state.selectedDate);
+  const { response: futureAvailability, error: futureError } = useMovieAvailability(selectedDate, true);
   const status = useAppStore((state) => state.status);
   const error = useAppStore((state) => state.error);
   const filters = useAppStore((state) => state.filters);
@@ -283,8 +286,20 @@ export function ScreeningsPage() {
           </div>
           {view === "movies" ? (
             <>
+              <p className="showcase-horizon">
+                {futureError
+                  ? "Later schedules unavailable; latest listings below are limited to the selected date."
+                  : futureAvailability
+                    ? `Latest published listings through ${shortAvailabilityDate(futureAvailability.window_end)} (14 days after the selected date). ${futureAvailability.unavailable_dates.length ? "Some days could not be checked." : "Additional screenings may be posted later."}`
+                    : "Checking the next 14 days of published listings…"}
+              </p>
               <MovieShowcase
                 movies={movies}
+                allMovies={allMovies}
+                allScreenings={screenings}
+                filters={filters}
+                futureAvailability={futureAvailability}
+                futureError={futureError}
                 selectedMovies={selectedMovies}
                 watchedMovies={watchedMovies}
               />
