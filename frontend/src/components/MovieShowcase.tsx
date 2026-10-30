@@ -59,7 +59,8 @@ export function MovieShowcase({
         );
         const other = latest.laterOutsideFilters;
         const otherVenue =
-          other && latest.matching &&
+          other &&
+          latest.matching &&
           (other.chain !== latest.matching.chain || other.theatre !== latest.matching.theatre);
         return (
           <article className="showcase-card" key={movie.key} data-testid="showcase-movie">
