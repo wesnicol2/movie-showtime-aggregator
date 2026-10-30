@@ -272,6 +272,8 @@ def _movie_availability_response(
         if len(raw_after) != 1:
             raise ValueError("one after date (YYYY-MM-DD) is required")
         after_date = date.fromisoformat(raw_after[0])
+        include_screenings = query.get("include_screenings", ["0"]) == ["1"]
+        previews = _preview_minutes_from_request(environ, query) if include_screenings else {}
         zip_code, radius_miles = _location_from_request(environ, query)
     except ValueError as exc:
         return _json_response(start_response, 400, {"error": str(exc)}, method)
@@ -282,10 +284,13 @@ def _movie_availability_response(
     successful_dates: list[str] = []
     unavailable_dates: list[str] = []
     movies: dict[str, dict[str, object]] = {}
+    future_screenings: list[dict[str, object]] = []
     seen_showings: set[tuple[str, str]] = set()
 
     def load(show_date: date) -> list[Screening]:
-        return _SERVICE.get_screenings(show_date, {}, zip_code=zip_code, radius_miles=radius_miles)
+        return _SERVICE.get_screenings(
+            show_date, previews, zip_code=zip_code, radius_miles=radius_miles
+        )
 
     # Bound remote fanout. ScreeningService caches base results by date/location.
     with ThreadPoolExecutor(max_workers=3) as pool:
@@ -306,6 +311,36 @@ def _movie_availability_response(
                 if identity in seen_showings:
                     continue
                 seen_showings.add(identity)
+                if include_screenings:
+                    # Only screening-filter dimensions and identity are needed by the
+                    # Showtimes page. Avoid returning poster and ticket metadata for
+                    # every future date; expensive enrichments are not fetched here.
+                    data = screening.to_dict()
+                    future_screenings.append(
+                        {
+                            key: data[key]
+                            for key in (
+                                "showtime_id",
+                                "movie",
+                                "movie_source_id",
+                                "imdb_id",
+                                "imdb_rating",
+                                "rotten_tomatoes_score",
+                                "metacritic_score",
+                                "theatre",
+                                "distance_miles",
+                                "seats_left_percent",
+                                "ticket_price",
+                                "chain",
+                                "advertised_start",
+                                "actual_start",
+                                "leave_home",
+                                "estimated_end",
+                                "home_arrival",
+                                "format",
+                            )
+                        }
+                    )
                 entry = movies.setdefault(
                     screening.movie,
                     {"showtime_count": 0, "scheduled_dates": set()},
@@ -336,6 +371,7 @@ def _movie_availability_response(
             "checked_dates": sorted(successful_dates),
             "unavailable_dates": sorted(unavailable_dates),
             "movies": summaries,
+            **({"future_screenings": future_screenings} if include_screenings else {}),
         },
         method,
     )
