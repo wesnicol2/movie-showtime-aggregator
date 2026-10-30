@@ -38,11 +38,7 @@ function latest<T extends Listing>(rows: readonly T[]): T | null {
   return newest;
 }
 
-function matchesMovie(
-  row: Listing,
-  movie: ShowcaseMovie,
-  ambiguousTitle: boolean,
-): boolean {
+function matchesMovie(row: Listing, movie: ShowcaseMovie, ambiguousTitle: boolean): boolean {
   if (normalized(row.movie) !== normalized(movie.title)) return false;
   const sourceIds = movie.screenings.map((screening) => screening.movie_source_id).filter(Boolean);
   const imdbIds = movie.screenings.map((screening) => screening.imdb_id).filter(Boolean);
