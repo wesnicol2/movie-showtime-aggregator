@@ -10,12 +10,15 @@ export function clearMovieAvailabilityCache(): void {
   cache.clear();
 }
 
-function loadAvailability(afterDate: string): Promise<MovieAvailabilityResponse> {
+function loadAvailability(
+  afterDate: string,
+  includeScreenings: boolean,
+): Promise<MovieAvailabilityResponse> {
   // The theater search is carried by cookies, not explicit URL parameters.
-  const cacheKey = `${afterDate}|${document.cookie}`;
+  const cacheKey = `${afterDate}|${includeScreenings}|${document.cookie}`;
   const saved = cache.get(cacheKey);
   if (saved && saved.expires > Date.now()) return saved.pending;
-  const pending = fetchMovieAvailability(afterDate).catch((error: unknown) => {
+  const pending = fetchMovieAvailability(afterDate, includeScreenings).catch((error: unknown) => {
     cache.delete(cacheKey);
     throw error;
   });
@@ -23,14 +26,14 @@ function loadAvailability(afterDate: string): Promise<MovieAvailabilityResponse>
   return pending;
 }
 
-export function useMovieAvailability(afterDate: string) {
+export function useMovieAvailability(afterDate: string, includeScreenings = false) {
   const [response, setResponse] = useState<MovieAvailabilityResponse | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
     let cancelled = false;
     setResponse(null);
     setError(false);
-    void loadAvailability(afterDate)
+    void loadAvailability(afterDate, includeScreenings)
       .then((result) => {
         if (!cancelled) setResponse(result);
       })
@@ -40,7 +43,7 @@ export function useMovieAvailability(afterDate: string) {
     return () => {
       cancelled = true;
     };
-  }, [afterDate]);
+  }, [afterDate, includeScreenings]);
   return { response, error };
 }
 

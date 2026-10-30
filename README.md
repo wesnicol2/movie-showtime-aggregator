@@ -54,6 +54,8 @@ Removing a title deletes it from the local watchlist; neither action silently de
 an existing saved movie-day itinerary (a warning is shown if a future plan contains it).
 The **Plan this movie** action returns to the calendar to choose a day.
 
+The Watchlist **defaults to movies with confirmed upcoming published showtimes**, including screenings remaining **today** and future dates over the next 14 days. Check **Include movies without upcoming showtimes** to see every saved wanted/watched title, even if no showings are listed. Both views are non-destructive. Every displayed movie shows either how many screenings remain today (with the latest listed time) or its later scheduled listings, including watched titles. When a schedule fetch fails or some dates are unavailable, only confirmed upcoming titles appear by default and a warning explains that other titles could have listings.
+
 The availability indicator counts **individual published showtimes** and **distinct
 listed dates** strictly *after* the reference day over the next 14 calendar days,
 using the configured ZIP and radius. The Watchlist references today; Movie Day uses
@@ -73,6 +75,8 @@ Open **Showtimes** or `/showtimes` to browse one poster-left card per movie play
 The **Movies / Table** switch preserves the original spreadsheet inspection surface. Both views share exactly the same screening filters; the movie list groups the **matching screenings** rather than counting theaters from filtered-out rows. Open **Filters** in Movies view to use the same per-column exact-value and rule controls as the table. A movie appears only once across its matching showtimes and chains; distinct verified IMDb identities remain separate even if they share a title.
 
 The list shows the movies returned by the configured provider within the selected ZIP/radius, not a guarantee that all theaters in the geographic area have published listings. Missing ratings, posters, prices, and other optional enrichment never remove a movie.
+
+Each movie card also identifies the **latest published screening matching your active Showtimes filters**, with its listed date, time, theater, and chain. If an even later listing exists outside those filters, the card names its theater/chain (or labels a same-venue filter mismatch). The comparison covers the selected date plus the next **14 days** within the selected ZIP/radius; it is **not** a verified final theatrical showing. The backend reuses its cached daily base listings for this comparison, so no future AMC/OMDb/travel enrichment is requested. Filters requiring future enriched data (ratings, ticket prices/seats, home times) are explicitly reported as unverifiable rather than silently claiming a last screening; provider failures also make the checked range incomplete.
 
 ## Showtimes table
 

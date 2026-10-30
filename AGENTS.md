@@ -8,6 +8,28 @@
 
 **Do not touch without explicit human approval — `CONTRIBUTING.md` and `docs/*.md`.** These are human-owned contracts.
 
+## Agent delivery contract: feature-to-main handoff
+
+For implementation requests, the assistant/engineering agent owns the whole
+delivery path **through a non-draft `feature/*` → `main` PR ready for owner
+review**. This includes resolving implementation blockers, preparing and
+merging the internal `dev/*` → `feature/*` PR after green checks, confirming
+the feature-branch verification and `:test` image publication, and opening
+the final PR with concrete Test instructions. Do **not** tell the owner a
+`dev/*` PR is "ready" as if that finishes the task, or hand off an
+intermediate merge for the owner to do.
+
+The **owner**, not the agent, manually tests on the Test container and
+reviews/approves the final `feature/*` → `main` PR; the agent does not
+merge to production without explicit owner authorization. Open the final PR
+*before* owner manual testing so it is already waiting for approval. A
+successful GHCR `:test` publish does not itself prove Watchtower has updated
+the running Test container. Report observed CI, image publication, and
+running-container status distinctly. If blocked, state the specific obstacle
+rather than claiming the final PR is ready.
+
+See `CONTRIBUTING.md` for the authoritative promotion workflow.
+
 ## Local fix and verification contract
 
 After editing frontend or Python code, run:
@@ -144,6 +166,8 @@ plans. Cache only small, non-authoritative display metadata for wanted/watched
 movies so they stay visible after their published run; the backend remains
 authoritative for showtime facts. This remains a no-account product.
 
+Watchlist is upcoming-only by default: an unchecked **Include movies without upcoming showtimes** control hides any title for which neither remaining same-day showtimes nor future availability shows a confirmed scheduled screening. The user can opt into the full saved wanted/watched list without mutating it. The default filter remains conservative even while requests load or fail; unverified titles are not passed through as confirmed upcoming. Loading, failed feeds, and partially unavailable future dates are distinguished in the status text rather than implying the movie ended its run. Every listed title, including watched history, displays its available remaining-today count/latest listed time or future listings so the reason for inclusion is visible. A minute timer updates today-only eligibility as showtimes pass and refreshes the date at local midnight.
+
 Future schedule visibility comes from `/api/movie-availability?after=YYYY-MM-DD`,
 which counts only published listings on distinct dates strictly after the
 reference date, within the following 14 days. It uses the configured ZIP/radius
@@ -155,6 +179,8 @@ of a movie's exit date.
 ### Now Playing showcase and Showtimes table
 
 `/showtimes` defaults to a poster-left movie list, with a Movies/Table switch. The showcase aggregates *filtered* screening rows, so all counts (unique theaters per chain, showtimes, formats, prices, nearest distance, expanded ticket links) reflect the same column filters as the original table. Count unique `(chain, theater)` combinations, not individual performances; stable IMDb identities must not be merged when films share a title. Unmatched title aliases can still be ambiguous; do not silently claim geographic completeness beyond the Fandango listings in the configured radius. Missing optional enrichment must not hide base movies.
+
+Each movie card computes the latest listed showtime **matching the shared column filters** from the chosen date plus 14 following published dates. When a later showing exists outside the chosen filters, show its listed date/time and theater/chain, distinguishing another venue from a different format/time at the same venue. The availability endpoint accepts `include_screenings=1` only when the Showtimes page needs this; its small, typed future screening projection reuses the cached base showtimes without duplicating the provider fanout or requesting costly enrichment. The default Watchlist availability response remains summary-only. Reuse `filterAndSort` on the projected `ColumnKey` values so the filter logic stays shared; current-day display counts remain from enriched current-day rows only. Match future records using compatible Fandango source or IMDb IDs and never attach ambiguous identity-free showings to two same-titled movies. Base data cannot verify rating, AMC ticket/seat, or home-routing filters; do not claim future matches for those dimensions, and display any later base listings as unverified. Partial/failing future dates and the 14-day horizon must remain visible, since the latest published screening is not a confirmed final theatrical screening.
 
 Keep the spreadsheet-style power-user inspection surface behind Table, with original per-column sorting, filters, inspector and saved views. Reuse `COLUMNS` and `ColumnFilter` in the collapsible showcase filter panel; do not implement a second incompatible set of screening-filter semantics. Keep the main planning `/movies` poster-selection workflow independent.
 
