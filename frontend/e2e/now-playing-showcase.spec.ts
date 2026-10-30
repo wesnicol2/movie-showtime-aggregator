@@ -88,7 +88,27 @@ const rows = [
   ),
 ];
 
+async function mockFuture(page: Page) {
+  await page.route("**/api/movie-availability?*", async (route) => {
+    await route.fulfill({
+      json: {
+        after_date: "2026-10-12",
+        window_end: "2026-10-26",
+        checked_dates: ["2026-10-13", "2026-10-14", "2026-10-16"],
+        unavailable_dates: [],
+        movies: {},
+        future_screenings: [
+          screening("a5", "Alpha", "tt1111111", "AMC", "AMC Midtown", "2026-10-14T17:30:00", "IMAX", 0, 4),
+          screening("a6", "Alpha", "tt1111111", "Harkins", "Harkins North", "2026-10-16T19:30:00", "Standard", 0, 5),
+          screening("b2", "Beta", "tt2222222", "Harkins", "Harkins North", "2026-10-13T19:00:00", "Standard", 0, 5),
+        ],
+      },
+    });
+  });
+}
+
 async function mockScreenings(page: Page) {
+  await mockFuture(page);
   await page.route("**/api/screenings?*", async (route) => {
     await route.fulfill({
       json: {
@@ -130,6 +150,8 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
   await expect(alpha.getByText("AMC 2 theaters")).toBeVisible();
   await expect(alpha.getByText("Harkins 1 theater")).toBeVisible();
   await expect(alpha.getByText("4 showtimes")).toBeVisible();
+  await expect(alpha.getByTestId("last-listed")).toContainText("Fri, Oct 16 · 7:30 PM · Harkins North (Harkins)");
+  await expect(page.getByText("Latest published listings through Oct 26")).toBeVisible();
   await alpha.getByText("View theaters and showtimes").click();
   await expect(alpha.getByText("AMC Midtown", { exact: true })).toBeVisible();
   await expect(alpha.getByText("12:00 PM · IMAX · $14.00")).toBeVisible();
@@ -151,6 +173,9 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
   await expect(page.getByTestId("showcase-movie")).toHaveCount(1);
   await expect(alpha.getByText("AMC 2 theaters")).toBeVisible();
   await expect(alpha.getByText("3 showtimes")).toBeVisible();
+  await expect(alpha.getByTestId("last-listed")).toContainText("Wed, Oct 14 · 5:30 PM · AMC Midtown (AMC)");
+  await expect(alpha.getByTestId("last-listed")).toContainText("Later at another theater/chain:");
+  await expect(alpha.getByTestId("last-listed")).toContainText("Fri, Oct 16 · 7:30 PM · Harkins North (Harkins)");
   await expect(alpha.getByText("Harkins 1 theater")).toHaveCount(0);
 
   await filter.getByRole("button", { name: "Close filter" }).click();
@@ -160,6 +185,15 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
 });
 
 test("different IMDb identities with the same title remain separate", async ({ page }) => {
+  await page.route("**/api/movie-availability?*", async (route) => {
+    await route.fulfill({
+      json: {
+        after_date: "2026-10-12", window_end: "2026-10-26",
+        checked_dates: ["2026-10-14"], unavailable_dates: [], movies: {},
+        future_screenings: [screening("later", "The Return", "tt1111111", "AMC", "AMC Midtown", "2026-10-14T18:00:00", "Standard", 0, 4)],
+      },
+    });
+  });
   await page.route("**/api/screenings?*", async (route) => {
     await route.fulfill({
       json: {
@@ -195,4 +229,7 @@ test("different IMDb identities with the same title remain separate", async ({ p
   });
   await page.goto("/showtimes");
   await expect(page.getByTestId("showcase-movie")).toHaveCount(2);
+  const cards = page.getByTestId("showcase-movie");
+  await expect(cards.nth(0).getByTestId("last-listed")).toContainText("Oct 14");
+  await expect(cards.nth(1).getByTestId("last-listed")).not.toContainText("Oct 14");
 });
