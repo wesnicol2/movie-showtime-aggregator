@@ -166,6 +166,8 @@ plans. Cache only small, non-authoritative display metadata for wanted/watched
 movies so they stay visible after their published run; the backend remains
 authoritative for showtime facts. This remains a no-account product.
 
+Watchlist's optional upcoming-only checkbox combines remaining same-day showtimes from the un-enriched date endpoint with the future availability summary. It filters titles only after both feeds succeed, fails open on errors, and warns of partially unavailable future dates. The filter never mutates saved movie selections or watched history. A minute timer updates today-only eligibility as showtimes pass.
+
 Future schedule visibility comes from `/api/movie-availability?after=YYYY-MM-DD`,
 which counts only published listings on distinct dates strictly after the
 reference date, within the following 14 days. It uses the configured ZIP/radius
