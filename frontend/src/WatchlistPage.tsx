@@ -418,9 +418,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
                       <span>{movieAvailabilityText(summary, availability, availabilityError)}</span>
                     ) : null}
                     {summary?.last_scheduled_date ? (
-                      <span>
-                        Last listed {shortAvailabilityDate(summary.last_scheduled_date)}
-                      </span>
+                      <span>Last listed {shortAvailabilityDate(summary.last_scheduled_date)}</span>
                     ) : null}
                   </div>
                   <div className="watchlist-item-actions">
