@@ -320,12 +320,24 @@ def _movie_availability_response(
                         {
                             key: data[key]
                             for key in (
-                                "showtime_id", "movie", "movie_source_id", "imdb_id",
-                                "imdb_rating", "rotten_tomatoes_score",
-                                "metacritic_score", "theatre", "distance_miles",
-                                "seats_left_percent", "ticket_price", "chain",
-                                "advertised_start", "actual_start", "leave_home",
-                                "estimated_end", "home_arrival", "format",
+                                "showtime_id",
+                                "movie",
+                                "movie_source_id",
+                                "imdb_id",
+                                "imdb_rating",
+                                "rotten_tomatoes_score",
+                                "metacritic_score",
+                                "theatre",
+                                "distance_miles",
+                                "seats_left_percent",
+                                "ticket_price",
+                                "chain",
+                                "advertised_start",
+                                "actual_start",
+                                "leave_home",
+                                "estimated_end",
+                                "home_arrival",
+                                "format",
                             )
                         }
                     )
