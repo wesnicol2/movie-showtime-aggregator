@@ -54,7 +54,7 @@ Removing a title deletes it from the local watchlist; neither action silently de
 an existing saved movie-day itinerary (a warning is shown if a future plan contains it).
 The **Plan this movie** action returns to the calendar to choose a day.
 
-Use the **Only movies with upcoming showtimes** checkbox to temporarily hide Watchlist titles without a confirmed upcoming listed showing. It includes screenings still ahead **today** (using the un-enriched daily screening feed) and the existing published future schedule over the next 14 days. This does **not** delete anything from your want list or watched history. If a schedule fetch fails, the filter avoids hiding titles based on incomplete data; if a few future dates are unavailable, a warning identifies the uncertainty.
+The Watchlist **defaults to movies with confirmed upcoming published showtimes**, including screenings remaining **today** and future dates over the next 14 days. Check **Include movies without upcoming showtimes** to see every saved wanted/watched title, even if no showings are listed. Both views are non-destructive. Every displayed movie shows either how many screenings remain today (with the latest listed time) or its later scheduled listings, including watched titles. When a schedule fetch fails or some dates are unavailable, only confirmed upcoming titles appear by default and a warning explains that other titles could have listings.
 
 The availability indicator counts **individual published showtimes** and **distinct
 listed dates** strictly *after* the reference day over the next 14 calendar days,
