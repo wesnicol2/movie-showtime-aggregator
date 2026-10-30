@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { fetchScreenings } from "./api";
+
 import {
   availabilityForMovie,
   movieAvailabilityText,
@@ -9,7 +11,7 @@ import {
 import { PLANNER_STORAGE_KEY, PLANNER_UPDATED_EVENT, readSavedMoviePlans } from "./planner";
 import { browserDate } from "./show-date";
 import { useAppStore } from "./store";
-import type { MovieAvailabilitySummary } from "./types";
+import type { MovieAvailabilitySummary, Screening } from "./types";
 import { readWatchlistMetadata } from "./watchlist";
 import "./watchlist.css";
 
@@ -32,7 +34,53 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<WatchlistSort>("title");
+  const [onlyUpcoming, setOnlyUpcoming] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const [todayScreenings, setTodayScreenings] = useState<Screening[] | null>(null);
+  const [todayError, setTodayError] = useState(false);
   const { response: availability, error: availabilityError } = useMovieAvailability(today);
+
+  // Future availability starts tomorrow. Include remaining showtimes today
+  // through the cached, unenriched date endpoint instead of assuming the
+  // absence of future dates means a title is no longer playing.
+  useEffect(() => {
+    let cancelled = false;
+    setTodayScreenings(null);
+    setTodayError(false);
+    void fetchScreenings(today, false)
+      .then((result) => {
+        if (!cancelled) setTodayScreenings(result.screenings);
+      })
+      .catch(() => {
+        if (!cancelled) setTodayError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [today]);
+
+  useEffect(() => {
+    if (!onlyUpcoming) return;
+    setNow(Date.now());
+    const clock = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(clock);
+  }, [onlyUpcoming]);
+
+  const upcomingKnown = Boolean(
+    availability && todayScreenings && !availabilityError && !todayError,
+  );
+  const upcomingTitles = useMemo(() => {
+    const names = new Set<string>();
+    for (const [movie, summary] of Object.entries(availability?.movies ?? {})) {
+      if (summary.showtime_count > 0) names.add(movie);
+    }
+    for (const screening of todayScreenings ?? []) {
+      if (new Date(screening.advertised_start).getTime() > now) {
+        names.add(screening.movie);
+      }
+    }
+    return names;
+  }, [availability, todayScreenings, now]);
 
   useEffect(() => {
     const syncPlans = () => setPlans(readSavedMoviePlans());
@@ -100,6 +148,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
     return names
       .filter((name) => {
         if (!name.toLocaleLowerCase().includes(query.toLocaleLowerCase().trim())) return false;
+        if (onlyUpcoming && upcomingKnown && !upcomingTitles.has(name)) return false;
         const isWatched = watchedSet.has(name);
         const planned = plannedDates.has(name);
         if (filter === "watched") return isWatched;
@@ -137,7 +186,20 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
             : Number(right) - Number(left)) || a.localeCompare(b)
         );
       });
-  }, [wanted, watched, query, filter, watchedSet, plannedDates, sort, availability, metadata]);
+  }, [
+    wanted,
+    watched,
+    query,
+    onlyUpcoming,
+    upcomingKnown,
+    upcomingTitles,
+    filter,
+    watchedSet,
+    plannedDates,
+    sort,
+    availability,
+    metadata,
+  ]);
 
   function markWatched(movie: string, isWatched: boolean): void {
     if (!isWatched && plannedDates.has(movie)) {
@@ -239,6 +301,26 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
           </button>
         ))}
       </fieldset>
+      <label className="watchlist-upcoming-filter">
+        <input
+          type="checkbox"
+          checked={onlyUpcoming}
+          onChange={(event) => setOnlyUpcoming(event.target.checked)}
+        />
+        Only movies with upcoming showtimes
+      </label>
+      {onlyUpcoming ? (
+        <p className="watchlist-filter-status" aria-live="polite">
+          {!upcomingKnown
+            ? todayError || availabilityError
+              ? "Could not verify upcoming schedules; no titles have been hidden."
+              : "Checking remaining showtimes today and future listings…"
+            : `${entries.length} titles with upcoming published showtimes`}
+          {upcomingKnown && availability?.unavailable_dates.length
+            ? " · Some future dates could not be checked; other titles may still have listings."
+            : ""}
+        </p>
+      ) : null}
 
       <p className="watchlist-window">
         Later listings are counted strictly after {shortAvailabilityDate(today)} through{" "}
@@ -257,7 +339,9 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
         <div className="empty-state">
           {wanted.length + watched.length === 0
             ? "No movies yet. Browse showtimes to start your watchlist."
-            : "No movies match this search or status."}
+            : onlyUpcoming && upcomingKnown
+              ? "No movies match your filters with a confirmed upcoming showing. Your saved titles are unchanged."
+              : "No movies match this search or status."}
         </div>
       ) : (
         <div className="watchlist-items" aria-live="polite">
