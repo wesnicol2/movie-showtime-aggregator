@@ -95,9 +95,11 @@ test("failed schedule scans never present unverified movies as upcoming", async 
     page.getByText(/Some schedules could not be checked; showing only confirmed/),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Unknown" })).toHaveCount(0);
-  await page.getByRole("checkbox", {
-    name: "Include movies without upcoming showtimes",
-  }).check();
+  await page
+    .getByRole("checkbox", {
+      name: "Include movies without upcoming showtimes",
+    })
+    .check();
   await expect(page.getByRole("heading", { name: "Unknown" })).toBeVisible();
 });
 
