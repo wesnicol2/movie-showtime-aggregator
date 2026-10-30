@@ -77,7 +77,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
       const previous = matches.get(screening.movie);
       matches.set(screening.movie, {
         count: (previous?.count ?? 0) + 1,
-        lastStart: previous && previous.lastStart > start ? previous.lastStart : start,
+        lastStart: previous && previous.lastStart.getTime() > start.getTime() ? previous.lastStart : start,
       });
     }
     return matches;
