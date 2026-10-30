@@ -34,7 +34,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<WatchlistSort>("title");
-  const [onlyUpcoming, setOnlyUpcoming] = useState(false);
+  const [includeWithoutShowtimes, setIncludeWithoutShowtimes] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [todayScreenings, setTodayScreenings] = useState<Screening[] | null>(null);
   const [todayError, setTodayError] = useState(false);
@@ -59,28 +59,36 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
     };
   }, [today]);
 
+  // This filter is active by default, so keep today's remaining showtimes
+  // current as their advertised start times pass (and at local midnight).
   useEffect(() => {
-    if (!onlyUpcoming) return;
-    setNow(Date.now());
     const clock = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(clock);
-  }, [onlyUpcoming]);
+  }, []);
 
   const upcomingKnown = Boolean(
     availability && todayScreenings && !availabilityError && !todayError,
   );
+  const remainingToday = useMemo(() => {
+    const matches = new Map<string, { count: number; lastStart: Date }>();
+    for (const screening of todayScreenings ?? []) {
+      const start = new Date(screening.advertised_start);
+      if (!Number.isFinite(start.getTime()) || start.getTime() <= now) continue;
+      const previous = matches.get(screening.movie);
+      matches.set(screening.movie, {
+        count: (previous?.count ?? 0) + 1,
+        lastStart: previous && previous.lastStart > start ? previous.lastStart : start,
+      });
+    }
+    return matches;
+  }, [todayScreenings, now]);
   const upcomingTitles = useMemo(() => {
-    const names = new Set<string>();
+    const names = new Set(remainingToday.keys());
     for (const [movie, summary] of Object.entries(availability?.movies ?? {})) {
       if (summary.showtime_count > 0) names.add(movie);
     }
-    for (const screening of todayScreenings ?? []) {
-      if (new Date(screening.advertised_start).getTime() > now) {
-        names.add(screening.movie);
-      }
-    }
     return names;
-  }, [availability, todayScreenings, now]);
+  }, [availability, remainingToday]);
 
   useEffect(() => {
     const syncPlans = () => setPlans(readSavedMoviePlans());
@@ -148,7 +156,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
     return names
       .filter((name) => {
         if (!name.toLocaleLowerCase().includes(query.toLocaleLowerCase().trim())) return false;
-        if (onlyUpcoming && upcomingKnown && !upcomingTitles.has(name)) return false;
+        if (!includeWithoutShowtimes && !upcomingTitles.has(name)) return false;
         const isWatched = watchedSet.has(name);
         const planned = plannedDates.has(name);
         if (filter === "watched") return isWatched;
@@ -190,8 +198,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
     wanted,
     watched,
     query,
-    onlyUpcoming,
-    upcomingKnown,
+    includeWithoutShowtimes,
     upcomingTitles,
     filter,
     watchedSet,
@@ -304,23 +311,23 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
       <label className="watchlist-upcoming-filter">
         <input
           type="checkbox"
-          checked={onlyUpcoming}
-          onChange={(event) => setOnlyUpcoming(event.target.checked)}
+          checked={includeWithoutShowtimes}
+          onChange={(event) => setIncludeWithoutShowtimes(event.target.checked)}
         />
-        Only movies with upcoming showtimes
+        Include movies without upcoming showtimes
       </label>
-      {onlyUpcoming ? (
-        <p className="watchlist-filter-status" aria-live="polite">
-          {!upcomingKnown
+      <p className="watchlist-filter-status" aria-live="polite">
+        {includeWithoutShowtimes
+          ? "Showing all saved titles, including those without confirmed upcoming showtimes."
+          : !upcomingKnown
             ? todayError || availabilityError
-              ? "Could not verify upcoming schedules; no titles have been hidden."
+              ? "Some schedules could not be checked; showing only confirmed upcoming listings. Other titles may have showtimes."
               : "Checking remaining showtimes today and future listings…"
-            : `${entries.length} titles with upcoming published showtimes`}
-          {upcomingKnown && availability?.unavailable_dates.length
-            ? " · Some future dates could not be checked; other titles may still have listings."
-            : ""}
-        </p>
-      ) : null}
+            : `${entries.length} titles with confirmed upcoming published showtimes`}
+        {!includeWithoutShowtimes && availability?.unavailable_dates.length
+          ? " · Some future dates could not be checked; other titles may still have listings."
+          : ""}
+      </p>
 
       <p className="watchlist-window">
         Later listings are counted strictly after {shortAvailabilityDate(today)} through{" "}
@@ -339,8 +346,10 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
         <div className="empty-state">
           {wanted.length + watched.length === 0
             ? "No movies yet. Browse showtimes to start your watchlist."
-            : onlyUpcoming && upcomingKnown
-              ? "No movies match your filters with a confirmed upcoming showing. Your saved titles are unchanged."
+            : !includeWithoutShowtimes
+              ? upcomingKnown
+                ? "No movies match your filters with a confirmed upcoming showing. Your saved titles are unchanged."
+                : "Checking available showtimes, or their schedule data is unavailable. Enable the checkbox to see all saved titles."
               : "No movies match this search or status."}
         </div>
       ) : (
@@ -350,6 +359,8 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
             const isWatched = watchedSet.has(movie);
             const plannedDate = plannedDates.get(movie);
             const summary = availabilityForMovie(availability, movie);
+            const todayInfo = remainingToday.get(movie);
+            const laterListed = Boolean(summary?.showtime_count);
             return (
               <article className="watchlist-item" key={movie}>
                 <div className="watchlist-poster">
@@ -392,18 +403,25 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
                       ) : null}
                     </div>
                   ) : null}
-                  {!isWatched ? (
-                    <div className="watchlist-availability">
-                      <strong>
-                        {movieAvailabilityText(summary, availability, availabilityError)}
-                      </strong>
-                      {summary?.last_scheduled_date ? (
-                        <span>
-                          Last listed {shortAvailabilityDate(summary.last_scheduled_date)}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
+                  <div className="watchlist-availability">
+                    <strong>
+                      {todayInfo
+                        ? `${todayInfo.count} remaining today · latest ${todayInfo.lastStart.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+                        : laterListed
+                          ? movieAvailabilityText(summary, availability, availabilityError)
+                          : upcomingKnown
+                            ? "No upcoming published showtimes"
+                            : "No confirmed upcoming showtimes"}
+                    </strong>
+                    {todayInfo && laterListed ? (
+                      <span>{movieAvailabilityText(summary, availability, availabilityError)}</span>
+                    ) : null}
+                    {summary?.last_scheduled_date ? (
+                      <span>
+                        Last listed {shortAvailabilityDate(summary.last_scheduled_date)}
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="watchlist-item-actions">
                     {!isWatched && !plannedDate ? (
                       <button type="button" onClick={onPlan}>
