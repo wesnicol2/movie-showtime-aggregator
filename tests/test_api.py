@@ -577,6 +577,40 @@ def test_future_availability_counts_distinct_days_and_showtimes(monkeypatch):
     }
 
 
+def test_future_availability_option_includes_filterable_base_listings(monkeypatch):
+    class Service:
+        def get_screenings(self, show_date, previews, *, zip_code, radius_miles):
+            assert previews == {"AMC": 0}
+            assert (zip_code, radius_miles) == ("85004", 25)
+            if show_date == date(2026, 10, 21):
+                return [
+                    replace(
+                        sample_screening("Alpha"),
+                        showtime_id="later",
+                        movie_source_id="fandango-alpha",
+                        advertised_start=datetime(2026, 10, 21, 20),
+                        actual_start=datetime(2026, 10, 21, 20),
+                    )
+                ]
+            return []
+
+    monkeypatch.setattr(api, "_SERVICE", Service())
+    status, payload = call(
+        "/api/movie-availability",
+        query="after=2026-10-20&include_screenings=1",
+        cookie="movie_preview_minutes=%7B%22AMC%22%3A0%7D",
+    )
+    assert status == 200
+    assert len(payload["future_screenings"]) == 1
+    listing = payload["future_screenings"][0]
+    assert listing["movie_source_id"] == "fandango-alpha"
+    assert listing["advertised_start"] == "2026-10-21T20:00"
+    assert listing["actual_start"] == "2026-10-21T20:00"
+    assert listing["chain"] == "AMC"
+    assert "poster_url" not in listing
+    assert "purchase_url" not in listing
+
+
 def test_future_availability_is_explicitly_partial(monkeypatch):
     class Service:
         def get_screenings(self, show_date, _previews, *, zip_code, radius_miles):
