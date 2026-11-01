@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchScreenings } from "./api";
+import { readBrowserSettings } from "./browser-location";
 import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
 import { TicketLink } from "./components/TicketLink";
 import {
@@ -37,8 +38,10 @@ export function PlannerPage({
   focusDate?: string | null;
 }) {
   const today = browserDate();
+  const currentZip = readBrowserSettings().location?.zipCode;
   const wantedMovies = useAppStore((state) => state.selectedMovies);
-  const [plans, setPlans] = useState(readSavedMoviePlans);
+  const [allPlans, setPlans] = useState(readSavedMoviePlans);
+  const plans = allPlans.filter((plan) => !currentZip || !plan.location || plan.location.zip_code === currentZip);
   const [daysShown, setDaysShown] = useState(INITIAL_DAY_COUNT);
   const [jumpDate, setJumpDate] = useState(today);
   const [pendingJump, setPendingJump] = useState<string | null>(null);
@@ -124,13 +127,13 @@ export function PlannerPage({
     return () => {
       cancelled = true;
     };
-  }, [plans, today]);
+  }, [allPlans, currentZip, today]);
 
   const dates = useMemo(
     () => Array.from({ length: daysShown }, (_, index) => addDays(today, index)),
     [daysShown, today],
   );
-  const planByDate = useMemo(() => new Map(plans.map((plan) => [plan.date, plan])), [plans]);
+  const planByDate = useMemo(() => new Map(plans.map((plan) => [plan.date, plan])), [allPlans, currentZip]);
   const futurePlans = useMemo(() => plans.filter((plan) => plan.date >= today), [plans, today]);
   const plannedMovieCount = futurePlans.reduce(
     (total, plan) => total + plan.itinerary.movies.length,
@@ -170,7 +173,7 @@ export function PlannerPage({
 
   function removePlan(plan: SavedMoviePlan): void {
     if (!window.confirm(`Remove the saved movie plan for ${formatLongDate(plan.date)}?`)) return;
-    deleteMoviePlan(plan.date);
+    deleteMoviePlan(plan.date, plan.location?.zip_code);
   }
 
   return (
