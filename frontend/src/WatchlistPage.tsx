@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchScreenings } from "./api";
+import { readBrowserSettings } from "./browser-location";
 
 import {
   availabilityForMovie,
@@ -25,6 +26,8 @@ interface Props {
 
 export function WatchlistPage({ onBrowse, onPlan }: Props) {
   const today = browserDate();
+  const locationRevision = useAppStore((state) => state.screeningsRevision);
+  const currentZip = readBrowserSettings().location?.zipCode;
   const wanted = useAppStore((state) => state.selectedMovies);
   const watched = useAppStore((state) => state.watchedMovies);
   const response = useAppStore((state) => state.response);
@@ -45,19 +48,22 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
   // absence of future dates means a title is no longer playing.
   useEffect(() => {
     let cancelled = false;
+    const requestedRevision = locationRevision;
     setTodayScreenings(null);
     setTodayError(false);
     void fetchScreenings(today, false)
       .then((result) => {
-        if (!cancelled) setTodayScreenings(result.screenings);
+        if (!cancelled && requestedRevision === useAppStore.getState().screeningsRevision)
+          setTodayScreenings(result.screenings);
       })
       .catch(() => {
-        if (!cancelled) setTodayError(true);
+        if (!cancelled && requestedRevision === useAppStore.getState().screeningsRevision)
+          setTodayError(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [today]);
+  }, [today, locationRevision]);
 
   // This filter is active by default, so keep today's remaining showtimes
   // current as their advertised start times pass (and at local midnight).
@@ -107,6 +113,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
   const plannedDates = useMemo(() => {
     const result = new Map<string, string>();
     for (const plan of plans) {
+      if (currentZip && plan.location && plan.location.zip_code !== currentZip) continue;
       if (plan.date < today) continue;
       for (const movie of plan.itinerary.movies) {
         const previous = result.get(movie);
@@ -114,7 +121,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
       }
     }
     return result;
-  }, [plans, today]);
+  }, [plans, today, currentZip]);
 
   const metadata = useMemo(() => {
     const cached = readWatchlistMetadata();

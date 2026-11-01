@@ -17,6 +17,32 @@ The app discovers theaters around a configured ZIP code and radius, applies user
 > [docs/new-repo-checklist.md](docs/new-repo-checklist.md) first. It covers the
 > handful of things GitHub does not copy when you click *Use this template*.
 
+## Traveling and changing cities
+
+The header's **Use current location** button uses browser geolocation (only with your permission)
+to suggest a nearby ZIP code and an optional new route origin. If location permission
+was previously granted, the app may detect that you are well outside the current
+theater search radius and offer to switch when you return; it never silently
+changes theaters or the configured home. If permission was not granted, the
+browser's location permission dialog appears **only** after you press the button.
+
+Choose **Add as home & search here** to save the approximate device position as
+a browser-specific home and use its nearby ZIP for local showtimes. Choose
+**Change theaters only** to leave the route origin unchanged. You can instead
+enter a precise hotel or another address in **Settings → Homes for this browser**,
+which resolves the address and selects its ZIP for theater search where possible.
+Switch back to any saved browser home, or to the shared server default, from the
+same settings section. Home and theater preferences are browser-local; the
+server's shared default home remains unchanged unless explicitly edited.
+
+A saved itinerary records its original theater ZIP and remains associated with
+that search city when switching locations. Older saved itineraries without ZIP
+metadata are kept for compatibility. Changes invalidate location-sensitive
+showtimes and later-availability caches; an unfamiliar city may take a first
+provider fetch before background warming catches up. Locations are limited to
+US ZIP codes and supported showtime-provider markets. Browser geolocation is
+an approximate position, not necessarily the hotel entrance.
+
 ## Daily showtime cache
 
 Showtime listings are saved in the server's `./data` volume and refreshed

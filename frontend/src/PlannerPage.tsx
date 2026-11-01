@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchScreenings } from "./api";
+import { readBrowserSettings } from "./browser-location";
 import { ExperienceDeviationChips } from "./components/ExperienceDeviationChips";
 import { TicketLink } from "./components/TicketLink";
 import {
@@ -37,8 +38,17 @@ export function PlannerPage({
   focusDate?: string | null;
 }) {
   const today = browserDate();
+  useAppStore((state) => state.screeningsRevision);
+  const currentZip = readBrowserSettings().location?.zipCode;
   const wantedMovies = useAppStore((state) => state.selectedMovies);
-  const [plans, setPlans] = useState(readSavedMoviePlans);
+  const [allPlans, setPlans] = useState(readSavedMoviePlans);
+  const plans = useMemo(
+    () =>
+      allPlans.filter(
+        (plan) => !currentZip || !plan.location || plan.location.zip_code === currentZip,
+      ),
+    [allPlans, currentZip],
+  );
   const [daysShown, setDaysShown] = useState(INITIAL_DAY_COUNT);
   const [jumpDate, setJumpDate] = useState(today);
   const [pendingJump, setPendingJump] = useState<string | null>(null);
@@ -170,7 +180,7 @@ export function PlannerPage({
 
   function removePlan(plan: SavedMoviePlan): void {
     if (!window.confirm(`Remove the saved movie plan for ${formatLongDate(plan.date)}?`)) return;
-    deleteMoviePlan(plan.date);
+    deleteMoviePlan(plan.date, plan.location?.zip_code);
   }
 
   return (

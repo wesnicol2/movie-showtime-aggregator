@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import mimetypes
 import threading
 import time
@@ -28,7 +29,7 @@ from .experience import (
 )
 from .fandango import FandangoClient, FandangoError
 from .letterboxd import letterboxd_rating
-from .location import GeoPoint, LocationError, ZipLocator
+from .location import GeoPoint, LocationError, ZipLocator, distance_miles
 from .metadata import OMDB_DAILY_LIMIT, OmdbClient
 from .models import Screening
 from .planner import plan_movie_day, theatre_points
@@ -45,6 +46,7 @@ STATIC_ROOTS = (STATIC_DIR, SOURCE_STATIC_DIR)
 SPA_ROUTES = {"/", "/movies", "/plan", "/planner", "/showtimes", "/settings", "/watchlist"}
 PREVIEW_COOKIE = "movie_preview_minutes"
 LOCATION_COOKIE = "movie_location"
+HOME_COOKIE = "movie_home"
 
 _SETTINGS = Settings.from_env()
 _DAILY_CACHE = DailyCache()
@@ -96,6 +98,13 @@ def application(environ: dict, start_response: Callable) -> Iterable[bytes]:
             start_response, 200, _start_refresh(zip_code, radius, previews), method
         )
 
+    if path in {"/api/location/nearby", "/api/location/geocode"}:
+        if method not in {"GET", "HEAD"}:
+            return _json_response(start_response, 405, {"error": "method not allowed"}, method)
+        if path.endswith("/nearby"):
+            return _nearby_location_response(environ, start_response, method)
+        return _geocode_location_response(environ, start_response, method)
+
     if path == "/api/cache/status":
         if method not in {"GET", "HEAD"}:
             return _json_response(start_response, 405, {"error": "method not allowed"}, method)
@@ -143,6 +152,7 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
         zip_code, radius_miles = _location_from_request(environ, query)
         enrichment_enabled = _parse_enrichment_enabled(query.get("enrich", ["true"])[0])
         stored = _STORE.load()
+        home = _home_point_for_request(environ, stored)
         _DAILY_CACHE.remember_profile(zip_code, radius_miles, preview_minutes_by_chain)
         signature = json.dumps(
             [
@@ -163,6 +173,7 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
                     )
                 },
                 asdict(stored),
+                (home.latitude, home.longitude) if home is not None else None,
                 "poster-cache-v1",
             ],
             sort_keys=True,
@@ -199,7 +210,7 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
                     _amc_client(stored.amc_vendor_key),
                     a_list_enabled=stored.amc_a_list,
                 )
-            all_screenings = enrich_travel_times(all_screenings, _home_point(stored), _ROUTER)
+            all_screenings = enrich_travel_times(all_screenings, home, _ROUTER)
 
         # Prefetch the actual image bytes before saving the daily API snapshot.
         # Unsupported/broken poster hosts keep their original URL as a fallback.
@@ -236,7 +247,7 @@ def _screenings_response(environ: dict, start_response: Callable, method: str) -
             "zip_code": zip_code,
             "radius_miles": radius_miles,
         },
-        "preferences": stored.public_dict(),
+        "preferences": {**stored.public_dict(), "home_configured": home is not None},
         "preview_minutes_by_chain": preview_minutes_by_chain,
         "enrichment_enabled": enrichment_enabled,
         "count": len(visible),
@@ -422,7 +433,7 @@ def _movie_day_response(environ: dict, start_response: Callable, method: str) ->
             radius_miles=radius_miles,
         )
         stored = _STORE.load()
-        home = _home_point(stored)
+        home = _home_point_for_request(environ, stored)
         candidates = enrich_travel_times(
             [
                 _apply_runtime_override(
@@ -762,6 +773,104 @@ def _safe_zip_point(zip_code: str) -> GeoPoint | None:
         return _ZIP_LOCATOR.lookup_zip(zip_code)
     except (LocationError, ValueError):
         return None
+
+
+def _home_point_for_request(environ: dict, stored: PersistentSettings) -> GeoPoint | None:
+    override = _parse_home_cookie(environ.get("HTTP_COOKIE", ""))
+    return override if override is not None else _home_point(stored)
+
+
+def _parse_home_cookie(header: str) -> GeoPoint | None:
+    cookie = SimpleCookie()
+    try:
+        cookie.load(header)
+        morsel = cookie.get(HOME_COOKIE)
+        if morsel is None:
+            return None
+        payload = json.loads(unquote(morsel.value))
+        if not isinstance(payload, dict):
+            return None
+        latitude, longitude = payload.get("latitude"), payload.get("longitude")
+        if isinstance(latitude, bool) or isinstance(longitude, bool):
+            return None
+        lat, lon = float(latitude), float(longitude)
+        if math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180:
+            return GeoPoint(lat, lon)
+    except (TypeError, ValueError, OverflowError):
+        pass
+    return None
+
+
+def _nearby_location_response(
+    environ: dict,
+    start_response: Callable,
+    method: str,
+) -> Iterable[bytes]:
+    query = parse_qs(environ.get("QUERY_STRING", ""))
+    try:
+        latitude = float(query.get("latitude", [""])[0])
+        longitude = float(query.get("longitude", [""])[0])
+        if not (
+            math.isfinite(latitude)
+            and math.isfinite(longitude)
+            and -90 <= latitude <= 90
+            and -180 <= longitude <= 180
+        ):
+            raise ValueError("Invalid location coordinates")
+        point = GeoPoint(latitude, longitude)
+        matched, nearby_zip, city = _GEOCODER.reverse(point)
+        search_zip, radius = _location_from_request(environ, query)
+        market_center = _safe_zip_point(search_zip)
+        distance = distance_miles(market_center, point) if market_center else None
+    except (ValueError, IndexError) as exc:
+        return _json_response(start_response, 400, {"error": str(exc)}, method)
+    except (GeocodingError, LocationError) as exc:
+        return _json_response(start_response, 503, {"error": str(exc)}, method)
+    return _json_response(
+        start_response,
+        200,
+        {
+            "display_name": matched.display_name,
+            "city": city,
+            "zip_code": nearby_zip,
+            "latitude": latitude,
+            "longitude": longitude,
+            "search_zip_code": search_zip,
+            "radius_miles": radius,
+            "distance_from_search_miles": round(distance, 1) if distance is not None else None,
+        },
+        method,
+    )
+
+
+def _geocode_location_response(
+    environ: dict,
+    start_response: Callable,
+    method: str,
+) -> Iterable[bytes]:
+    query = parse_qs(environ.get("QUERY_STRING", ""))
+    address = query.get("address", [""])[0].strip()
+    if len(address) < 5 or len(address) > 300:
+        return _json_response(
+            start_response, 400, {"error": "Enter an address (5-300 characters)"}, method
+        )
+    try:
+        matched = _GEOCODER.geocode(address)
+    except ValueError as exc:
+        return _json_response(start_response, 400, {"error": str(exc)}, method)
+    except GeocodingError as exc:
+        return _json_response(start_response, 503, {"error": str(exc)}, method)
+    return _json_response(
+        start_response,
+        200,
+        {
+            "display_name": matched.display_name,
+            "latitude": matched.point.latitude,
+            "longitude": matched.point.longitude,
+            "zip_code": matched.zip_code,
+        },
+        method,
+    )
 
 
 def _parse_enrichment_enabled(value: object) -> bool:

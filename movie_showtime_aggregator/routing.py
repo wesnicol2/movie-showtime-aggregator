@@ -30,6 +30,7 @@ class RoutingError(RuntimeError):
 class GeocodedAddress:
     point: GeoPoint
     display_name: str
+    zip_code: str | None = None
 
 
 class AddressGeocoder:
@@ -61,6 +62,7 @@ class AddressGeocoder:
                     "format": "jsonv2",
                     "limit": 1,
                     "countrycodes": "us",
+                    "addressdetails": 1,
                 }
             )
             request = urllib.request.Request(
@@ -86,6 +88,51 @@ class AddressGeocoder:
             result = _parse_geocode_payload(payload)
             self._cache[cache_key] = result
             return result
+
+    def reverse(self, point: GeoPoint) -> tuple[GeocodedAddress, str | None, str]:
+        # Only used after explicit or previously granted browser location consent.
+        with self._lock:
+            wait_seconds = 1.0 - (monotonic() - self._last_request_started)
+            if wait_seconds > 0:
+                sleep(wait_seconds)
+            self._last_request_started = monotonic()
+            params = urllib.parse.urlencode(
+                {
+                    "lat": point.latitude,
+                    "lon": point.longitude,
+                    "format": "jsonv2",
+                    "addressdetails": 1,
+                    "zoom": 18,
+                }
+            )
+            request = urllib.request.Request(
+                f"{NOMINATIM_BASE_URL}/reverse?{params}",
+                headers={"Accept": "application/json", "User-Agent": USER_AGENT},
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                    payload = json.loads(response.read())
+            except urllib.error.HTTPError as exc:
+                raise GeocodingError(f"location lookup returned HTTP {exc.code}") from exc
+            except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+                raise GeocodingError(f"location lookup failed: {exc}") from exc
+        if not isinstance(payload, dict) or not isinstance(payload.get("address"), dict):
+            raise GeocodingError("No address was found for this location")
+        address = payload["address"]
+        zip_code = str(address.get("postcode") or "").strip()[:5]
+        if len(zip_code) != 5 or not zip_code.isdigit():
+            zip_code = None
+        city = str(
+            address.get("city")
+            or address.get("town")
+            or address.get("village")
+            or address.get("municipality")
+            or address.get("county")
+            or ""
+        )
+        state = str(address.get("state") or "")
+        label = str(payload.get("display_name") or f"{city}, {state}").strip()
+        return GeocodedAddress(point, label), zip_code, ", ".join(filter(None, (city, state)))
 
 
 class OsrmRouter:
@@ -197,7 +244,10 @@ def _parse_geocode_payload(payload: object) -> GeocodedAddress:
     display_name = str(first.get("display_name") or "").strip()
     if not display_name:
         display_name = "Matched address"
-    return GeocodedAddress(GeoPoint(latitude, longitude), display_name)
+    address = first.get("address") if isinstance(first.get("address"), dict) else {}
+    postcode = str(address.get("postcode") or "").strip()[:5]
+    zip_code = postcode if len(postcode) == 5 and postcode.isdigit() else None
+    return GeocodedAddress(GeoPoint(latitude, longitude), display_name, zip_code)
 
 
 def _parse_duration_matrix(

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-
 import { fetchMovieAvailability } from "./api";
+import { useAppStore } from "./store";
 import type { MovieAvailabilityResponse, MovieAvailabilitySummary } from "./types";
 
 const CACHE_LIFETIME_MS = 5 * 60 * 1000;
@@ -27,23 +27,27 @@ function loadAvailability(
 }
 
 export function useMovieAvailability(afterDate: string, includeScreenings = false) {
+  const locationRevision = useAppStore((state) => state.screeningsRevision);
   const [response, setResponse] = useState<MovieAvailabilityResponse | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    const requestedRevision = locationRevision;
     setResponse(null);
     setError(false);
     void loadAvailability(afterDate, includeScreenings)
       .then((result) => {
-        if (!cancelled) setResponse(result);
+        if (!cancelled && requestedRevision === useAppStore.getState().screeningsRevision)
+          setResponse(result);
       })
       .catch(() => {
-        if (!cancelled) setError(true);
+        if (!cancelled && requestedRevision === useAppStore.getState().screeningsRevision)
+          setError(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [afterDate, includeScreenings]);
+  }, [afterDate, includeScreenings, locationRevision]);
   return { response, error };
 }
 
