@@ -32,14 +32,17 @@ export function useMovieAvailability(afterDate: string, includeScreenings = fals
   const [error, setError] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    const requestedRevision = locationRevision;
     setResponse(null);
     setError(false);
     void loadAvailability(afterDate, includeScreenings)
       .then((result) => {
-        if (!cancelled) setResponse(result);
+        if (!cancelled && requestedRevision === useAppStore.getState().screeningsRevision)
+          setResponse(result);
       })
       .catch(() => {
-        if (!cancelled) setError(true);
+        if (!cancelled && requestedRevision === useAppStore.getState().screeningsRevision)
+          setError(true);
       });
     return () => {
       cancelled = true;
