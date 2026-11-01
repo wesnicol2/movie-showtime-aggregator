@@ -42,7 +42,13 @@ export function PlannerPage({
   const currentZip = readBrowserSettings().location?.zipCode;
   const wantedMovies = useAppStore((state) => state.selectedMovies);
   const [allPlans, setPlans] = useState(readSavedMoviePlans);
-  const plans = useMemo(() => allPlans.filter((plan) => !currentZip || !plan.location || plan.location.zip_code === currentZip), [allPlans, currentZip]);
+  const plans = useMemo(
+    () =>
+      allPlans.filter(
+        (plan) => !currentZip || !plan.location || plan.location.zip_code === currentZip,
+      ),
+    [allPlans, currentZip],
+  );
   const [daysShown, setDaysShown] = useState(INITIAL_DAY_COUNT);
   const [jumpDate, setJumpDate] = useState(today);
   const [pendingJump, setPendingJump] = useState<string | null>(null);
@@ -128,13 +134,13 @@ export function PlannerPage({
     return () => {
       cancelled = true;
     };
-  }, [allPlans, currentZip, today]);
+  }, [plans, today]);
 
   const dates = useMemo(
     () => Array.from({ length: daysShown }, (_, index) => addDays(today, index)),
     [daysShown, today],
   );
-  const planByDate = useMemo(() => new Map(plans.map((plan) => [plan.date, plan])), [allPlans, currentZip]);
+  const planByDate = useMemo(() => new Map(plans.map((plan) => [plan.date, plan])), [plans]);
   const futurePlans = useMemo(() => plans.filter((plan) => plan.date >= today), [plans, today]);
   const plannedMovieCount = futurePlans.reduce(
     (total, plan) => total + plan.itinerary.movies.length,
