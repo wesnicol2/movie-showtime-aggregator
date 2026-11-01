@@ -9,43 +9,18 @@ import {
   forceRefreshDailyCache,
   saveSharedSettings,
 } from "./api";
+import {
+  addBrowserHome,
+  chooseBrowserHome,
+  LOCATION_CHANGED_EVENT,
+  readBrowserSettings,
+  removeBrowserHome,
+  saveBrowserSettings,
+} from "./browser-location";
+import { geocodeBrowserHome } from "./api";
 import { clearMovieAvailabilityCache } from "./movie-availability";
 import { useAppStore } from "./store";
 import type { ExperienceDeviationSetting, ProviderUsage, SharedSettings } from "./types";
-
-const SETTINGS_KEY = "movie-showtime-aggregator.settings.v1";
-const PREVIEW_COOKIE = "movie_preview_minutes";
-const LOCATION_COOKIE = "movie_location";
-
-interface BrowserLocation {
-  zipCode: string;
-  radiusMiles: number;
-}
-
-interface BrowserSettings {
-  previewMinutes?: Record<string, number>;
-  location?: BrowserLocation;
-}
-
-function readBrowserSettings(): BrowserSettings {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}");
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as BrowserSettings)
-      : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeBrowserSettings(settings: BrowserSettings): void {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-}
-
-function writeCookie(name: string, value: unknown): void {
-  // biome-ignore lint/suspicious/noDocumentCookie: The Python screening endpoint synchronously reads this compatibility cookie.
-  document.cookie = `${name}=${encodeURIComponent(JSON.stringify(value))}; Max-Age=31536000; Path=/; SameSite=Lax`;
-}
 
 function timeUntil(timestamp?: string | null): string {
   if (!timestamp) return "unknown";
@@ -97,6 +72,9 @@ export function SettingsPage() {
   const [chains, setChains] = useState<string[]>([]);
   const [shared, setShared] = useState<SharedSettings | null>(null);
   const [homeAddress, setHomeAddress] = useState("");
+  const [newHomeAddress, setNewHomeAddress] = useState("");
+  const [savedHomes, setSavedHomes] = useState(initialBrowser.savedHomes ?? []);
+  const [activeHomeId, setActiveHomeId] = useState(initialBrowser.activeHomeId ?? "");
   const [amcKey, setAmcKey] = useState("");
   const [omdbKey, setOmdbKey] = useState("");
   const [aList, setAList] = useState(false);
@@ -112,8 +90,6 @@ export function SettingsPage() {
   async function loadSettings(): Promise<void> {
     setError("");
     const browser = readBrowserSettings();
-    writeCookie(PREVIEW_COOKIE, browser.previewMinutes ?? {});
-    if (browser.location) writeCookie(LOCATION_COOKIE, browser.location);
     try {
       const [sharedPayload, screeningPayload] = await Promise.all([
         fetchSharedSettings(),
@@ -221,8 +197,7 @@ export function SettingsPage() {
     const current = readBrowserSettings();
     const location = { zipCode, radiusMiles: radius };
     current.location = location;
-    writeBrowserSettings(current);
-    writeCookie(LOCATION_COOKIE, location);
+    saveBrowserSettings(current);
     clearScreeningsCache();
     invalidateScreenings();
     setStatus("Saved · refreshing theaters…");
@@ -248,8 +223,7 @@ export function SettingsPage() {
     }
     const current = readBrowserSettings();
     current.previewMinutes = parsed;
-    writeBrowserSettings(current);
-    writeCookie(PREVIEW_COOKIE, parsed);
+    saveBrowserSettings(current);
     clearScreeningsCache();
     invalidateScreenings();
     setStatus("Preview times saved");
@@ -259,12 +233,63 @@ export function SettingsPage() {
     setPreviewMinutes({});
     const current = readBrowserSettings();
     current.previewMinutes = {};
-    writeBrowserSettings(current);
-    writeCookie(PREVIEW_COOKIE, {});
+    saveBrowserSettings(current);
     clearScreeningsCache();
     invalidateScreenings();
     setStatus("Preview times cleared; blank chains use the 10-minute default");
   }
+
+  async function addHomeAddress(): Promise<void> {
+    const address = newHomeAddress.trim();
+    if (!address) {
+      setStatus("Enter a home or hotel address.");
+      return;
+    }
+    setStatus("Looking up address…");
+    try {
+      const matched = await geocodeBrowserHome(address);
+      addBrowserHome({
+        label: matched.display_name,
+        latitude: matched.latitude,
+        longitude: matched.longitude,
+      });
+      const browser = readBrowserSettings();
+      setSavedHomes(browser.savedHomes ?? []);
+      setActiveHomeId(browser.activeHomeId ?? "");
+      setNewHomeAddress("");
+      setStatus("Address saved for this browser and selected for travel routes");
+    } catch (caught) {
+      setStatus(caught instanceof Error ? caught.message : "Address lookup failed");
+    }
+  }
+
+  function selectHome(id: string): void {
+    chooseBrowserHome(id || null);
+    setActiveHomeId(id);
+    setStatus(id ? "Active home changed for this browser" : "Using the shared server default");
+  }
+
+  function deleteHome(id: string): void {
+    removeBrowserHome(id);
+    const browser = readBrowserSettings();
+    setSavedHomes(browser.savedHomes ?? []);
+    setActiveHomeId(browser.activeHomeId ?? "");
+    setStatus("Saved address removed");
+  }
+
+  useEffect(() => {
+    const syncLocation = () => {
+      const browser = readBrowserSettings();
+      setSavedHomes(browser.savedHomes ?? []);
+      setActiveHomeId(browser.activeHomeId ?? "");
+      if (browser.location) {
+        setZipCode(browser.location.zipCode);
+        setRadiusMiles(String(browser.location.radiusMiles));
+      }
+    };
+    window.addEventListener(LOCATION_CHANGED_EVENT, syncLocation);
+    return () => window.removeEventListener(LOCATION_CHANGED_EVENT, syncLocation);
+  }, []);
 
   function updateExperienceDeviation(
     id: string,
@@ -404,8 +429,63 @@ export function SettingsPage() {
       <div className="settings-section">
         <div className="settings-section-heading">
           <div>
-            <h2>Home & travel</h2>
-            <p>The server geocodes this address and uses it for backend-owned travel timing.</p>
+            <h2>Homes for this browser</h2>
+            <p>
+              Add a hotel or another home without changing anyone else's routes. Select an address
+              for leave-home, return-home and itinerary timing. Your saved addresses stay on this
+              device.
+            </p>
+          </div>
+          <span className="scope-badge">This browser</span>
+        </div>
+        <label className="field wide">
+          <span>Route from / return to</span>
+          <select
+            aria-label="Active home address"
+            value={activeHomeId}
+            onChange={(event) => selectHome(event.target.value)}
+          >
+            <option value="">Shared server default {shared?.home_display_name || "(not set)"}</option>
+            {savedHomes.map((home) => (
+              <option key={home.id} value={home.id}>{home.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="field wide">
+          <span>Add another home or hotel address</span>
+          <input
+            value={newHomeAddress}
+            autoComplete="street-address"
+            placeholder="Street address, city, state ZIP"
+            onChange={(event) => setNewHomeAddress(event.target.value)}
+          />
+        </label>
+        <div className="settings-actions">
+          <button className="primary" type="button" onClick={() => void addHomeAddress()}>
+            Add & use address
+          </button>
+        </div>
+        {savedHomes.length > 0 ? (
+          <div className="preview-list">
+            {savedHomes.map((home) => (
+              <div className="preview-row" key={home.id}>
+                <span>{home.label}</span>
+                <button type="button" onClick={() => deleteHome(home.id)}
+                  aria-label={`Remove saved address ${home.label}`}>Remove</button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="settings-section">
+        <div className="settings-section-heading">
+          <div>
+            <h2>Default home & travel</h2>
+            <p>
+              This is the shared server default. Changing it affects browsers that have not chosen
+              their own home above. For trips, add a browser-specific home instead.
+            </p>
           </div>
           <span className="scope-badge shared">Shared server</span>
         </div>
