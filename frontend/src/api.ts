@@ -1,3 +1,4 @@
+import { bootstrapLocationCookies } from "./browser-location";
 import { browserDate } from "./show-date";
 import type {
   MovieAvailabilityResponse,
@@ -9,6 +10,9 @@ import type {
   SharedSettings,
   SharedSettingsChanges,
 } from "./types";
+
+// Apply saved per-browser search/home preferences before the first API request.
+bootstrapLocationCookies();
 
 async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, init);
@@ -292,4 +296,32 @@ export function saveSharedSettings(changes: SharedSettingsChanges): Promise<Shar
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(changes),
   });
+}
+
+export interface NearbyLocation {
+  display_name: string;
+  city: string;
+  zip_code: string | null;
+  latitude: number;
+  longitude: number;
+  search_zip_code: string;
+  radius_miles: number;
+  distance_from_search_miles: number | null;
+}
+
+export interface GeocodedHome {
+  display_name: string;
+  latitude: number;
+  longitude: number;
+}
+
+export function findNearbyLocation(latitude: number, longitude: number): Promise<NearbyLocation> {
+  const query = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude) });
+  return requestJson<NearbyLocation>(`/api/location/nearby?${query}`);
+}
+
+export function geocodeBrowserHome(address: string): Promise<GeocodedHome> {
+  return requestJson<GeocodedHome>(
+    `/api/location/geocode?${new URLSearchParams({ address })}`,
+  );
 }
