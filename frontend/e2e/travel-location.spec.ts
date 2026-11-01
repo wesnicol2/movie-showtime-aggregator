@@ -64,9 +64,7 @@ test("a traveler can select a new city and home without changing the shared defa
 
   await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "Homes for this browser" })).toBeVisible();
-  await expect(
-    page.getByRole("region", { name: "Travel location suggestion" }),
-  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "Travel location suggestion" })).toBeVisible();
   await page.getByRole("button", { name: "Add as home & search here" }).click();
   await expect(page.getByLabel("Active home address")).toContainText("Downtown Denver");
   await expect(page.getByLabel("ZIP code")).toHaveValue("80202");
