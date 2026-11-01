@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchScreenings } from "./api";
+import { readBrowserSettings } from "./browser-location";
 
 import {
   availabilityForMovie,
@@ -25,6 +26,7 @@ interface Props {
 
 export function WatchlistPage({ onBrowse, onPlan }: Props) {
   const today = browserDate();
+  const currentZip = readBrowserSettings().location?.zipCode;
   const wanted = useAppStore((state) => state.selectedMovies);
   const watched = useAppStore((state) => state.watchedMovies);
   const response = useAppStore((state) => state.response);
@@ -107,6 +109,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
   const plannedDates = useMemo(() => {
     const result = new Map<string, string>();
     for (const plan of plans) {
+      if (currentZip && plan.location && plan.location.zip_code !== currentZip) continue;
       if (plan.date < today) continue;
       for (const movie of plan.itinerary.movies) {
         const previous = result.get(movie);
@@ -114,7 +117,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
       }
     }
     return result;
-  }, [plans, today]);
+  }, [plans, today, currentZip]);
 
   const metadata = useMemo(() => {
     const cached = readWatchlistMetadata();
