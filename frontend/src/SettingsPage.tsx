@@ -458,9 +458,7 @@ export function SettingsPage() {
             value={activeHomeId}
             onChange={(event) => selectHome(event.target.value)}
           >
-            <option value="">
-              Default home: {shared?.home_display_name || "(not set)"}
-            </option>
+            <option value="">Default home: {shared?.home_display_name || "(not set)"}</option>
             {savedHomes.map((home) => (
               <option key={home.id} value={home.id}>
                 {home.label}
