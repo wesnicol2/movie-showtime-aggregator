@@ -52,12 +52,13 @@ export function MoviesPage({ onBack, onContinue }: Props) {
   const [selectedView, setSelectedView] = useState("");
   const [defaultView, setDefaultView] = useState(() => readDefaultSavedView("movies"));
   const defaultAppliedRef = useRef(false);
-  const plans = useMemo(() => {
-    const revision = locationRevision;
-    return readSavedMoviePlans().filter(
-      (plan) => (!currentZip || !plan.location || plan.location.zip_code === currentZip) && revision >= 0,
-    );
-  }, [currentZip, locationRevision]);
+  const plans = useMemo(
+    () =>
+      readSavedMoviePlans().filter(
+        (plan) => !currentZip || !plan.location || plan.location.zip_code === currentZip,
+      ),
+    [currentZip],
+  );
 
   useEffect(() => {
     if (defaultAppliedRef.current) return;
