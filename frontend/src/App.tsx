@@ -42,6 +42,7 @@ export function App() {
   const [build, setBuild] = useState<BuildInfo | null>(null);
   const syncMovieSelection = useAppStore((state) => state.syncMovieSelection);
   const invalidateScreenings = useAppStore((state) => state.invalidateScreenings);
+  const clearLocationFilters = useAppStore((state) => state.clearLocationFilters);
   const selectedDate = useAppStore((state) => state.selectedDate);
   const setSelectedDate = useAppStore((state) => state.setSelectedDate);
 
@@ -82,11 +83,12 @@ export function App() {
     const onLocationChanged = () => {
       clearScreeningsCache();
       clearMovieAvailabilityCache();
+      clearLocationFilters();
       invalidateScreenings();
     };
     window.addEventListener(LOCATION_CHANGED_EVENT, onLocationChanged);
     return () => window.removeEventListener(LOCATION_CHANGED_EVENT, onLocationChanged);
-  }, [invalidateScreenings]);
+  }, [clearLocationFilters, invalidateScreenings]);
 
   function navigate(nextPath: AppPath): void {
     if (nextPath === path) return;
