@@ -970,13 +970,66 @@ a:hover {
 }
 
 /* A compact, consent-based travel prompt: never an automatic browser permission dialog. */
-.location-assistant { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; position: relative; }
-.location-check { padding: 0.42rem 0.65rem; border-radius: 0.5rem; white-space: nowrap; }
-.location-zip { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
-.location-suggestion { position: absolute; z-index: 20; right: 0; top: calc(100% + 0.75rem); width: min(90vw, 420px); border: 1px solid var(--line-strong); background: var(--panel-raised); box-shadow: 0 12px 40px #0008; padding: 1rem; border-radius: 0.75rem; }
-.location-suggestion p { margin: 0.5rem 0; line-height: 1.45; }
-.location-suggestion small { color: var(--muted); overflow-wrap: anywhere; }
-.location-suggestion-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
-.location-suggestion-actions button { padding: 0.55rem; border-radius: 0.4rem; }
-.location-error { color: var(--danger); font-size: 0.8rem; }
-@media (max-width: 600px) { .location-suggestion { position: fixed; top: 5rem; right: 1rem; left: 1rem; width: auto; } .location-zip { display: none; } }
+.location-assistant {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  position: relative;
+}
+.location-check {
+  padding: 0.42rem 0.65rem;
+  border-radius: 0.5rem;
+  white-space: nowrap;
+}
+.location-zip {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.location-suggestion {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  top: calc(100% + 0.75rem);
+  width: min(90vw, 420px);
+  border: 1px solid var(--line-strong);
+  background: var(--panel-raised);
+  box-shadow: 0 12px 40px #0008;
+  padding: 1rem;
+  border-radius: 0.75rem;
+}
+.location-suggestion p {
+  margin: 0.5rem 0;
+  line-height: 1.45;
+}
+.location-suggestion small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.location-suggestion-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+.location-suggestion-actions button {
+  padding: 0.55rem;
+  border-radius: 0.4rem;
+}
+.location-error {
+  color: var(--danger);
+  font-size: 0.8rem;
+}
+@media (max-width: 600px) {
+  .location-suggestion {
+    position: fixed;
+    top: 5rem;
+    right: 1rem;
+    left: 1rem;
+    width: auto;
+  }
+  .location-zip {
+    display: none;
+  }
+}
