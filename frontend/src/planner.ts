@@ -29,7 +29,8 @@ export function readSavedMoviePlans(): SavedMoviePlan[] {
 export function savedMoviePlanForDate(date: string, zipCode?: string): SavedMoviePlan | null {
   return (
     readSavedMoviePlans().find(
-      (plan) => plan.date === date && (!zipCode || !plan.location || plan.location.zip_code === zipCode),
+      (plan) =>
+        plan.date === date && (!zipCode || !plan.location || plan.location.zip_code === zipCode),
     ) ?? null
   );
 }
@@ -45,7 +46,9 @@ export function saveMoviePlan(plan: SavedMoviePlan): void {
 export function deleteMoviePlan(date: string, zipCode?: string): void {
   const plans = Object.fromEntries(
     readSavedMoviePlans()
-      .filter((plan) => plan.date !== date || (zipCode != null && plan.location?.zip_code !== zipCode))
+      .filter(
+        (plan) => plan.date !== date || (zipCode != null && plan.location?.zip_code !== zipCode),
+      )
       .map((plan) => [`${plan.date}|${plan.location?.zip_code ?? "legacy"}`, plan]),
   );
   if (Object.keys(plans).length === 0) localStorage.removeItem(PLANNER_STORAGE_KEY);
