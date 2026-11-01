@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+
 import { clearScreeningsCache } from "./api";
 import { LOCATION_CHANGED_EVENT } from "./browser-location";
+import { ShowDateControl } from "./components/ShowDateControl";
 import { LocationAssistant } from "./LocationAssistant";
 import { clearMovieAvailabilityCache } from "./movie-availability";
-import { ShowDateControl } from "./components/ShowDateControl";
 import { MovieDayPage } from "./MovieDayPage";
 import { MoviesPage } from "./MoviesPage";
 import { PlannerPage } from "./PlannerPage";
