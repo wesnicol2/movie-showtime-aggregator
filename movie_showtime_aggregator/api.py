@@ -847,6 +847,7 @@ def _geocode_location_response(
         "display_name": matched.display_name,
         "latitude": matched.point.latitude,
         "longitude": matched.point.longitude,
+        "zip_code": matched.zip_code,
     }, method)
 
 
