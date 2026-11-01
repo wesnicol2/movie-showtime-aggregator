@@ -30,6 +30,7 @@ class RoutingError(RuntimeError):
 class GeocodedAddress:
     point: GeoPoint
     display_name: str
+    zip_code: str | None = None
 
 
 class AddressGeocoder:
@@ -61,6 +62,7 @@ class AddressGeocoder:
                     "format": "jsonv2",
                     "limit": 1,
                     "countrycodes": "us",
+                    "addressdetails": 1,
                 }
             )
             request = urllib.request.Request(
@@ -234,7 +236,10 @@ def _parse_geocode_payload(payload: object) -> GeocodedAddress:
     display_name = str(first.get("display_name") or "").strip()
     if not display_name:
         display_name = "Matched address"
-    return GeocodedAddress(GeoPoint(latitude, longitude), display_name)
+    address = first.get("address") if isinstance(first.get("address"), dict) else {}
+    postcode = str(address.get("postcode") or "").strip()[:5]
+    zip_code = postcode if len(postcode) == 5 and postcode.isdigit() else None
+    return GeocodedAddress(GeoPoint(latitude, longitude), display_name, zip_code)
 
 
 def _parse_duration_matrix(
