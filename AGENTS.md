@@ -67,6 +67,41 @@ Use the strongest verification the active environment supports. If an environmen
 
 ---
 
+## Travel locations and per-browser route origins
+
+The header's `LocationAssistant` asks for browser geolocation only on deliberate
+user interaction; when Geolocation Permissions reports `granted`, it can
+recheck passively. `/api/location/nearby` reverse-geocodes coordinates
+(with Nominatim's existing per-second throttling), returns a nearby US ZIP,
+and measures distance to the current search ZIP. The prompt is shown beyond
+the greater of 30 miles or 125% of the selected radius, and choosing an
+option is mandatory before changing theater search. If the user rejects a
+city suggestion, it is suppressed for that browser tab session.
+
+`browser-location.ts` retains a list of optional browser-only home and hotel
+locations in the existing localStorage settings key, synchronizes the
+`movie_location`, `movie_preview_minutes`, and `movie_home` compatibility
+cookies before the first app request, and broadcasts changes. The shared
+server default home persists unchanged. Request-specific `movie_home`
+coordinates override the shared home for movie-day route calculations and
+screening travel-time enrichments. The response-cache key includes the
+effective home coordinates to prevent route leakage between clients, and
+the browser invalidates its screening/availability snapshots on a change.
+
+A manually entered browser home uses `/api/location/geocode` to resolve
+coordinates and a US ZIP if available; users can edit the theater ZIP
+independently. Saved plans now carry the original market ZIP and use
+date-plus-ZIP storage identifiers; original date-keyed plans remain readable.
+Calendar, Watchlist and planned-elsewhere calculations exclude new plans
+from unrelated theater markets.
+
+The existing background scheduler still warms only the most recently active
+location and rolls its shared cache snapshots at Phoenix midnight. Other
+locations are cached independently on demand, but cold travel-city queries
+cannot be promised instant. App dates use the browser's local calendar; this
+is not a multi-timezone market scheduling service, so cross-timezone
+remote planning may need further work.
+
 ## Daily snapshot performance model
 
 `daily_cache.py` stores date-versioned JSON in the environment-specific
