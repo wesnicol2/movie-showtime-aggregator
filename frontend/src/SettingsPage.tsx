@@ -8,6 +8,7 @@ import {
   fetchSharedSettings,
   forceRefreshDailyCache,
   saveSharedSettings,
+  geocodeBrowserHome,
 } from "./api";
 import {
   addBrowserHome,
@@ -17,7 +18,6 @@ import {
   removeBrowserHome,
   saveBrowserSettings,
 } from "./browser-location";
-import { geocodeBrowserHome } from "./api";
 import { clearMovieAvailabilityCache } from "./movie-availability";
 import { useAppStore } from "./store";
 import type { ExperienceDeviationSetting, ProviderUsage, SharedSettings } from "./types";
