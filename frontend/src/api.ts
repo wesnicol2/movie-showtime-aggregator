@@ -322,7 +322,5 @@ export function findNearbyLocation(latitude: number, longitude: number): Promise
 }
 
 export function geocodeBrowserHome(address: string): Promise<GeocodedHome> {
-  return requestJson<GeocodedHome>(
-    `/api/location/geocode?${new URLSearchParams({ address })}`,
-  );
+  return requestJson<GeocodedHome>(`/api/location/geocode?${new URLSearchParams({ address })}`);
 }
