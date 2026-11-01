@@ -762,18 +762,24 @@ def test_browser_home_isolated_in_enriched_screenings_and_response_cache(monkeyp
 
     monkeypatch.setattr(api, "enrich_travel_times", capture_home)
     api._STORE.update(
-        home_address="Shared Phoenix", home_display_name="Shared Phoenix",
-        home_latitude=33.4, home_longitude=-112.0,
+        home_address="Shared Phoenix",
+        home_display_name="Shared Phoenix",
+        home_latitude=33.4,
+        home_longitude=-112.0,
     )
 
     def home_cookie(lat, lon):
         return "movie_home=" + quote(json.dumps({"latitude": lat, "longitude": lon}))
 
     first_status, first = call(
-        "/api/screenings", query="date=2026-09-04", cookie=home_cookie(39.7, -104.9),
+        "/api/screenings",
+        query="date=2026-09-04",
+        cookie=home_cookie(39.7, -104.9),
     )
     second_status, second = call(
-        "/api/screenings", query="date=2026-09-04", cookie=home_cookie(40.0, -105.0),
+        "/api/screenings",
+        query="date=2026-09-04",
+        cookie=home_cookie(40.0, -105.0),
     )
     shared_status, shared = call("/api/screenings", query="date=2026-09-04")
     assert (first_status, second_status, shared_status) == (200, 200, 200)
@@ -783,8 +789,14 @@ def test_browser_home_isolated_in_enriched_screenings_and_response_cache(monkeyp
 
 
 def test_browser_home_cookie_is_validated_and_never_written_to_shared_settings():
-    assert api._parse_home_cookie("movie_home=%7B%22latitude%22%3Atrue%2C%22longitude%22%3A1%7D") is None
-    assert api._parse_home_cookie("movie_home=%7B%22latitude%22%3A999%2C%22longitude%22%3A1%7D") is None
+    assert (
+        api._parse_home_cookie("movie_home=%7B%22latitude%22%3Atrue%2C%22longitude%22%3A1%7D")
+        is None
+    )
+    assert (
+        api._parse_home_cookie("movie_home=%7B%22latitude%22%3A999%2C%22longitude%22%3A1%7D")
+        is None
+    )
     assert api._parse_home_cookie("movie_home=broken") is None
     assert api._STORE.load().home_address == ""
 
