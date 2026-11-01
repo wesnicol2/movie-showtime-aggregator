@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { findNearbyLocation, type NearbyLocation } from "./api";
-import { addBrowserHome, readBrowserSettings, saveBrowserSettings } from "./browser-location";
+import { addBrowserHome, LOCATION_CHANGED_EVENT, readBrowserSettings, saveBrowserSettings } from "./browser-location";
 
 const IGNORED_KEY = "movie-showtime-aggregator.travel-ignored.v1";
 
@@ -44,6 +44,12 @@ export function LocationAssistant() {
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
     );
   }
+
+  useEffect(() => {
+    const syncZip = () => setCurrentZip(readBrowserSettings().location?.zipCode ?? "");
+    window.addEventListener(LOCATION_CHANGED_EVENT, syncZip);
+    return () => window.removeEventListener(LOCATION_CHANGED_EVENT, syncZip);
+  }, []);
 
   useEffect(() => {
     // A previously granted location can be checked without another permission prompt.
