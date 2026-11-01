@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import { clearScreeningsCache } from "./api";
+import { LOCATION_CHANGED_EVENT } from "./browser-location";
+import { LocationAssistant } from "./LocationAssistant";
+import { clearMovieAvailabilityCache } from "./movie-availability";
 import { ShowDateControl } from "./components/ShowDateControl";
 import { MovieDayPage } from "./MovieDayPage";
 import { MoviesPage } from "./MoviesPage";
@@ -36,6 +40,7 @@ export function App() {
   const [calendarFocusDate, setCalendarFocusDate] = useState<string | null>(null);
   const [build, setBuild] = useState<BuildInfo | null>(null);
   const syncMovieSelection = useAppStore((state) => state.syncMovieSelection);
+  const invalidateScreenings = useAppStore((state) => state.invalidateScreenings);
   const selectedDate = useAppStore((state) => state.selectedDate);
   const setSelectedDate = useAppStore((state) => state.setSelectedDate);
 
@@ -72,6 +77,16 @@ export function App() {
     };
   }, [syncMovieSelection]);
 
+  useEffect(() => {
+    const onLocationChanged = () => {
+      clearScreeningsCache();
+      clearMovieAvailabilityCache();
+      invalidateScreenings();
+    };
+    window.addEventListener(LOCATION_CHANGED_EVENT, onLocationChanged);
+    return () => window.removeEventListener(LOCATION_CHANGED_EVENT, onLocationChanged);
+  }, [invalidateScreenings]);
+
   function navigate(nextPath: AppPath): void {
     if (nextPath === path) return;
     window.history.pushState({}, "", nextPath);
@@ -102,6 +117,7 @@ export function App() {
           </span>
         </button>
         <div className="app-header-tools">
+          <LocationAssistant />
           {path === "/showtimes" ? <ShowDateControl /> : null}
           <nav className="app-nav app-nav-secondary" aria-label="Primary">
             <button
