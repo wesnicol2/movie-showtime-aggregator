@@ -7,8 +7,8 @@ import {
   fetchScreenings,
   fetchSharedSettings,
   forceRefreshDailyCache,
-  saveSharedSettings,
   geocodeBrowserHome,
+  saveSharedSettings,
 } from "./api";
 import {
   addBrowserHome,
@@ -248,22 +248,29 @@ export function SettingsPage() {
     setStatus("Looking up address…");
     try {
       const matched = await geocodeBrowserHome(address);
-      addBrowserHome({
-        label: matched.display_name,
-        latitude: matched.latitude,
-        longitude: matched.longitude,
-      }, matched.zip_code ? {
-        zipCode: matched.zip_code,
-        radiusMiles: Number(radiusMiles) || 25,
-      } : undefined);
+      addBrowserHome(
+        {
+          label: matched.display_name,
+          latitude: matched.latitude,
+          longitude: matched.longitude,
+        },
+        matched.zip_code
+          ? {
+              zipCode: matched.zip_code,
+              radiusMiles: Number(radiusMiles) || 25,
+            }
+          : undefined,
+      );
       const browser = readBrowserSettings();
       setSavedHomes(browser.savedHomes ?? []);
       setActiveHomeId(browser.activeHomeId ?? "");
       setNewHomeAddress("");
       if (matched.zip_code) setZipCode(matched.zip_code);
-      setStatus(matched.zip_code
-        ? "Address saved · theater search moved to its ZIP code"
-        : "Address saved · set theater search ZIP separately");
+      setStatus(
+        matched.zip_code
+          ? "Address saved · theater search moved to its ZIP code"
+          : "Address saved · set theater search ZIP separately",
+      );
     } catch (caught) {
       setStatus(caught instanceof Error ? caught.message : "Address lookup failed");
     }
@@ -451,9 +458,13 @@ export function SettingsPage() {
             value={activeHomeId}
             onChange={(event) => selectHome(event.target.value)}
           >
-            <option value="">Shared server default {shared?.home_display_name || "(not set)"}</option>
+            <option value="">
+                Shared server default {shared?.home_display_name || "(not set)"}
+              </option>
             {savedHomes.map((home) => (
-              <option key={home.id} value={home.id}>{home.label}</option>
+              <option key={home.id} value={home.id}>
+                  {home.label}
+                </option>
             ))}
           </select>
         </label>
@@ -476,8 +487,13 @@ export function SettingsPage() {
             {savedHomes.map((home) => (
               <div className="preview-row" key={home.id}>
                 <span>{home.label}</span>
-                <button type="button" onClick={() => deleteHome(home.id)}
-                  aria-label={`Remove saved address ${home.label}`}>Remove</button>
+                <button
+                  type="button"
+                  onClick={() => deleteHome(home.id)}
+                  aria-label={`Remove saved address ${home.label}`}
+                >
+                  Remove
+                </button>
               </div>
             ))}
           </div>
