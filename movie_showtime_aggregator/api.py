@@ -802,15 +802,19 @@ def _parse_home_cookie(header: str) -> GeoPoint | None:
 
 
 def _nearby_location_response(
-    environ: dict, start_response: Callable, method: str,
+    environ: dict,
+    start_response: Callable,
+    method: str,
 ) -> Iterable[bytes]:
     query = parse_qs(environ.get("QUERY_STRING", ""))
     try:
         latitude = float(query.get("latitude", [""])[0])
         longitude = float(query.get("longitude", [""])[0])
         if not (
-            math.isfinite(latitude) and math.isfinite(longitude)
-            and -90 <= latitude <= 90 and -180 <= longitude <= 180
+            math.isfinite(latitude)
+            and math.isfinite(longitude)
+            and -90 <= latitude <= 90
+            and -180 <= longitude <= 180
         ):
             raise ValueError("Invalid location coordinates")
         point = GeoPoint(latitude, longitude)
@@ -822,33 +826,51 @@ def _nearby_location_response(
         return _json_response(start_response, 400, {"error": str(exc)}, method)
     except (GeocodingError, LocationError) as exc:
         return _json_response(start_response, 503, {"error": str(exc)}, method)
-    return _json_response(start_response, 200, {
-        "display_name": matched.display_name, "city": city,
-        "zip_code": nearby_zip, "latitude": latitude, "longitude": longitude,
-        "search_zip_code": search_zip, "radius_miles": radius,
-        "distance_from_search_miles": round(distance, 1) if distance is not None else None,
-    }, method)
+    return _json_response(
+        start_response,
+        200,
+        {
+            "display_name": matched.display_name,
+            "city": city,
+            "zip_code": nearby_zip,
+            "latitude": latitude,
+            "longitude": longitude,
+            "search_zip_code": search_zip,
+            "radius_miles": radius,
+            "distance_from_search_miles": round(distance, 1) if distance is not None else None,
+        },
+        method,
+    )
 
 
 def _geocode_location_response(
-    environ: dict, start_response: Callable, method: str,
+    environ: dict,
+    start_response: Callable,
+    method: str,
 ) -> Iterable[bytes]:
     query = parse_qs(environ.get("QUERY_STRING", ""))
     address = query.get("address", [""])[0].strip()
     if len(address) < 5 or len(address) > 300:
-        return _json_response(start_response, 400, {"error": "Enter an address (5-300 characters)"}, method)
+        return _json_response(
+            start_response, 400, {"error": "Enter an address (5-300 characters)"}, method
+        )
     try:
         matched = _GEOCODER.geocode(address)
     except ValueError as exc:
         return _json_response(start_response, 400, {"error": str(exc)}, method)
     except GeocodingError as exc:
         return _json_response(start_response, 503, {"error": str(exc)}, method)
-    return _json_response(start_response, 200, {
-        "display_name": matched.display_name,
-        "latitude": matched.point.latitude,
-        "longitude": matched.point.longitude,
-        "zip_code": matched.zip_code,
-    }, method)
+    return _json_response(
+        start_response,
+        200,
+        {
+            "display_name": matched.display_name,
+            "latitude": matched.point.latitude,
+            "longitude": matched.point.longitude,
+            "zip_code": matched.zip_code,
+        },
+        method,
+    )
 
 
 def _parse_enrichment_enabled(value: object) -> bool:
