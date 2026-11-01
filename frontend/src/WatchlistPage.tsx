@@ -48,14 +48,17 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
   // absence of future dates means a title is no longer playing.
   useEffect(() => {
     let cancelled = false;
+    const requestedRevision = locationRevision;
     setTodayScreenings(null);
     setTodayError(false);
     void fetchScreenings(today, false)
       .then((result) => {
-        if (!cancelled) setTodayScreenings(result.screenings);
+        if (!cancelled && requestedRevision === useAppStore.getState().screeningsRevision)
+          setTodayScreenings(result.screenings);
       })
       .catch(() => {
-        if (!cancelled) setTodayError(true);
+        if (!cancelled && requestedRevision === useAppStore.getState().screeningsRevision)
+          setTodayError(true);
       });
     return () => {
       cancelled = true;
