@@ -7,6 +7,8 @@ test("a traveler can select a new city and home without changing the shared defa
   await context.grantPermissions(["geolocation"]);
   await context.setGeolocation({ latitude: 39.75, longitude: -104.99 });
   await page.addInitScript(() => {
+    if (sessionStorage.getItem("travel-test-seeded") === "1") return;
+    sessionStorage.setItem("travel-test-seeded", "1");
     localStorage.setItem(
       "movie-showtime-aggregator.settings.v1",
       JSON.stringify({ location: { zipCode: "85004", radiusMiles: 25 } }),
