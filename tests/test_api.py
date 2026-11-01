@@ -1,5 +1,7 @@
 """HTTP-level tests for the WSGI entrypoint."""
 
+from urllib.parse import quote
+
 import io
 import json
 import re
@@ -746,3 +748,68 @@ def test_unfinished_refresh_is_due_after_restart():
     assert not api._scheduled_refresh_due(
         current, start, 15, completed=start + timedelta(minutes=5)
     )
+
+
+def test_browser_home_isolated_in_enriched_screenings_and_response_cache(monkeypatch):
+    stub = StubService([sample_screening()])
+    monkeypatch.setattr(api, "_SERVICE", stub)
+    monkeypatch.setattr(api, "enrich_movie_metadata", lambda rows, client: rows)
+    monkeypatch.setattr(api, "enrich_amc_details", lambda rows, *args, **kwargs: rows)
+    observed = []
+
+    def capture_home(rows, point, router):
+        observed.append(point)
+        return rows
+
+    monkeypatch.setattr(api, "enrich_travel_times", capture_home)
+    api._STORE.update(
+        home_address="Shared Phoenix", home_display_name="Shared Phoenix",
+        home_latitude=33.4, home_longitude=-112.0,
+    )
+
+    def home_cookie(lat, lon):
+        return "movie_home=" + quote(json.dumps({"latitude": lat, "longitude": lon}))
+
+    first_status, first = call(
+        "/api/screenings", query="date=2026-09-04", cookie=home_cookie(39.7, -104.9),
+    )
+    second_status, second = call(
+        "/api/screenings", query="date=2026-09-04", cookie=home_cookie(40.0, -105.0),
+    )
+    shared_status, shared = call("/api/screenings", query="date=2026-09-04")
+    assert (first_status, second_status, shared_status) == (200, 200, 200)
+    assert all(result["preferences"]["home_configured"] for result in (first, second, shared))
+    assert observed == [GeoPoint(39.7, -104.9), GeoPoint(40.0, -105.0), GeoPoint(33.4, -112.0)]
+    assert stub.location == ("85004", 25)
+
+
+def test_browser_home_cookie_is_validated_and_never_written_to_shared_settings():
+    assert api._parse_home_cookie("movie_home=%7B%22latitude%22%3Atrue%2C%22longitude%22%3A1%7D") is None
+    assert api._parse_home_cookie("movie_home=%7B%22latitude%22%3A999%2C%22longitude%22%3A1%7D") is None
+    assert api._parse_home_cookie("movie_home=broken") is None
+    assert api._STORE.load().home_address == ""
+
+
+def test_travel_lookup_offers_current_zip_without_mutating_shared_home(monkeypatch):
+    class StubGeocoder:
+        def reverse(self, point):
+            return GeocodedAddress(point, "Denver hotel"), "80202", "Denver, Colorado"
+
+        def geocode(self, address):
+            return GeocodedAddress(GeoPoint(39.7, -104.9), "Denver hotel", "80202")
+
+    monkeypatch.setattr(api, "_GEOCODER", StubGeocoder())
+    status, nearby = call("/api/location/nearby", query="latitude=39.7&longitude=-104.9")
+    assert status == 200
+    assert nearby["zip_code"] == "80202"
+    assert nearby["search_zip_code"] == "85004"
+    assert nearby["distance_from_search_miles"] > 30
+    assert nearby["city"] == "Denver, Colorado"
+
+    status, hotel = call("/api/location/geocode", query="address=Denver%20hotel")
+    assert status == 200
+    assert hotel["zip_code"] == "80202"
+    assert hotel["latitude"] == 39.7
+    assert api._STORE.load().home_address == ""
+    assert call("/api/location/nearby", query="latitude=nan&longitude=2")[0] == 400
+    assert call("/api/location/geocode", query="address=x")[0] == 400
