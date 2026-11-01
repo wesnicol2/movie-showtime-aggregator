@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import mimetypes
 import math
+import mimetypes
 import threading
 import time
 from collections.abc import Callable, Iterable
@@ -836,7 +836,7 @@ def _geocode_location_response(
     query = parse_qs(environ.get("QUERY_STRING", ""))
     address = query.get("address", [""])[0].strip()
     if len(address) < 5 or len(address) > 300:
-        return _json_response(start_response, 400, {"error": "Enter an address (5–300 characters)"}, method)
+        return _json_response(start_response, 400, {"error": "Enter an address (5-300 characters)"}, method)
     try:
         matched = _GEOCODER.geocode(address)
     except ValueError as exc:
