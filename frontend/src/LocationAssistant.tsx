@@ -1,7 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { findNearbyLocation, type NearbyLocation } from "./api";
-import { addBrowserHome, LOCATION_CHANGED_EVENT, readBrowserSettings, saveBrowserSettings } from "./browser-location";
+import {
+  addBrowserHome,
+  LOCATION_CHANGED_EVENT,
+  readBrowserSettings,
+  saveBrowserSettings,
+} from "./browser-location";
 
 const IGNORED_KEY = "movie-showtime-aggregator.travel-ignored.v1";
 
@@ -9,11 +14,9 @@ export function LocationAssistant() {
   const [nearby, setNearby] = useState<NearbyLocation | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
-  const [currentZip, setCurrentZip] = useState(
-    readBrowserSettings().location?.zipCode ?? "",
-  );
+  const [currentZip, setCurrentZip] = useState(readBrowserSettings().location?.zipCode ?? "");
 
-  function detect(explicit: boolean): void {
+  const detect = useCallback((explicit: boolean): void => {
     if (!navigator.geolocation) {
       if (explicit) setError("Location is not available in this browser.");
       return;
@@ -33,7 +36,9 @@ export function LocationAssistant() {
           })
           .catch((caught: unknown) => {
             if (explicit)
-              setError(caught instanceof Error ? caught.message : "Could not locate nearby theaters");
+              setError(
+                caught instanceof Error ? caught.message : "Could not locate nearby theaters",
+              );
           })
           .finally(() => setChecking(false));
       },
@@ -43,7 +48,7 @@ export function LocationAssistant() {
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
     );
-  }
+  }, []);
 
   useEffect(() => {
     const syncZip = () => setCurrentZip(readBrowserSettings().location?.zipCode ?? "");
@@ -61,8 +66,7 @@ export function LocationAssistant() {
         if (permission.state === "granted") detect(false);
       })
       .catch(() => {});
-    // biome-ignore lint/correctness/useExhaustiveDependencies: Detect once on app entry.
-  }, []);
+  }, [detect]);
 
   function apply(searchOnly: boolean): void {
     if (!nearby?.zip_code) return;
@@ -106,7 +110,7 @@ export function LocationAssistant() {
       </button>
       {currentZip ? <span className="location-zip">Theaters near {currentZip}</span> : null}
       {nearby ? (
-        <div className="location-suggestion" role="region" aria-label="Travel location suggestion">
+        <section className="location-suggestion" aria-label="Travel location suggestion">
           <div>
             <strong>{nearby.city || "Different location"} detected</strong>
             <p>
@@ -135,9 +139,13 @@ export function LocationAssistant() {
             </button>
             <button type="button" onClick={dismiss}>Not now</button>
           </div>
-        </div>
+        </section>
       ) : null}
-      {error ? <span className="location-error" role="alert">{error}</span> : null}
+      {error ? (
+        <span className="location-error" role="alert">
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 }
