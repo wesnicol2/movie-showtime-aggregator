@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAppStore } from "./store";
 
 import { fetchMovieAvailability } from "./api";
 import type { MovieAvailabilityResponse, MovieAvailabilitySummary } from "./types";
@@ -27,6 +28,7 @@ function loadAvailability(
 }
 
 export function useMovieAvailability(afterDate: string, includeScreenings = false) {
+  const locationRevision = useAppStore((state) => state.screeningsRevision);
   const [response, setResponse] = useState<MovieAvailabilityResponse | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -43,7 +45,7 @@ export function useMovieAvailability(afterDate: string, includeScreenings = fals
     return () => {
       cancelled = true;
     };
-  }, [afterDate, includeScreenings]);
+  }, [afterDate, includeScreenings, locationRevision]);
   return { response, error };
 }
 
