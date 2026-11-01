@@ -26,6 +26,7 @@ interface Props {
 
 export function WatchlistPage({ onBrowse, onPlan }: Props) {
   const today = browserDate();
+  const locationRevision = useAppStore((state) => state.screeningsRevision);
   const currentZip = readBrowserSettings().location?.zipCode;
   const wanted = useAppStore((state) => state.selectedMovies);
   const watched = useAppStore((state) => state.watchedMovies);
@@ -59,7 +60,7 @@ export function WatchlistPage({ onBrowse, onPlan }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [today]);
+  }, [today, locationRevision]);
 
   // This filter is active by default, so keep today's remaining showtimes
   // current as their advertised start times pass (and at local midnight).
