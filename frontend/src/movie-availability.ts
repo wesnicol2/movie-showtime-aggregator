@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { useAppStore } from "./store";
-
 import { fetchMovieAvailability } from "./api";
+import { useAppStore } from "./store";
 import type { MovieAvailabilityResponse, MovieAvailabilitySummary } from "./types";
 
 const CACHE_LIFETIME_MS = 5 * 60 * 1000;
