@@ -311,6 +311,7 @@ export interface NearbyLocation {
 
 export interface GeocodedHome {
   display_name: string;
+  zip_code: string | null;
   latitude: number;
   longitude: number;
 }
