@@ -252,12 +252,18 @@ export function SettingsPage() {
         label: matched.display_name,
         latitude: matched.latitude,
         longitude: matched.longitude,
-      });
+      }, matched.zip_code ? {
+        zipCode: matched.zip_code,
+        radiusMiles: Number(radiusMiles) || 25,
+      } : undefined);
       const browser = readBrowserSettings();
       setSavedHomes(browser.savedHomes ?? []);
       setActiveHomeId(browser.activeHomeId ?? "");
       setNewHomeAddress("");
-      setStatus("Address saved for this browser and selected for travel routes");
+      if (matched.zip_code) setZipCode(matched.zip_code);
+      setStatus(matched.zip_code
+        ? "Address saved · theater search moved to its ZIP code"
+        : "Address saved · set theater search ZIP separately");
     } catch (caught) {
       setStatus(caught instanceof Error ? caught.message : "Address lookup failed");
     }
