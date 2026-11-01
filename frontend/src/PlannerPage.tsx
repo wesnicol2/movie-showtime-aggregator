@@ -38,10 +38,11 @@ export function PlannerPage({
   focusDate?: string | null;
 }) {
   const today = browserDate();
+  useAppStore((state) => state.screeningsRevision);
   const currentZip = readBrowserSettings().location?.zipCode;
   const wantedMovies = useAppStore((state) => state.selectedMovies);
   const [allPlans, setPlans] = useState(readSavedMoviePlans);
-  const plans = allPlans.filter((plan) => !currentZip || !plan.location || plan.location.zip_code === currentZip);
+  const plans = useMemo(() => allPlans.filter((plan) => !currentZip || !plan.location || plan.location.zip_code === currentZip), [allPlans, currentZip]);
   const [daysShown, setDaysShown] = useState(INITIAL_DAY_COUNT);
   const [jumpDate, setJumpDate] = useState(today);
   const [pendingJump, setPendingJump] = useState<string | null>(null);
