@@ -89,7 +89,6 @@ class AddressGeocoder:
             self._cache[cache_key] = result
             return result
 
-
     def reverse(self, point: GeoPoint) -> tuple[GeocodedAddress, str | None, str]:
         # Only used after explicit or previously granted browser location consent.
         with self._lock:
@@ -97,10 +96,15 @@ class AddressGeocoder:
             if wait_seconds > 0:
                 sleep(wait_seconds)
             self._last_request_started = monotonic()
-            params = urllib.parse.urlencode({
-                "lat": point.latitude, "lon": point.longitude,
-                "format": "jsonv2", "addressdetails": 1, "zoom": 18,
-            })
+            params = urllib.parse.urlencode(
+                {
+                    "lat": point.latitude,
+                    "lon": point.longitude,
+                    "format": "jsonv2",
+                    "addressdetails": 1,
+                    "zoom": 18,
+                }
+            )
             request = urllib.request.Request(
                 f"{NOMINATIM_BASE_URL}/reverse?{params}",
                 headers={"Accept": "application/json", "User-Agent": USER_AGENT},
@@ -119,8 +123,12 @@ class AddressGeocoder:
         if len(zip_code) != 5 or not zip_code.isdigit():
             zip_code = None
         city = str(
-            address.get("city") or address.get("town") or address.get("village")
-            or address.get("municipality") or address.get("county") or ""
+            address.get("city")
+            or address.get("town")
+            or address.get("village")
+            or address.get("municipality")
+            or address.get("county")
+            or ""
         )
         state = str(address.get("state") or "")
         label = str(payload.get("display_name") or f"{city}, {state}").strip()
