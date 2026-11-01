@@ -118,8 +118,8 @@ export function LocationAssistant() {
               location as a home for travel routes, and search for theaters here?
             </p>
             <small>
-              {nearby.display_name}. Device location may be approximate; you can enter your
-              hotel address in Settings instead.
+              {nearby.display_name}. Device location may be approximate; you can enter your hotel
+              address in Settings instead.
             </small>
             {!nearby.zip_code ? (
               <p role="alert">A nearby ZIP could not be determined. Enter it in Settings.</p>
@@ -137,7 +137,9 @@ export function LocationAssistant() {
             <button type="button" disabled={!nearby.zip_code} onClick={() => apply(true)}>
               Change theaters only
             </button>
-            <button type="button" onClick={dismiss}>Not now</button>
+            <button type="button" onClick={dismiss}>
+              Not now
+            </button>
           </div>
         </section>
       ) : null}
