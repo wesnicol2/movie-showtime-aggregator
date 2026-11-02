@@ -69,6 +69,18 @@ Use the strongest verification the active environment supports. If an environmen
 
 ## Travel locations and per-browser route origins
 
+**Secure-context guard:** `LocationAssistant` must check
+`window.isSecureContext` before accessing browser geolocation or the
+geolocation permission API. Remote HTTP LAN addresses/hostnames are not
+trustworthy origins, even if network access is otherwise private or VPN
+encrypted. Never spoof or bypass the restriction. On insecure origins,
+show **Set location** with a manual ZIP form, retaining the browser-local
+search cookie and preserving the active route home. Manual hotel/address
+geocoding remains available through Settings. Automatic detection is
+supported only after the app is reached through HTTPS with a trusted
+certificate (or an eligible loopback origin). Configure HTTPS at the
+deployment reverse proxy/Tailscale Serve layer, not via frontend hacks.
+
 The header's `LocationAssistant` asks for browser geolocation only on deliberate
 user interaction; when Geolocation Permissions reports `granted`, it can
 recheck passively. `/api/location/nearby` reverse-geocodes coordinates

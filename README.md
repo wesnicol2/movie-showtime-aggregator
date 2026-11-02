@@ -19,6 +19,40 @@ The app discovers theaters around a configured ZIP code and radius, applies user
 
 ## Traveling and changing cities
 
+### Secure-origin requirement
+
+Automatic device location uses the browser Geolocation API, which **only runs
+in secure browser contexts**. An HTTP URL using a LAN address or hostname
+(for example, `http://192.168.x.x:8000` or `http://mother.local:8000`)
+is **not** a secure browser context. The app cannot grant itself an
+exception, and the browser will reject any geolocation request.
+
+On an HTTP origin, the header now shows **Set location** instead of
+**Use current location**. You can enter a five-digit US ZIP code to search
+nearby theaters without location permission, or use
+**Settings → Homes for this browser** to geocode and save your hotel/home
+address for route timings. Neither action changes the server's shared home.
+
+To restore **automatic** current-location detection, open the app through
+an HTTPS URL with a certificate trusted by your device. The application can
+continue to serve HTTP **behind** a TLS-terminating reverse proxy (for
+example Caddy), or you can use Tailscale Serve for private access:
+
+1. Enable Tailscale MagicDNS and HTTPS certificates on the tailnet.
+2. On a machine running Tailscale with access to the app on its loopback
+   interface, run `tailscale serve --bg <app-port>` (replace with the
+   host-mapped port; check `tailscale serve --help` for your version).
+3. Open the HTTPS `*.ts.net` URL shown by `tailscale serve status`
+   on a phone/device connected to the same tailnet.
+
+The Tailscale Serve instructions assume the app is reachable from the
+machine where Tailscale runs. A containerized/remote Tailscale setup may
+require additional routing. Simply changing an HTTP link to `https://`
+without TLS configured, or using an untrusted self-signed certificate,
+does not resolve this problem. The loopback `http://localhost` exception
+applies to the device running the browser, not to a server elsewhere on
+your LAN.
+
 The header's **Use current location** button uses browser geolocation (only with your permission)
 to suggest a nearby ZIP code and an optional new route origin. If location permission
 was previously granted, the app may detect that you are well outside the current
