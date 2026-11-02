@@ -1,5 +1,5 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   type ColumnFilter as ColumnFilterState,
@@ -106,17 +106,20 @@ export function ColumnFilter({ column, filter, screenings, open, onOpenChange, o
     };
 
     reposition();
+    const observer = new ResizeObserver(reposition);
+    if (menuRef.current) observer.observe(menuRef.current);
     window.addEventListener("resize", reposition);
     window.addEventListener("scroll", onScroll, true);
     window.visualViewport?.addEventListener("resize", reposition);
     window.visualViewport?.addEventListener("scroll", reposition);
     return () => {
+      observer.disconnect();
       window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", onScroll, true);
       window.visualViewport?.removeEventListener("resize", reposition);
       window.visualViewport?.removeEventListener("scroll", reposition);
     };
-  }, [open, filter.operator, query]);
+  }, [open]);
   const values = useMemo(() => uniqueValues(screenings, column), [column, screenings]);
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const visibleValues = values.filter((value) =>
