@@ -284,3 +284,39 @@ test("different IMDb identities with the same title remain separate", async ({ p
   await expect(cards.nth(0).getByTestId("last-listed")).toContainText("Oct 14");
   await expect(cards.nth(1).getByTestId("last-listed")).not.toContainText("Oct 14");
 });
+
+
+test("filter dropdowns stay fully visible near both viewport edges", async ({ page }) => {
+  await mockScreenings(page);
+
+  async function assertVisibleDropdown(label: string): Promise<void> {
+    await page.getByRole("button", { name: `Filter ${label}`, exact: true }).click();
+    const dropdown = page.getByRole("dialog", { name: `${label} filter` });
+    await expect(dropdown.getByRole("button", { name: "None" })).toBeVisible();
+    await expect(dropdown.getByRole("button", { name: "All" })).toBeVisible();
+    const rect = await dropdown.boundingBox();
+    const viewport = page.viewportSize();
+    expect(rect).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    if (!rect || !viewport) throw new Error("Missing dropdown or viewport dimensions");
+    expect(rect.x).toBeGreaterThanOrEqual(0);
+    expect(rect.y).toBeGreaterThanOrEqual(0);
+    expect(rect.x + rect.width).toBeLessThanOrEqual(viewport.width + 1);
+    expect(rect.y + rect.height).toBeLessThanOrEqual(viewport.height + 1);
+    await dropdown.getByRole("button", { name: "Close filter" }).click();
+  }
+
+  // Mobile and intermediate layouts, plus the desktop site mode on a wide phone.
+  for (const width of [375, 760, 1180]) {
+    await page.setViewportSize({ width, height: 650 });
+    await page.goto("/showtimes");
+    await page.getByRole("button", { name: "Toggle screening filters" }).click();
+    for (const label of ["Movie", "Chain", "Format"]) {
+      await assertVisibleDropdown(label);
+    }
+
+    // The original table shares this component and should retain safe positioning.
+    await page.getByRole("button", { name: "Table", exact: true }).click();
+    await assertVisibleDropdown("Movie");
+  }
+});
