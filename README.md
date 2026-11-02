@@ -17,6 +17,66 @@ The app discovers theaters around a configured ZIP code and radius, applies user
 > [docs/new-repo-checklist.md](docs/new-repo-checklist.md) first. It covers the
 > handful of things GitHub does not copy when you click *Use this template*.
 
+## Traveling and changing cities
+
+### Secure-origin requirement
+
+Automatic device location uses the browser Geolocation API, which **only runs
+in secure browser contexts**. An HTTP URL using a LAN address or hostname
+(for example, `http://192.168.x.x:8000` or `http://mother.local:8000`)
+is **not** a secure browser context. The app cannot grant itself an
+exception, and the browser will reject any geolocation request.
+
+On an HTTP origin, the header now shows **Set location** instead of
+**Use current location**. You can enter a five-digit US ZIP code to search
+nearby theaters without location permission, or use
+**Settings → Homes for this browser** to geocode and save your hotel/home
+address for route timings. Neither action changes the server's shared home.
+
+To restore **automatic** current-location detection, open the app through
+an HTTPS URL with a certificate trusted by your device. The application can
+continue to serve HTTP **behind** a TLS-terminating reverse proxy (for
+example Caddy), or you can use Tailscale Serve for private access:
+
+1. Enable Tailscale MagicDNS and HTTPS certificates on the tailnet.
+2. On a machine running Tailscale with access to the app on its loopback
+   interface, run `tailscale serve --bg <app-port>` (replace with the
+   host-mapped port; check `tailscale serve --help` for your version).
+3. Open the HTTPS `*.ts.net` URL shown by `tailscale serve status`
+   on a phone/device connected to the same tailnet.
+
+The Tailscale Serve instructions assume the app is reachable from the
+machine where Tailscale runs. A containerized/remote Tailscale setup may
+require additional routing. Simply changing an HTTP link to `https://`
+without TLS configured, or using an untrusted self-signed certificate,
+does not resolve this problem. The loopback `http://localhost` exception
+applies to the device running the browser, not to a server elsewhere on
+your LAN.
+
+The header's **Use current location** button uses browser geolocation (only with your permission)
+to suggest a nearby ZIP code and an optional new route origin. If location permission
+was previously granted, the app may detect that you are well outside the current
+theater search radius and offer to switch when you return; it never silently
+changes theaters or the configured home. If permission was not granted, the
+browser's location permission dialog appears **only** after you press the button.
+
+Choose **Add as home & search here** to save the approximate device position as
+a browser-specific home and use its nearby ZIP for local showtimes. Choose
+**Change theaters only** to leave the route origin unchanged. You can instead
+enter a precise hotel or another address in **Settings → Homes for this browser**,
+which resolves the address and selects its ZIP for theater search where possible.
+Switch back to any saved browser home, or to the shared server default, from the
+same settings section. Home and theater preferences are browser-local; the
+server's shared default home remains unchanged unless explicitly edited.
+
+A saved itinerary records its original theater ZIP and remains associated with
+that search city when switching locations. Older saved itineraries without ZIP
+metadata are kept for compatibility. Changes invalidate location-sensitive
+showtimes and later-availability caches; an unfamiliar city may take a first
+provider fetch before background warming catches up. Locations are limited to
+US ZIP codes and supported showtime-provider markets. Browser geolocation is
+an approximate position, not necessarily the hotel entrance.
+
 ## Daily showtime cache
 
 Showtime listings are saved in the server's `./data` volume and refreshed
@@ -54,6 +114,8 @@ Removing a title deletes it from the local watchlist; neither action silently de
 an existing saved movie-day itinerary (a warning is shown if a future plan contains it).
 The **Plan this movie** action returns to the calendar to choose a day.
 
+The Watchlist **defaults to movies with confirmed upcoming published showtimes**, including screenings remaining **today** and future dates over the next 14 days. Check **Include movies without upcoming showtimes** to see every saved wanted/watched title, even if no showings are listed. Both views are non-destructive. Every displayed movie shows either how many screenings remain today (with the latest listed time) or its later scheduled listings, including watched titles. When a schedule fetch fails or some dates are unavailable, only confirmed upcoming titles appear by default and a warning explains that other titles could have listings.
+
 The availability indicator counts **individual published showtimes** and **distinct
 listed dates** strictly *after* the reference day over the next 14 calendar days,
 using the configured ZIP and radius. The Watchlist references today; Movie Day uses
@@ -73,6 +135,8 @@ Open **Showtimes** or `/showtimes` to browse one poster-left card per movie play
 The **Movies / Table** switch preserves the original spreadsheet inspection surface. Both views share exactly the same screening filters; the movie list groups the **matching screenings** rather than counting theaters from filtered-out rows. Open **Filters** in Movies view to use the same per-column exact-value and rule controls as the table. A movie appears only once across its matching showtimes and chains; distinct verified IMDb identities remain separate even if they share a title.
 
 The list shows the movies returned by the configured provider within the selected ZIP/radius, not a guarantee that all theaters in the geographic area have published listings. Missing ratings, posters, prices, and other optional enrichment never remove a movie.
+
+Each movie card also identifies the **latest published screening matching your active Showtimes filters**, with its listed date, time, theater, and chain. If an even later listing exists outside those filters, the card names its theater/chain (or labels a same-venue filter mismatch). The comparison covers the selected date plus the next **14 days** within the selected ZIP/radius; it is **not** a verified final theatrical showing. The backend reuses its cached daily base listings for this comparison, so no future AMC/OMDb/travel enrichment is requested. Filters requiring future enriched data (ratings, ticket prices/seats, home times) are explicitly reported as unverifiable rather than silently claiming a last screening; provider failures also make the checked range incomplete.
 
 ## Showtimes table
 

@@ -1,10 +1,18 @@
+import { formatListingDateTime, latestListedForMovie } from "../last-listed";
+import type { Filters } from "../screenings";
 import { formatListedTime, formatReleaseDate, type ShowcaseMovie } from "../showcase";
 import { ticketDestination } from "../ticket-links";
+import type { MovieAvailabilityResponse, Screening } from "../types";
 import { TicketLink } from "./TicketLink";
 import "./movie-showcase.css";
 
 interface Props {
   movies: ShowcaseMovie[];
+  allMovies: ShowcaseMovie[];
+  allScreenings: Screening[];
+  filters: Filters;
+  futureAvailability: MovieAvailabilityResponse | null;
+  futureError: boolean;
   selectedMovies: string[];
   watchedMovies: string[];
 }
@@ -27,12 +35,33 @@ function rating(name: string, score: number | null, url: string, suffix = "") {
   );
 }
 
-export function MovieShowcase({ movies, selectedMovies, watchedMovies }: Props) {
+export function MovieShowcase({
+  movies,
+  allMovies,
+  allScreenings,
+  filters,
+  futureAvailability,
+  futureError,
+  selectedMovies,
+  watchedMovies,
+}: Props) {
   return (
     <div className="showcase-list" data-testid="movie-showcase">
       {movies.map((movie) => {
         const info = movie.representative;
         const released = formatReleaseDate(info.initial_release_date);
+        const latest = latestListedForMovie(
+          movie,
+          allMovies,
+          allScreenings,
+          futureAvailability?.future_screenings ?? [],
+          filters,
+        );
+        const other = latest.laterOutsideFilters;
+        const otherVenue =
+          other &&
+          latest.matching &&
+          (other.chain !== latest.matching.chain || other.theatre !== latest.matching.theatre);
         return (
           <article className="showcase-card" key={movie.key} data-testid="showcase-movie">
             <div className="showcase-poster">
@@ -68,6 +97,40 @@ export function MovieShowcase({ movies, selectedMovies, watchedMovies }: Props) 
                   <a href={info.letterboxd_url} target="_blank" rel="noreferrer">
                     Letterboxd ↗
                   </a>
+                ) : null}
+              </div>
+              <div className="showcase-last-listed" data-testid="last-listed">
+                <div>
+                  <strong>Latest listed with your filters</strong>
+                  <span>
+                    {latest.matching
+                      ? `${formatListingDateTime(latest.matching.advertised_start)} · ${latest.matching.theatre} (${latest.matching.chain})`
+                      : "No matching listings found"}
+                  </span>
+                </div>
+                {other ? (
+                  <p className="showcase-later">
+                    {otherVenue ? "Later at another theater/chain" : "Later outside filters"}:{" "}
+                    {formatListingDateTime(other.advertised_start)} · {other.theatre} ({other.chain}
+                    )
+                  </p>
+                ) : null}
+                {latest.laterUnverified ? (
+                  <p className="showcase-later">
+                    Later listing (filter match unknown):{" "}
+                    {formatListingDateTime(latest.laterUnverified.advertised_start)} ·{" "}
+                    {latest.laterUnverified.theatre} ({latest.laterUnverified.chain})
+                  </p>
+                ) : null}
+                {latest.futureFiltersUnverified && futureAvailability ? (
+                  <p className="showcase-listing-note">
+                    Future matching cannot be verified for rating, ticket, or home-time filters.
+                  </p>
+                ) : null}
+                {futureError ? (
+                  <p className="showcase-listing-note">Later schedules could not be checked.</p>
+                ) : !futureAvailability ? (
+                  <p className="showcase-listing-note">Checking later listings…</p>
                 ) : null}
               </div>
               <div className="showcase-chain-section">

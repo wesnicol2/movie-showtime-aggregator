@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-
 import { fetchMovieAvailability } from "./api";
+import { useAppStore } from "./store";
 import type { MovieAvailabilityResponse, MovieAvailabilitySummary } from "./types";
 
 const CACHE_LIFETIME_MS = 5 * 60 * 1000;
@@ -10,12 +10,15 @@ export function clearMovieAvailabilityCache(): void {
   cache.clear();
 }
 
-function loadAvailability(afterDate: string): Promise<MovieAvailabilityResponse> {
+function loadAvailability(
+  afterDate: string,
+  includeScreenings: boolean,
+): Promise<MovieAvailabilityResponse> {
   // The theater search is carried by cookies, not explicit URL parameters.
-  const cacheKey = `${afterDate}|${document.cookie}`;
+  const cacheKey = `${afterDate}|${includeScreenings}|${document.cookie}`;
   const saved = cache.get(cacheKey);
   if (saved && saved.expires > Date.now()) return saved.pending;
-  const pending = fetchMovieAvailability(afterDate).catch((error: unknown) => {
+  const pending = fetchMovieAvailability(afterDate, includeScreenings).catch((error: unknown) => {
     cache.delete(cacheKey);
     throw error;
   });
@@ -23,24 +26,28 @@ function loadAvailability(afterDate: string): Promise<MovieAvailabilityResponse>
   return pending;
 }
 
-export function useMovieAvailability(afterDate: string) {
+export function useMovieAvailability(afterDate: string, includeScreenings = false) {
+  const locationRevision = useAppStore((state) => state.screeningsRevision);
   const [response, setResponse] = useState<MovieAvailabilityResponse | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    const requestedRevision = locationRevision;
     setResponse(null);
     setError(false);
-    void loadAvailability(afterDate)
+    void loadAvailability(afterDate, includeScreenings)
       .then((result) => {
-        if (!cancelled) setResponse(result);
+        if (!cancelled && requestedRevision === useAppStore.getState().screeningsRevision)
+          setResponse(result);
       })
       .catch(() => {
-        if (!cancelled) setError(true);
+        if (!cancelled && requestedRevision === useAppStore.getState().screeningsRevision)
+          setError(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [afterDate]);
+  }, [afterDate, includeScreenings, locationRevision]);
   return { response, error };
 }
 

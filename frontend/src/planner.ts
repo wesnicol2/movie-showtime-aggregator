@@ -1,4 +1,4 @@
-import type { MovieDayItinerary, Screening } from "./types";
+import type { MovieDayItinerary, Screening, ScreeningLocation } from "./types";
 
 export const PLANNER_STORAGE_KEY = "movie-showtime-aggregator.planner.v1";
 export const PLANNER_UPDATED_EVENT = "movie-showtime-aggregator:planner-updated";
@@ -6,6 +6,7 @@ export const PLANNER_UPDATED_EVENT = "movie-showtime-aggregator:planner-updated"
 export interface SavedMoviePlan {
   date: string;
   savedAt: string;
+  location?: ScreeningLocation;
   itinerary: MovieDayItinerary;
   screenings: Screening[];
   runtimeOverrides: Record<string, number>;
@@ -25,22 +26,30 @@ export function readSavedMoviePlans(): SavedMoviePlan[] {
   }
 }
 
-export function savedMoviePlanForDate(date: string): SavedMoviePlan | null {
-  return readSavedMoviePlans().find((plan) => plan.date === date) ?? null;
+export function savedMoviePlanForDate(date: string, zipCode?: string): SavedMoviePlan | null {
+  return (
+    readSavedMoviePlans().find(
+      (plan) =>
+        plan.date === date && (!zipCode || !plan.location || plan.location.zip_code === zipCode),
+    ) ?? null
+  );
 }
 
 export function saveMoviePlan(plan: SavedMoviePlan): void {
-  const plans = Object.fromEntries(readSavedMoviePlans().map((saved) => [saved.date, saved]));
-  plans[plan.date] = structuredClone(plan);
+  const key = (saved: SavedMoviePlan) => `${saved.date}|${saved.location?.zip_code ?? "legacy"}`;
+  const plans = Object.fromEntries(readSavedMoviePlans().map((saved) => [key(saved), saved]));
+  plans[key(plan)] = structuredClone(plan);
   localStorage.setItem(PLANNER_STORAGE_KEY, JSON.stringify(plans));
   window.dispatchEvent(new Event(PLANNER_UPDATED_EVENT));
 }
 
-export function deleteMoviePlan(date: string): void {
+export function deleteMoviePlan(date: string, zipCode?: string): void {
   const plans = Object.fromEntries(
     readSavedMoviePlans()
-      .filter((plan) => plan.date !== date)
-      .map((plan) => [plan.date, plan]),
+      .filter(
+        (plan) => plan.date !== date || (zipCode != null && plan.location?.zip_code !== zipCode),
+      )
+      .map((plan) => [`${plan.date}|${plan.location?.zip_code ?? "legacy"}`, plan]),
   );
   if (Object.keys(plans).length === 0) localStorage.removeItem(PLANNER_STORAGE_KEY);
   else localStorage.setItem(PLANNER_STORAGE_KEY, JSON.stringify(plans));
