@@ -101,7 +101,7 @@ export function ColumnFilter({ column, filter, screenings, open, onOpenChange, o
     };
     const onScroll = (event: Event) => {
       // Scrolling the checkbox list should not needlessly reposition its own menu.
-      if (menuRef.current?.contains(event.target as Node)) return;
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
       reposition();
     };
 
