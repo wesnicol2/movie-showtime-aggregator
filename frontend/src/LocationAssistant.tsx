@@ -11,14 +11,20 @@ import {
 const IGNORED_KEY = "movie-showtime-aggregator.travel-ignored.v1";
 
 export function LocationAssistant() {
+  const insecureOrigin = window.isSecureContext === false;
   const [nearby, setNearby] = useState<NearbyLocation | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualZip, setManualZip] = useState(readBrowserSettings().location?.zipCode ?? "");
   const [currentZip, setCurrentZip] = useState(readBrowserSettings().location?.zipCode ?? "");
 
   const detect = useCallback((explicit: boolean): void => {
-    if (!navigator.geolocation) {
-      if (explicit) setError("Location is not available in this browser.");
+    if (window.isSecureContext === false || !navigator.geolocation) {
+      if (explicit) {
+        setManualOpen(true);
+        setError("");
+      }
       return;
     }
     setChecking(true);
@@ -32,34 +38,50 @@ export function LocationAssistant() {
               result.distance_from_search_miles !== null &&
               result.distance_from_search_miles > threshold;
             const declined = sessionStorage.getItem(IGNORED_KEY) === result.zip_code;
-            if (explicit || (farAway && !declined)) setNearby(result);
+            if (explicit || (farAway && !declined)) {
+              setNearby(result);
+              setManualOpen(false);
+            }
           })
           .catch((caught: unknown) => {
-            if (explicit)
+            if (explicit) {
               setError(
                 caught instanceof Error ? caught.message : "Could not locate nearby theaters",
               );
+              setManualOpen(true);
+            }
           })
           .finally(() => setChecking(false));
       },
       (failure) => {
         setChecking(false);
-        if (explicit) setError(failure.message || "Location permission denied");
+        if (explicit) {
+          setError(
+            failure.code === 1
+              ? "Location permission was denied. You can still enter a ZIP code."
+              : failure.message || "Could not determine your location.",
+          );
+          setManualOpen(true);
+        }
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
     );
   }, []);
 
   useEffect(() => {
-    const syncZip = () => setCurrentZip(readBrowserSettings().location?.zipCode ?? "");
+    const syncZip = () => {
+      const zip = readBrowserSettings().location?.zipCode ?? "";
+      setCurrentZip(zip);
+      setManualZip(zip);
+    };
     window.addEventListener(LOCATION_CHANGED_EVENT, syncZip);
     return () => window.removeEventListener(LOCATION_CHANGED_EVENT, syncZip);
   }, []);
 
   useEffect(() => {
-    // A previously granted location can be checked without another permission prompt.
-    // When permission hasn't been granted, only the button below asks for it.
-    if (!navigator.permissions?.query) return;
+    // HTTP on a network hostname/IP is not a secure context. Never ask for
+    // permission or call geolocation there: the browser will always block it.
+    if (window.isSecureContext === false || !navigator.permissions?.query) return;
     void navigator.permissions
       .query({ name: "geolocation" })
       .then((permission) => {
@@ -92,6 +114,24 @@ export function LocationAssistant() {
     setNearby(null);
   }
 
+  function applyManualZip(): void {
+    const zip = manualZip.trim();
+    if (!/^\d{5}$/.test(zip)) {
+      setError("Enter a valid five-digit US ZIP code.");
+      return;
+    }
+    const settings = readBrowserSettings();
+    settings.location = {
+      zipCode: zip,
+      radiusMiles: settings.location?.radiusMiles ?? 25,
+    };
+    saveBrowserSettings(settings);
+    setCurrentZip(zip);
+    setError("");
+    setNearby(null);
+    setManualOpen(false);
+  }
+
   function dismiss(): void {
     if (nearby?.zip_code) sessionStorage.setItem(IGNORED_KEY, nearby.zip_code);
     setNearby(null);
@@ -99,16 +139,81 @@ export function LocationAssistant() {
 
   return (
     <div className="location-assistant">
-      <button
-        type="button"
-        className="location-check"
-        disabled={checking}
-        onClick={() => detect(true)}
-        aria-label="Check my current location for nearby theaters"
-      >
-        {checking ? "Locating…" : "Use current location"}
-      </button>
+      {insecureOrigin ? (
+        <button
+          type="button"
+          className="location-check"
+          aria-expanded={manualOpen}
+          onClick={() => {
+            setManualOpen(true);
+            setError("");
+          }}
+        >
+          Set location
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            className="location-check"
+            disabled={checking}
+            onClick={() => detect(true)}
+            aria-label="Check my current location for nearby theaters"
+          >
+            {checking ? "Locating…" : "Use current location"}
+          </button>
+          <button
+            type="button"
+            className="location-check"
+            aria-expanded={manualOpen}
+            onClick={() => {
+              setManualOpen(true);
+              setError("");
+            }}
+          >
+            Enter ZIP
+          </button>
+        </>
+      )}
       {currentZip ? <span className="location-zip">Theaters near {currentZip}</span> : null}
+      {manualOpen ? (
+        <section className="location-suggestion" aria-label="Set theater location manually">
+          <strong>{insecureOrigin ? "Automatic location needs HTTPS" : "Set theater location"}</strong>
+          <p>
+            {insecureOrigin
+              ? "This site is open on an insecure address. Browsers block device location here. Enter a ZIP code, or use an HTTPS address for automatic location."
+              : "Enter a ZIP code if device location is unavailable or you prefer to choose a city."}
+          </p>
+          <form
+            className="location-manual-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              applyManualZip();
+            }}
+          >
+            <label htmlFor="location-manual-zip">Theater ZIP code</label>
+            <div className="location-manual-row">
+              <input
+                id="location-manual-zip"
+                aria-label="Theater ZIP code"
+                inputMode="numeric"
+                autoComplete="postal-code"
+                maxLength={5}
+                placeholder="e.g. 80202"
+                value={manualZip}
+                onChange={(event) => setManualZip(event.target.value)}
+              />
+              <button type="submit" className="primary">Search here</button>
+            </div>
+          </form>
+          <p>
+            Need routes from a hotel? <a href="/settings">Add a home or hotel address in Settings</a>.
+          </p>
+          <button type="button" onClick={() => setManualOpen(false)}>
+            Close
+          </button>
+        </section>
+      ) : null}
       {nearby ? (
         <section className="location-suggestion" aria-label="Travel location suggestion">
           <div>
