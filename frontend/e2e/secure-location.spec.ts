@@ -61,7 +61,9 @@ test("insecure HTTP origins never call device geolocation and offer a ZIP fallba
   await page.getByRole("button", { name: "Set location" }).click();
   const form = page.getByRole("region", { name: "Set theater location manually" });
   await expect(form.getByText("Automatic location needs HTTPS")).toBeVisible();
-  await expect(form.getByText("Browsers block device location here", { exact: false })).toBeVisible();
+  await expect(
+    form.getByText("Browsers block device location here", { exact: false }),
+  ).toBeVisible();
   await form.getByLabel("Theater ZIP code").fill("80");
   await form.getByRole("button", { name: "Search here" }).click();
   await expect(page.getByRole("alert").first()).toContainText("five-digit US ZIP");
