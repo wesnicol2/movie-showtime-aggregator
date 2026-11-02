@@ -285,7 +285,6 @@ test("different IMDb identities with the same title remain separate", async ({ p
   await expect(cards.nth(1).getByTestId("last-listed")).not.toContainText("Oct 14");
 });
 
-
 test("filter dropdowns stay fully visible near both viewport edges", async ({ page }) => {
   await mockScreenings(page);
 
