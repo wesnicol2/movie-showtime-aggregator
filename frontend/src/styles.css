@@ -1021,6 +1021,23 @@ a:hover {
   color: var(--danger);
   font-size: 0.8rem;
 }
+.location-manual-form {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+}
+.location-manual-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.location-manual-row input {
+  flex: 1;
+  min-width: 7rem;
+}
+.location-manual-row button {
+  white-space: nowrap;
+}
 @media (max-width: 600px) {
   .location-suggestion {
     position: fixed;
