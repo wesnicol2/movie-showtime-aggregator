@@ -231,6 +231,8 @@ Each movie card computes the latest listed showtime **matching the shared column
 
 Keep the spreadsheet-style power-user inspection surface behind Table, with original per-column sorting, filters, inspector and saved views. Reuse `COLUMNS` and `ColumnFilter` in the collapsible showcase filter panel; do not implement a second incompatible set of screening-filter semantics. Keep the main planning `/movies` poster-selection workflow independent.
 
+The shared `ColumnFilter` positions open menus against the visible viewport rather than the narrow filter-chip trigger. Measure the current trigger and menu, clamp the popover to viewport edges, and place it above when there is insufficient room below. Keep this behavior shared by the showcase and the table; fixed left/right mobile offsets clip or detach menus when wrapping, zooming, or scrolling.
+
 ### Showtimes table
 
 `/showtimes` is the spreadsheet-style power-user inspection surface. Do not recreate standalone filtering panels. Every displayed column is a first-class sort/filter dimension:

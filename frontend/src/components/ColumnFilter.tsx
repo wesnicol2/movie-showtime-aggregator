@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   type ColumnFilter as ColumnFilterState,
@@ -52,8 +53,73 @@ const TIME_RULES: readonly [FilterOperator, string][] = [
   ["is_not_unknown", "Is known"],
 ];
 
+const MENU_WIDTH = 310;
+const MENU_MARGIN = 8;
+const MENU_GAP = 4;
+
+function filterMenuPosition(trigger: HTMLButtonElement, menu: HTMLDivElement): CSSProperties {
+  const bounds = trigger.getBoundingClientRect();
+  const viewport = window.visualViewport;
+  const viewportLeft = viewport?.offsetLeft ?? 0;
+  const viewportTop = viewport?.offsetTop ?? 0;
+  const viewportWidth = viewport?.width ?? document.documentElement.clientWidth;
+  const viewportHeight = viewport?.height ?? window.innerHeight;
+  const viewportRight = viewportLeft + viewportWidth;
+  const viewportBottom = viewportTop + viewportHeight;
+
+  const width = Math.max(0, Math.min(MENU_WIDTH, viewportWidth - 2 * MENU_MARGIN));
+  const left = Math.max(
+    viewportLeft + MENU_MARGIN,
+    Math.min(bounds.right - width, viewportRight - width - MENU_MARGIN),
+  );
+  const below = Math.max(0, viewportBottom - bounds.bottom - MENU_GAP - MENU_MARGIN);
+  const above = Math.max(0, bounds.top - viewportTop - MENU_GAP - MENU_MARGIN);
+  const placeBelow = below >= Math.min(menu.scrollHeight, 440) || below >= above;
+  const availableHeight = placeBelow ? below : above;
+  const height = Math.min(menu.scrollHeight, availableHeight);
+
+  return {
+    left,
+    top: placeBelow ? bounds.bottom + MENU_GAP : bounds.top - MENU_GAP - height,
+    width,
+    maxHeight: availableHeight,
+  };
+}
+
 export function ColumnFilter({ column, filter, screenings, open, onOpenChange, onChange }: Props) {
   const [query, setQuery] = useState("");
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState<CSSProperties>({});
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const reposition = () => {
+      if (triggerRef.current && menuRef.current) {
+        setMenuPosition(filterMenuPosition(triggerRef.current, menuRef.current));
+      }
+    };
+    const onScroll = (event: Event) => {
+      // Scrolling the checkbox list should not needlessly reposition its own menu.
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      reposition();
+    };
+
+    reposition();
+    const observer = new ResizeObserver(reposition);
+    if (menuRef.current) observer.observe(menuRef.current);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", onScroll, true);
+    window.visualViewport?.addEventListener("resize", reposition);
+    window.visualViewport?.addEventListener("scroll", reposition);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", onScroll, true);
+      window.visualViewport?.removeEventListener("resize", reposition);
+      window.visualViewport?.removeEventListener("scroll", reposition);
+    };
+  }, [open]);
   const values = useMemo(() => uniqueValues(screenings, column), [column, screenings]);
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const visibleValues = values.filter((value) =>
@@ -74,6 +140,7 @@ export function ColumnFilter({ column, filter, screenings, open, onOpenChange, o
   return (
     <div className="column-filter">
       <button
+        ref={triggerRef}
         className={`filter-trigger ${isFilterActive(filter) ? "active" : ""}`}
         type="button"
         aria-label={`Filter ${column.label}`}
@@ -83,7 +150,13 @@ export function ColumnFilter({ column, filter, screenings, open, onOpenChange, o
         <span aria-hidden="true">⌄</span>
       </button>
       {open ? (
-        <div className="filter-menu" role="dialog" aria-label={`${column.label} filter`}>
+        <div
+          ref={menuRef}
+          className="filter-menu"
+          role="dialog"
+          aria-label={`${column.label} filter`}
+          style={menuPosition}
+        >
           <div className="filter-menu-heading">
             <strong>{column.label}</strong>
             <button
