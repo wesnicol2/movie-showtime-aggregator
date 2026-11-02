@@ -178,7 +178,9 @@ export function LocationAssistant() {
       {currentZip ? <span className="location-zip">Theaters near {currentZip}</span> : null}
       {manualOpen ? (
         <section className="location-suggestion" aria-label="Set theater location manually">
-          <strong>{insecureOrigin ? "Automatic location needs HTTPS" : "Set theater location"}</strong>
+          <strong>
+            {insecureOrigin ? "Automatic location needs HTTPS" : "Set theater location"}
+          </strong>
           <p>
             {insecureOrigin
               ? "This site is open on an insecure address. Browsers block device location here. Enter a ZIP code, or use an HTTPS address for automatic location."
@@ -203,11 +205,14 @@ export function LocationAssistant() {
                 value={manualZip}
                 onChange={(event) => setManualZip(event.target.value)}
               />
-              <button type="submit" className="primary">Search here</button>
+              <button type="submit" className="primary">
+                Search here
+              </button>
             </div>
           </form>
           <p>
-            Need routes from a hotel? <a href="/settings">Add a home or hotel address in Settings</a>.
+            Need routes from a hotel?{" "}
+            <a href="/settings">Add a home or hotel address in Settings</a>.
           </p>
           <button type="button" onClick={() => setManualOpen(false)}>
             Close
