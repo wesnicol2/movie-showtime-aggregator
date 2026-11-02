@@ -371,10 +371,13 @@ a:hover {
   background: var(--accent-soft);
 }
 .filter-menu {
-  position: absolute;
-  right: 0;
-  z-index: 50;
-  width: 310px;
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 90;
+  width: min(310px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
   padding: 10px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
@@ -833,15 +836,6 @@ a:hover {
   }
   .movie-title {
     font-size: 11px;
-  }
-  .filter-menu {
-    position: fixed;
-    left: 8px;
-    right: 8px;
-    bottom: 8px;
-    width: auto;
-    max-height: 78vh;
-    overflow: auto;
   }
   .settings-grid {
     grid-template-columns: 1fr;
