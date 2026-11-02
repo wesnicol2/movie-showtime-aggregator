@@ -315,6 +315,8 @@ test("filter dropdowns stay fully visible near both viewport edges", async ({ pa
       await assertVisibleDropdown(label);
     }
 
+    // Close the showcase chips so the table filter has a unique accessible name.
+    await page.getByRole("button", { name: "Toggle screening filters" }).click();
     // The original table shares this component and should retain safe positioning.
     await page.getByRole("button", { name: "Table", exact: true }).click();
     await assertVisibleDropdown("Movie");
