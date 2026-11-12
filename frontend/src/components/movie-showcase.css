@@ -126,6 +126,24 @@
   line-height: 1.25;
   letter-spacing: -0.02em;
 }
+.showcase-runway {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--panel-raised);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+.showcase-runway-soon {
+  border-color: #825b3e;
+  background: #2d241c;
+  color: #ffd3aa;
+}
 .showcase-status {
   display: inline-flex;
   padding: 3px 7px;
