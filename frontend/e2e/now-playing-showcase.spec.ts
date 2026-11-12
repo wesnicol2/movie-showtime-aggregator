@@ -180,15 +180,11 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
   await expect(alpha.getByText("AMC 2 theaters")).toBeVisible();
   await expect(alpha.getByText("Harkins 1 theater")).toBeVisible();
   await expect(alpha.getByText("4 showtimes")).toBeVisible();
-  await expect(alpha.getByTestId("showtime-runway")).toHaveText(
-    "Last listed in 4 days · Oct 16",
-  );
+  await expect(alpha.getByTestId("showtime-runway")).toHaveText("Last listed in 4 days · Oct 16");
   const beta = page
     .getByTestId("showcase-movie")
     .filter({ has: page.getByRole("heading", { name: "Beta" }) });
-  await expect(beta.getByTestId("showtime-runway")).toHaveText(
-    "Last listed tomorrow · Oct 13",
-  );
+  await expect(beta.getByTestId("showtime-runway")).toHaveText("Last listed tomorrow · Oct 13");
   await expect(alpha.getByTestId("last-listed")).toContainText(
     "Fri, Oct 16 · 7:30 PM · Harkins North (Harkins)",
   );
@@ -215,9 +211,7 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
   await expect(alpha.getByText("AMC 2 theaters")).toBeVisible();
   await expect(alpha.getByText("3 showtimes")).toBeVisible();
   // All-theater deadline must not incorrectly shorten when AMC is the only selected chain.
-  await expect(alpha.getByTestId("showtime-runway")).toHaveText(
-    "Last listed in 4 days · Oct 16",
-  );
+  await expect(alpha.getByTestId("showtime-runway")).toHaveText("Last listed in 4 days · Oct 16");
   await expect(alpha.getByTestId("last-listed")).toContainText(
     "Wed, Oct 14 · 5:30 PM · AMC Midtown (AMC)",
   );
