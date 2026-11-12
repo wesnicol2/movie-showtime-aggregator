@@ -180,6 +180,11 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
   await expect(alpha.getByText("AMC 2 theaters")).toBeVisible();
   await expect(alpha.getByText("Harkins 1 theater")).toBeVisible();
   await expect(alpha.getByText("4 showtimes")).toBeVisible();
+  await expect(alpha.getByTestId("showtime-runway")).toHaveText("Last listed in 4 days · Oct 16");
+  const beta = page
+    .getByTestId("showcase-movie")
+    .filter({ has: page.getByRole("heading", { name: "Beta" }) });
+  await expect(beta.getByTestId("showtime-runway")).toHaveText("Last listed tomorrow · Oct 13");
   await expect(alpha.getByTestId("last-listed")).toContainText(
     "Fri, Oct 16 · 7:30 PM · Harkins North (Harkins)",
   );
@@ -205,6 +210,8 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
   await expect(page.getByTestId("showcase-movie")).toHaveCount(1);
   await expect(alpha.getByText("AMC 2 theaters")).toBeVisible();
   await expect(alpha.getByText("3 showtimes")).toBeVisible();
+  // All-theater deadline must not incorrectly shorten when AMC is the only selected chain.
+  await expect(alpha.getByTestId("showtime-runway")).toHaveText("Last listed in 4 days · Oct 16");
   await expect(alpha.getByTestId("last-listed")).toContainText(
     "Wed, Oct 14 · 5:30 PM · AMC Midtown (AMC)",
   );
@@ -283,6 +290,82 @@ test("different IMDb identities with the same title remain separate", async ({ p
   const cards = page.getByTestId("showcase-movie");
   await expect(cards.nth(0).getByTestId("last-listed")).toContainText("Oct 14");
   await expect(cards.nth(1).getByTestId("last-listed")).not.toContainText("Oct 14");
+  await expect(cards.nth(0).getByTestId("showtime-runway")).toContainText("Oct 14");
+  await expect(cards.nth(1).getByTestId("showtime-runway")).toContainText("Oct 12");
+});
+
+test("published schedule runway uses week counts and marks the scan horizon as a lower bound", async ({
+  page,
+}) => {
+  await mockScreenings(page);
+  await page.route("**/api/movie-availability?*", async (route) => {
+    await route.fulfill({
+      json: {
+        after_date: "2026-10-12",
+        window_end: "2026-10-26",
+        checked_dates: ["2026-10-26"],
+        unavailable_dates: [],
+        movies: {},
+        future_screenings: [
+          screening(
+            "a-late",
+            "Alpha",
+            "tt1111111",
+            "AMC",
+            "AMC West",
+            "2026-10-26T18:00:00",
+            "Standard",
+            0,
+            6,
+          ),
+        ],
+      },
+    });
+  });
+  await page.goto("/showtimes");
+  const alpha = page
+    .getByTestId("showcase-movie")
+    .filter({ has: page.getByRole("heading", { name: "Alpha" }) });
+  await expect(alpha.getByTestId("showtime-runway")).toHaveText(
+    "At least 2 weeks of showtimes listed · Oct 26",
+  );
+});
+
+test("partial future schedule shows a lower bound instead of a false end date", async ({
+  page,
+}) => {
+  await mockScreenings(page);
+  await page.route("**/api/movie-availability?*", async (route) => {
+    await route.fulfill({
+      json: {
+        after_date: "2026-10-12",
+        window_end: "2026-10-26",
+        checked_dates: ["2026-10-21"],
+        unavailable_dates: ["2026-10-20"],
+        movies: {},
+        future_screenings: [
+          screening(
+            "a-late",
+            "Alpha",
+            "tt1111111",
+            "AMC",
+            "AMC West",
+            "2026-10-21T18:00:00",
+            "Standard",
+            0,
+            6,
+          ),
+        ],
+      },
+    });
+  });
+  await page.goto("/showtimes");
+  const alpha = page
+    .getByTestId("showcase-movie")
+    .filter({ has: page.getByRole("heading", { name: "Alpha" }) });
+  await expect(alpha.getByTestId("showtime-runway")).toHaveText(
+    "At least 1 week 2 days of showtimes listed · Oct 21",
+  );
 });
 
 test("filter dropdowns stay fully visible near both viewport edges", async ({ page }) => {

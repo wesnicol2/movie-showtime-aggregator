@@ -136,6 +136,8 @@ The **Movies / Table** switch preserves the original spreadsheet inspection surf
 
 The list shows the movies returned by the configured provider within the selected ZIP/radius, not a guarantee that all theaters in the geographic area have published listings. Missing ratings, posters, prices, and other optional enrichment never remove a movie.
 
+Each movie card highlights **how many days or weeks remain until the latest published screening** at any nearby theater, with its date. The countdown is measured from the selected Showtimes date, not necessarily today's date. It is based on published listings, **not an estimated theatrical exit date**; a last listing at the 14-day scan boundary or a partially unavailable scan is shown as **at least** that much remaining. A warning is displayed instead of a countdown if later listings cannot be fetched. Active filters do not shorten this all-theater indicator.
+
 Each movie card also identifies the **latest published screening matching your active Showtimes filters**, with its listed date, time, theater, and chain. If an even later listing exists outside those filters, the card names its theater/chain (or labels a same-venue filter mismatch). The comparison covers the selected date plus the next **14 days** within the selected ZIP/radius; it is **not** a verified final theatrical showing. The backend reuses its cached daily base listings for this comparison, so no future AMC/OMDb/travel enrichment is requested. Filters requiring future enriched data (ratings, ticket prices/seats, home times) are explicitly reported as unverifiable rather than silently claiming a last screening; provider failures also make the checked range incomplete.
 
 ## Showtimes table

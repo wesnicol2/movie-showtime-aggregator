@@ -295,6 +295,7 @@ export function ScreeningsPage() {
                   : futureAvailability
                     ? `Latest published listings through ${shortAvailabilityDate(futureAvailability.window_end)} (14 days after the selected date). ${futureAvailability.unavailable_dates.length ? "Some days could not be checked." : "Additional screenings may be posted later."}`
                     : "Checking the next 14 days of published listings…"}
+                {" Countdown badges use the selected date and all nearby theaters."}
               </p>
               <MovieShowcase
                 movies={movies}

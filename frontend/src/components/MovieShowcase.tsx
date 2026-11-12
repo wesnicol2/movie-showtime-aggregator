@@ -1,4 +1,5 @@
-import { formatListingDateTime, latestListedForMovie } from "../last-listed";
+import { describeListingRunway, formatListingDateTime, latestListedForMovie } from "../last-listed";
+import { shortAvailabilityDate } from "../movie-availability";
 import type { Filters } from "../screenings";
 import { formatListedTime, formatReleaseDate, type ShowcaseMovie } from "../showcase";
 import { ticketDestination } from "../ticket-links";
@@ -57,6 +58,18 @@ export function MovieShowcase({
           futureAvailability?.future_screenings ?? [],
           filters,
         );
+        const runway =
+          futureAvailability && latest.overall
+            ? describeListingRunway(
+                latest.overall.advertised_start,
+                futureAvailability.after_date,
+                futureAvailability.window_end,
+                futureAvailability.unavailable_dates.length > 0,
+              )
+            : null;
+        const runwayDate = latest.overall
+          ? shortAvailabilityDate(latest.overall.advertised_start.slice(0, 10))
+          : null;
         const other = latest.laterOutsideFilters;
         const otherVenue =
           other &&
@@ -74,6 +87,19 @@ export function MovieShowcase({
             <div className="showcase-body">
               <div className="showcase-title-row">
                 <h2>{movie.title}</h2>
+                <span
+                  className={`showcase-runway${runway?.urgent ? " showcase-runway-soon" : ""}`}
+                  data-testid="showtime-runway"
+                  title="Latest published showing across all nearby theaters, regardless of filters. Time measured from the selected date; more showtimes may be added."
+                >
+                  {futureError
+                    ? "Later schedule unavailable"
+                    : !futureAvailability
+                      ? "Checking weeks remaining…"
+                      : runway && runwayDate
+                        ? `${runway.label} · ${runwayDate}`
+                        : "No published showtimes"}
+                </span>
                 {watchedMovies.includes(movie.title) ? (
                   <span className="showcase-status">Already seen</span>
                 ) : selectedMovies.includes(movie.title) ? (
