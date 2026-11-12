@@ -80,7 +80,13 @@ export function latestListedForMovie(
       laterOutsideFilters = latest([...(laterOutsideFilters ? [laterOutsideFilters] : []), row]);
     }
   }
-  return { matching, overall: latest(unfiltered), laterOutsideFilters, laterUnverified, futureFiltersUnverified };
+  return {
+    matching,
+    overall: latest(unfiltered),
+    laterOutsideFilters,
+    laterUnverified,
+    futureFiltersUnverified,
+  };
 }
 
 export function formatListingDateTime(value: string): string {
@@ -115,7 +121,10 @@ export function describeListingRunway(
     return { label: "No upcoming showtimes confirmed", urgent: false };
 
   if (daysLeft === 0)
-    return { label: incomplete ? "Showtimes listed today" : "Last listed today", urgent: !incomplete };
+    return {
+      label: incomplete ? "Showtimes listed today" : "Last listed today",
+      urgent: !incomplete,
+    };
 
   const weeks = Math.floor(daysLeft / 7);
   const days = daysLeft % 7;
