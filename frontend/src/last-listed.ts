@@ -6,6 +6,7 @@ type Listing = FutureScreening | Screening;
 
 export interface LastListed {
   matching: Listing | null;
+  overall: Listing | null;
   laterOutsideFilters: Listing | null;
   laterUnverified: Listing | null;
   futureFiltersUnverified: boolean;
@@ -79,7 +80,7 @@ export function latestListedForMovie(
       laterOutsideFilters = latest([...(laterOutsideFilters ? [laterOutsideFilters] : []), row]);
     }
   }
-  return { matching, laterOutsideFilters, laterUnverified, futureFiltersUnverified };
+  return { matching, overall: latest(unfiltered), laterOutsideFilters, laterUnverified, futureFiltersUnverified };
 }
 
 export function formatListingDateTime(value: string): string {
@@ -94,4 +95,39 @@ export function formatListingDateTime(value: string): string {
   const minutes = value.slice(14, 16);
   if (hour < 0 || hour > 23 || !/^\d{2}$/.test(minutes)) return displayed;
   return `${displayed} · ${hour % 12 || 12}:${minutes} ${hour < 12 ? "AM" : "PM"}`;
+}
+
+/**
+ * The latest published listing is not a confirmed theatrical exit date.
+ * Count calendar days from the selected date (not elapsed 24-hour periods),
+ * and describe the horizon/partial results as lower bounds.
+ */
+export function describeListingRunway(
+  latestStart: string,
+  fromDate: string,
+  windowEnd: string,
+  incomplete: boolean,
+): { label: string; urgent: boolean } {
+  const utcDay = (value: string) => Date.parse(`${value.slice(0, 10)}T00:00:00Z`);
+  const daysLeft = Math.round((utcDay(latestStart) - utcDay(fromDate)) / 86_400_000);
+  const horizonDays = Math.round((utcDay(windowEnd) - utcDay(fromDate)) / 86_400_000);
+  if (!Number.isFinite(daysLeft) || daysLeft < 0)
+    return { label: "No upcoming showtimes confirmed", urgent: false };
+
+  if (daysLeft === 0)
+    return { label: incomplete ? "Showtimes listed today" : "Last listed today", urgent: !incomplete };
+
+  const weeks = Math.floor(daysLeft / 7);
+  const days = daysLeft % 7;
+  const units = [
+    ...(weeks ? [`${weeks} week${weeks === 1 ? "" : "s"}`] : []),
+    ...(days ? [`${days} day${days === 1 ? "" : "s"}`] : []),
+  ].join(" ");
+  if (incomplete || daysLeft >= horizonDays)
+    return { label: `At least ${units} of showtimes listed`, urgent: false };
+
+  return {
+    label: daysLeft === 1 ? "Last listed tomorrow" : `Last listed in ${units}`,
+    urgent: daysLeft < 7,
+  };
 }
