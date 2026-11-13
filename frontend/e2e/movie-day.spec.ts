@@ -401,6 +401,104 @@ test("movie priorities and pins are sent as hard planner constraints", async ({ 
   await expect(page.getByText("Skipped: Alpha")).toBeVisible();
 });
 
+test("Any movie count breaks equal want scores by earliest home, not minimum time", async ({
+  page,
+}) => {
+  await mockApi(page);
+  await page.goto("/plan");
+  await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByLabel("Secondary sort itineraries").selectOption("home");
+
+  await page.route("**/api/movie-day", async (route) => {
+    const request = route.request().postDataJSON();
+    expect(request.sort_by).toBe("want");
+    expect(request.secondary_sort_by).toBe("home");
+    const singleMovieItineraries = [
+      {
+        showtime_ids: ["alpha-1"],
+        movies: ["Alpha"],
+        dropped_movies: ["Beta"],
+        base_want_score: 2,
+        experience_adjustment: 0,
+        want_score: 2,
+        starts_at: "2026-09-10T09:00:00",
+        ends_at: "2026-09-10T11:00:00",
+        home_at: "2026-09-10T11:10:00",
+        elapsed_minutes: 130,
+        movie_minutes: 120,
+        travel_minutes: 10,
+        waiting_minutes: 0,
+        legs: [],
+      },
+      {
+        showtime_ids: ["beta-1"],
+        movies: ["Beta"],
+        dropped_movies: ["Alpha"],
+        base_want_score: 1,
+        experience_adjustment: 1,
+        want_score: 2,
+        starts_at: "2026-09-10T11:30:00",
+        ends_at: "2026-09-10T13:10:00",
+        home_at: "2026-09-10T13:20:00",
+        elapsed_minutes: 110,
+        movie_minutes: 100,
+        travel_minutes: 10,
+        waiting_minutes: 0,
+        legs: [],
+      },
+    ];
+    const bothMovies = {
+      showtime_ids: ["alpha-1", "beta-1"],
+      movies: ["Alpha", "Beta"],
+      dropped_movies: [],
+      base_want_score: 3,
+      experience_adjustment: 0,
+      want_score: 3,
+      starts_at: "2026-09-10T09:00:00",
+      ends_at: "2026-09-10T13:10:00",
+      home_at: "2026-09-10T13:20:00",
+      elapsed_minutes: 270,
+      movie_minutes: 220,
+      travel_minutes: 30,
+      waiting_minutes: 20,
+      legs: [],
+    };
+    await route.fulfill({
+      json: {
+        date: "2026-09-10",
+        selected_movies: ["Alpha", "Beta"],
+        required_movies: [],
+        runtime_overrides: {},
+        target_movie_count: request.target_movie_count,
+        plannable_movie_count: 2,
+        sort_by: request.sort_by,
+        secondary_sort_by: request.secondary_sort_by,
+        earliest_start: null,
+        latest_end: null,
+        eligible_showings: 2,
+        unplannable_showings: 0,
+        missing_movies: [],
+        missing_required_movies: [],
+        total_itineraries: request.target_movie_count === 1 ? 2 : 1,
+        offset: 0,
+        limit: 25,
+        has_more: false,
+        minimum_buffer_minutes: 0,
+        routing_available: true,
+        itineraries: request.target_movie_count === 1 ? singleMovieItineraries : [bothMovies],
+      },
+    });
+  });
+
+  await page.getByRole("button", { name: "Find itineraries" }).click();
+  await expect(page.getByText("Highest want score first; ties by earliest home")).toBeVisible();
+  const options = page.locator(".itinerary-card");
+  await expect(options).toHaveCount(3);
+  await expect(options.nth(0)).toContainText("Want score 3");
+  await expect(options.nth(1)).toContainText("Home at 11:10 AM");
+  await expect(options.nth(2)).toContainText("Home at 1:20 PM");
+});
+
 test("manual runtimes are persisted and sent to the planner", async ({ page }) => {
   await mockApi(page);
   await page.goto("/plan");

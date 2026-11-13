@@ -88,7 +88,57 @@ const rows = [
   ),
 ];
 
+async function mockFuture(page: Page) {
+  await page.route("**/api/movie-availability?*", async (route) => {
+    await route.fulfill({
+      json: {
+        after_date: "2026-10-12",
+        window_end: "2026-10-26",
+        checked_dates: ["2026-10-13", "2026-10-14", "2026-10-16"],
+        unavailable_dates: [],
+        movies: {},
+        future_screenings: [
+          screening(
+            "a5",
+            "Alpha",
+            "tt1111111",
+            "AMC",
+            "AMC Midtown",
+            "2026-10-14T17:30:00",
+            "IMAX",
+            0,
+            4,
+          ),
+          screening(
+            "a6",
+            "Alpha",
+            "tt1111111",
+            "Harkins",
+            "Harkins North",
+            "2026-10-16T19:30:00",
+            "Standard",
+            0,
+            5,
+          ),
+          screening(
+            "b2",
+            "Beta",
+            "tt2222222",
+            "Harkins",
+            "Harkins North",
+            "2026-10-13T19:00:00",
+            "Standard",
+            0,
+            5,
+          ),
+        ],
+      },
+    });
+  });
+}
+
 async function mockScreenings(page: Page) {
+  await mockFuture(page);
   await page.route("**/api/screenings?*", async (route) => {
     await route.fulfill({
       json: {
@@ -130,6 +180,15 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
   await expect(alpha.getByText("AMC 2 theaters")).toBeVisible();
   await expect(alpha.getByText("Harkins 1 theater")).toBeVisible();
   await expect(alpha.getByText("4 showtimes")).toBeVisible();
+  await expect(alpha.getByTestId("showtime-runway")).toHaveText("Last listed in 4 days · Oct 16");
+  const beta = page
+    .getByTestId("showcase-movie")
+    .filter({ has: page.getByRole("heading", { name: "Beta" }) });
+  await expect(beta.getByTestId("showtime-runway")).toHaveText("Last listed tomorrow · Oct 13");
+  await expect(alpha.getByTestId("last-listed")).toContainText(
+    "Fri, Oct 16 · 7:30 PM · Harkins North (Harkins)",
+  );
+  await expect(page.getByText("Latest published listings through Oct 26")).toBeVisible();
   await alpha.getByText("View theaters and showtimes").click();
   await expect(alpha.getByText("AMC Midtown", { exact: true })).toBeVisible();
   await expect(alpha.getByText("12:00 PM · IMAX · $14.00")).toBeVisible();
@@ -151,6 +210,15 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
   await expect(page.getByTestId("showcase-movie")).toHaveCount(1);
   await expect(alpha.getByText("AMC 2 theaters")).toBeVisible();
   await expect(alpha.getByText("3 showtimes")).toBeVisible();
+  // All-theater deadline must not incorrectly shorten when AMC is the only selected chain.
+  await expect(alpha.getByTestId("showtime-runway")).toHaveText("Last listed in 4 days · Oct 16");
+  await expect(alpha.getByTestId("last-listed")).toContainText(
+    "Wed, Oct 14 · 5:30 PM · AMC Midtown (AMC)",
+  );
+  await expect(alpha.getByTestId("last-listed")).toContainText("Later at another theater/chain:");
+  await expect(alpha.getByTestId("last-listed")).toContainText(
+    "Fri, Oct 16 · 7:30 PM · Harkins North (Harkins)",
+  );
   await expect(alpha.getByText("Harkins 1 theater")).toHaveCount(0);
 
   await filter.getByRole("button", { name: "Close filter" }).click();
@@ -160,6 +228,30 @@ test("one card per movie, distinct theaters by chain, expand showtimes, and shar
 });
 
 test("different IMDb identities with the same title remain separate", async ({ page }) => {
+  await page.route("**/api/movie-availability?*", async (route) => {
+    await route.fulfill({
+      json: {
+        after_date: "2026-10-12",
+        window_end: "2026-10-26",
+        checked_dates: ["2026-10-14"],
+        unavailable_dates: [],
+        movies: {},
+        future_screenings: [
+          screening(
+            "later",
+            "The Return",
+            "tt1111111",
+            "AMC",
+            "AMC Midtown",
+            "2026-10-14T18:00:00",
+            "Standard",
+            0,
+            4,
+          ),
+        ],
+      },
+    });
+  });
   await page.route("**/api/screenings?*", async (route) => {
     await route.fulfill({
       json: {
@@ -195,4 +287,120 @@ test("different IMDb identities with the same title remain separate", async ({ p
   });
   await page.goto("/showtimes");
   await expect(page.getByTestId("showcase-movie")).toHaveCount(2);
+  const cards = page.getByTestId("showcase-movie");
+  await expect(cards.nth(0).getByTestId("last-listed")).toContainText("Oct 14");
+  await expect(cards.nth(1).getByTestId("last-listed")).not.toContainText("Oct 14");
+  await expect(cards.nth(0).getByTestId("showtime-runway")).toContainText("Oct 14");
+  await expect(cards.nth(1).getByTestId("showtime-runway")).toContainText("Oct 12");
+});
+
+test("published schedule runway uses week counts and marks the scan horizon as a lower bound", async ({
+  page,
+}) => {
+  await mockScreenings(page);
+  await page.route("**/api/movie-availability?*", async (route) => {
+    await route.fulfill({
+      json: {
+        after_date: "2026-10-12",
+        window_end: "2026-10-26",
+        checked_dates: ["2026-10-26"],
+        unavailable_dates: [],
+        movies: {},
+        future_screenings: [
+          screening(
+            "a-late",
+            "Alpha",
+            "tt1111111",
+            "AMC",
+            "AMC West",
+            "2026-10-26T18:00:00",
+            "Standard",
+            0,
+            6,
+          ),
+        ],
+      },
+    });
+  });
+  await page.goto("/showtimes");
+  const alpha = page
+    .getByTestId("showcase-movie")
+    .filter({ has: page.getByRole("heading", { name: "Alpha" }) });
+  await expect(alpha.getByTestId("showtime-runway")).toHaveText(
+    "At least 2 weeks of showtimes listed · Oct 26",
+  );
+});
+
+test("partial future schedule shows a lower bound instead of a false end date", async ({
+  page,
+}) => {
+  await mockScreenings(page);
+  await page.route("**/api/movie-availability?*", async (route) => {
+    await route.fulfill({
+      json: {
+        after_date: "2026-10-12",
+        window_end: "2026-10-26",
+        checked_dates: ["2026-10-21"],
+        unavailable_dates: ["2026-10-20"],
+        movies: {},
+        future_screenings: [
+          screening(
+            "a-late",
+            "Alpha",
+            "tt1111111",
+            "AMC",
+            "AMC West",
+            "2026-10-21T18:00:00",
+            "Standard",
+            0,
+            6,
+          ),
+        ],
+      },
+    });
+  });
+  await page.goto("/showtimes");
+  const alpha = page
+    .getByTestId("showcase-movie")
+    .filter({ has: page.getByRole("heading", { name: "Alpha" }) });
+  await expect(alpha.getByTestId("showtime-runway")).toHaveText(
+    "At least 1 week 2 days of showtimes listed · Oct 21",
+  );
+});
+
+test("filter dropdowns stay fully visible near both viewport edges", async ({ page }) => {
+  await mockScreenings(page);
+
+  async function assertVisibleDropdown(label: string): Promise<void> {
+    await page.getByRole("button", { name: `Filter ${label}`, exact: true }).click();
+    const dropdown = page.getByRole("dialog", { name: `${label} filter` });
+    await expect(dropdown.getByRole("button", { name: "None" })).toBeVisible();
+    await expect(dropdown.getByRole("button", { name: "All" })).toBeVisible();
+    const rect = await dropdown.boundingBox();
+    const viewport = page.viewportSize();
+    expect(rect).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    if (!rect || !viewport) throw new Error("Missing dropdown or viewport dimensions");
+    expect(rect.x).toBeGreaterThanOrEqual(0);
+    expect(rect.y).toBeGreaterThanOrEqual(0);
+    expect(rect.x + rect.width).toBeLessThanOrEqual(viewport.width + 1);
+    expect(rect.y + rect.height).toBeLessThanOrEqual(viewport.height + 1);
+    await dropdown.getByRole("button", { name: "Close filter" }).click();
+  }
+
+  // Mobile and intermediate layouts, plus the desktop site mode on a wide phone.
+  for (const width of [375, 760, 1180]) {
+    await page.setViewportSize({ width, height: 650 });
+    await page.goto("/showtimes");
+    await page.getByRole("button", { name: "Toggle screening filters" }).click();
+    for (const label of ["Movie", "Chain", "Format"]) {
+      await assertVisibleDropdown(label);
+    }
+
+    // Close the showcase chips so the table filter has a unique accessible name.
+    await page.getByRole("button", { name: "Toggle screening filters" }).click();
+    // The original table shares this component and should retain safe positioning.
+    await page.getByRole("button", { name: "Table", exact: true }).click();
+    await assertVisibleDropdown("Movie");
+  }
 });

@@ -113,6 +113,7 @@ interface AppState {
   toggleSort: (key: ColumnKey) => void;
   updateFilter: (key: ColumnKey, patch: Partial<ColumnFilter>) => void;
   clearAllFilters: () => void;
+  clearLocationFilters: () => void;
   toggleMovie: (movie: string) => void;
   setMovieSelection: (movies: string[]) => void;
   syncMovieSelection: () => void;
@@ -182,6 +183,20 @@ export const useAppStore = create<AppState>((set) => ({
     }),
 
   clearAllFilters: () => set({ filters: createEmptyFilters() }),
+
+  clearLocationFilters: () =>
+    set((state) => {
+      const empty = createEmptyFilters();
+      return {
+        filters: {
+          ...state.filters,
+          theatre: empty.theatre,
+          distance_miles: empty.distance_miles,
+          leave_home: empty.leave_home,
+          home_arrival: empty.home_arrival,
+        },
+      };
+    }),
 
   toggleMovie: (movie) =>
     set((state) => {

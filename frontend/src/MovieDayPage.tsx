@@ -82,11 +82,12 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
     const movies = new Set<string>();
     const today = browserDate();
     for (const savedPlan of savedPlans) {
+      if (savedPlan.location && savedPlan.location.zip_code !== response?.market_zip) continue;
       if (savedPlan.date < today || savedPlan.date === responseDate) continue;
       for (const movie of savedPlan.itinerary.movies) movies.add(movie);
     }
     return movies;
-  }, [responseDate, savedPlans]);
+  }, [responseDate, response?.market_zip, savedPlans]);
   const availableSelectedMovies = useMemo(() => {
     const showingMovies = new Set(allScreenings.map((screening) => screening.movie));
     return selectedMovies.filter(
@@ -325,7 +326,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
     }
 
     const nextKey = itineraryKey(itinerary);
-    const existing = savedMoviePlanForDate(response.date);
+    const existing = savedMoviePlanForDate(response.date, response.market_zip);
     if (
       existing &&
       itineraryKey(existing.itinerary) !== nextKey &&
@@ -337,6 +338,7 @@ export function MovieDayPage({ onBack, onLocked }: Props) {
     saveMoviePlan({
       date: response.date,
       savedAt: new Date().toISOString(),
+      location: { ...response.location },
       itinerary: structuredClone(itinerary),
       screenings: structuredClone(screenings),
       runtimeOverrides: { ...runtimeOverrides },

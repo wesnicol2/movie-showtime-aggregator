@@ -1,3 +1,4 @@
+import { bootstrapLocationCookies } from "./browser-location";
 import { browserDate } from "./show-date";
 import type {
   MovieAvailabilityResponse,
@@ -9,6 +10,9 @@ import type {
   SharedSettings,
   SharedSettingsChanges,
 } from "./types";
+
+// Apply saved per-browser search/home preferences before the first API request.
+bootstrapLocationCookies();
 
 async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, init);
@@ -151,10 +155,13 @@ export function fetchScreenings(
   return pending;
 }
 
-export function fetchMovieAvailability(afterDate: string): Promise<MovieAvailabilityResponse> {
-  return requestJson<MovieAvailabilityResponse>(
-    `/api/movie-availability?after=${encodeURIComponent(afterDate)}`,
-  );
+export function fetchMovieAvailability(
+  afterDate: string,
+  includeScreenings = false,
+): Promise<MovieAvailabilityResponse> {
+  const params = new URLSearchParams({ after: afterDate });
+  if (includeScreenings) params.set("include_screenings", "1");
+  return requestJson<MovieAvailabilityResponse>(`/api/movie-availability?${params.toString()}`);
 }
 
 export function fetchSharedSettings(): Promise<SharedSettings> {
@@ -272,6 +279,14 @@ function compareMetric(
 ): number {
   if (sortBy === "want") return right.want_score - left.want_score;
   if (sortBy === "driving") return left.travel_minutes - right.travel_minutes;
+  if (sortBy === "home") {
+    // Match the backend: unknown return trips sort after known home arrivals.
+    // With no home configured, both are null and the movie end time is the fallback.
+    if (left.home_at && right.home_at) return left.home_at.localeCompare(right.home_at);
+    if (left.home_at) return -1;
+    if (right.home_at) return 1;
+    return left.ends_at.localeCompare(right.ends_at);
+  }
   return left.elapsed_minutes - right.elapsed_minutes;
 }
 
@@ -281,4 +296,31 @@ export function saveSharedSettings(changes: SharedSettingsChanges): Promise<Shar
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(changes),
   });
+}
+
+export interface NearbyLocation {
+  display_name: string;
+  city: string;
+  zip_code: string | null;
+  latitude: number;
+  longitude: number;
+  search_zip_code: string;
+  radius_miles: number;
+  distance_from_search_miles: number | null;
+}
+
+export interface GeocodedHome {
+  display_name: string;
+  zip_code: string | null;
+  latitude: number;
+  longitude: number;
+}
+
+export function findNearbyLocation(latitude: number, longitude: number): Promise<NearbyLocation> {
+  const query = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude) });
+  return requestJson<NearbyLocation>(`/api/location/nearby?${query}`);
+}
+
+export function geocodeBrowserHome(address: string): Promise<GeocodedHome> {
+  return requestJson<GeocodedHome>(`/api/location/geocode?${new URLSearchParams({ address })}`);
 }

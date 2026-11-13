@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { readBrowserSettings } from "./browser-location";
 import { MovieFilterBar } from "./components/MovieFilterBar";
 import "./movie-controls.css";
 import { MAX_MOVIES_PER_DAY } from "./movie-limits";
@@ -36,6 +37,8 @@ interface Props {
 export function MoviesPage({ onBack, onContinue }: Props) {
   useScreenings();
   const response = useAppStore((state) => state.response);
+  const locationRevision = useAppStore((state) => state.screeningsRevision);
+  const currentZip = readBrowserSettings().location?.zipCode;
   const status = useAppStore((state) => state.status);
   const error = useAppStore((state) => state.error);
   const selectedDate = useAppStore((state) => state.selectedDate);
@@ -49,7 +52,13 @@ export function MoviesPage({ onBack, onContinue }: Props) {
   const [selectedView, setSelectedView] = useState("");
   const [defaultView, setDefaultView] = useState(() => readDefaultSavedView("movies"));
   const defaultAppliedRef = useRef(false);
-  const plans = useMemo(readSavedMoviePlans, []);
+  const plans = useMemo(
+    () =>
+      readSavedMoviePlans().filter(
+        (plan) => !currentZip || !plan.location || plan.location.zip_code === currentZip,
+      ),
+    [currentZip],
+  );
 
   useEffect(() => {
     if (defaultAppliedRef.current) return;
@@ -66,6 +75,11 @@ export function MoviesPage({ onBack, onContinue }: Props) {
     setSortDirection(view.sortDirection);
     setFilters(structuredClone(view.filters));
   }, [defaultView, savedViews]);
+
+  useEffect(() => {
+    if (locationRevision === 0) return;
+    setFilters((previous) => ({ ...previous, theaters: null }));
+  }, [locationRevision]);
 
   const screenings = useMemo(() => response?.screenings ?? [], [response]);
   const allMovies = useMemo(() => buildMovieOptions(screenings), [screenings]);

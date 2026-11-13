@@ -88,6 +88,13 @@ export interface Screening {
   experience_score_adjustment?: number;
 }
 
+// Base future listings have the column fields used by Showtimes filters, but
+// not optional enrichment such as ratings, ticket prices, or home routing.
+export type FutureScreening = Pick<
+  Screening,
+  ColumnKey | "showtime_id" | "imdb_id" | "movie_source_id"
+>;
+
 export interface MovieAvailabilitySummary {
   scheduled_days: number;
   showtime_count: number;
@@ -100,6 +107,7 @@ export interface MovieAvailabilityResponse {
   checked_dates: string[];
   unavailable_dates: string[];
   movies: Record<string, MovieAvailabilitySummary>;
+  future_screenings?: FutureScreening[];
 }
 
 export interface PublicPreferences {
